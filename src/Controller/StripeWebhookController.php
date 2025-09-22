@@ -2,6 +2,7 @@
 
 namespace Drupal\esn_cyprus_pass_validation\Controller;
 
+use Drupal\Core\Datetime\DrupalDateTime;
 use Drupal\Core\Controller\ControllerBase;
 use Drupal\webform\Entity\WebformSubmission;
 use Drupal\webform\WebformSubmissionInterface;
@@ -36,7 +37,7 @@ class StripeWebhookController extends ControllerBase
                     if ($submission) {
                         // Mark submission as Paid.
                         $submission->setElementData('approval_status', 'Paid');
-
+                        $submission->setElementData('date_paid', (new DrupalDateTime())->format('Y-m-d H:i:s'));
 
                         // Assign next available ESNcard number.
                         $this->assign_esncard_number($submission);
