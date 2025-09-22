@@ -29,6 +29,7 @@ class StripeWebhookController extends ControllerBase
             if ($event->type === 'checkout.session.completed') {
                 $session = $event->data->object;
                 $submission_id = $session->metadata->webform_submission_id ?? NULL;
+                $link_id = $session->metadata->payment_link ?? NULL;
 
                 if ($submission_id) {
                     $submission = WebformSubmission::load($submission_id);
@@ -41,7 +42,12 @@ class StripeWebhookController extends ControllerBase
                         $this->assign_esncard_number($submission);
                         //$submission->save();
 
-                        \Drupal::logger('esn_cyprus_pass_validation')->notice('Submission @id marked as Paid and assigned ESNcard number.', ['@id' => $submission_id]);
+                        PaymentLink::update(
+                            $link_id,
+                            ['active' => false]
+                        );
+
+                        Drupal::logger('esn_cyprus_pass_validation')->notice('Submission @id marked as Paid and assigned ESNcard number.', ['@id' => $submission_id]);
                     } else {
                         \Drupal::logger('esn_cyprus_pass_validation')->warning('Submission ID @id from Stripe webhook not found.', ['@id' => $submission_id]);
                     }
