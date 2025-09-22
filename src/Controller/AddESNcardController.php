@@ -12,7 +12,7 @@ class AddESNcardController
     /**
      * @throws Exception
      */
-    public function addESNcard(Request $request)
+    public function addESNcard(Request $request): JsonResponse
     {
         $body = $request->getContent();
         $card_number = $body['card'];
@@ -33,7 +33,7 @@ class AddESNcardController
                         ->execute();
                     return new JsonResponse(['status' => 'success', 'message' => 'The ESNcard was added successfully.'], 200);
 
-                } catch (Exception $e) {
+                } catch (Exception) {
                     return new JsonResponse(['status' => 'error', 'message' => 'There was a problem inserting the card.'], 500);
                 }
             } else {

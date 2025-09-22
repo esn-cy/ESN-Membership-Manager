@@ -7,6 +7,24 @@ esn_cyprus_pass_validation.validate_token:
     _access: 'TRUE'
   methods: [ GET ]
 
+esn_cyprus_pass_validation.scan:
+  path: '/api/esncard/scan'
+  defaults:
+    _controller: '\Drupal\esn_cyprus_pass_validation\Controller\ScanController::scanCard'
+    _title: 'Validate ESN Cyprus Pass token'
+  requirements:
+    _access: 'TRUE'
+  methods: [ POST ]
+
+esn_cyprus_pass_validation.insert_card:
+  path: '/api/esncard/add-card'
+  defaults:
+    _controller: '\Drupal\esn_cyprus_pass_validation\Controller\AddESNcardController::addESNcard'
+    _title: 'Add ESNcard'
+    requirements:
+      _access: 'TRUE'
+    methods: [ PUT ]
+
 esn_cyprus_pass_validation.stripe_webhook:
   path: '/stripe/webhook'
   defaults:
@@ -14,15 +32,6 @@ esn_cyprus_pass_validation.stripe_webhook:
   requirements:
     _access: 'TRUE'
   methods: [ POST ]
-
-esn_cyprus_pass_validation.insert_card:
-  path: '/admin/esncard/add-card'
-  defaults:
-    _controller: '\Drupal\esn_cyprus_pass_validation\Controller\AddESNcardController::addESNcard'
-    _title: 'Add ESNcard'
-    requirements:
-      _access: 'TRUE'
-    methods: [ PUT ]
 
 esn_cyprus_pass_validation.bulk_insert:
   path: '/admin/esncard/bulk-insert'
