@@ -3,15 +3,13 @@
 namespace Drupal\esn_cyprus_pass_validation\Controller;
 
 use Drupal;
+use Drupal\Core\Controller\ControllerBase;
 use Exception;
 use Symfony\Component\HttpFoundation\JsonResponse;
 use Symfony\Component\HttpFoundation\Request;
 
-class AddESNcardController
+class AddESNcardController extends ControllerBase
 {
-    /**
-     * @throws Exception
-     */
     public function addESNcard(Request $request): JsonResponse
     {
         $body = $request->getContent();
@@ -19,7 +17,11 @@ class AddESNcardController
 
         $query = Drupal::database()->select('esncard_numbers', 'e');
         $query->addExpression('MAX(sequence)', 'max_seq');
-        $max_sequence = (int)$query->execute()->fetchField();
+        try {
+            $max_sequence = (int)$query->execute()->fetchField();
+        } catch (Exception) {
+            return new JsonResponse(['status' => 'error', 'message' => 'There was a problem inserting the card.'], 500);
+        }
 
         if (!empty($card_number)) {
             if (preg_match("/\d\d\d\d\d\d\d[A-Z][A-Z][A-Z][A-Z0-9]/", $card_number) == 1) {

@@ -3,12 +3,13 @@
 namespace Drupal\esn_cyprus_pass_validation\Controller;
 
 use Drupal;
+use Drupal\Core\Controller\ControllerBase;
 use Drupal\Core\Datetime\DrupalDateTime;
 use Drupal\webform\Entity\WebformSubmission;
 use Symfony\Component\HttpFoundation\JsonResponse;
 use Symfony\Component\HttpFoundation\Request;
 
-class ScanController
+class ScanController extends ControllerBase
 {
     public function scanCard(Request $request): JsonResponse
     {

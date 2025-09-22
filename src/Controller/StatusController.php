@@ -3,6 +3,7 @@
 namespace Drupal\esn_cyprus_pass_validation\Controller;
 
 use Drupal;
+use Drupal\Core\Controller\ControllerBase;
 use Drupal\Core\Entity\EntityStorageException;
 use Drupal\webform\Entity\WebformSubmission;
 use Symfony\Component\HttpFoundation\JsonResponse;
@@ -18,7 +19,7 @@ enum Status: string
     case Delivered = 'Delivered';
 }
 
-class StatusController
+class StatusController extends ControllerBase
 {
     public function changeStatus(Request $request): JsonResponse
     {

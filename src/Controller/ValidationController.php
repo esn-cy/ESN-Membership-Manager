@@ -9,7 +9,7 @@ use Symfony\Component\HttpFoundation\JsonResponse;
 
 class ValidationController extends ControllerBase
 {
-    public function validateToken($user_token)
+    public function validateToken($user_token): JsonResponse
     {
         $webform_id = 'esn_cyprus_pass';
 
