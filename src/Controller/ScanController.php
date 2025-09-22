@@ -5,6 +5,7 @@ namespace Drupal\esn_cyprus_pass_validation\Controller;
 use Drupal;
 use Drupal\Core\Controller\ControllerBase;
 use Drupal\Core\Datetime\DrupalDateTime;
+use Drupal\Core\Entity\EntityStorageException;
 use Drupal\webform\Entity\WebformSubmission;
 use Symfony\Component\HttpFoundation\JsonResponse;
 use Symfony\Component\HttpFoundation\Request;
@@ -42,7 +43,7 @@ class ScanController extends ControllerBase
         foreach ($sids as $sid) {
             $submission = WebformSubmission::load($sid);
             $data = $submission->getData();
-            if($is_esncard) {
+            if ($is_esncard) {
                 if (!empty($data['esncard_number']) && $data['esncard_number'] === $card_number) {
                     $found_submission = $submission;
                     break;
@@ -60,15 +61,22 @@ class ScanController extends ControllerBase
         }
 
         $data = $found_submission->getData();
+        $last_scan_date = $data['last_scan_date'];
+        try {
+            $data['last_scan_date'] = (new DrupalDateTime())->format('Y-m-d H:i:s');
+            $found_submission->setData($data);
+            $found_submission->save();
+        } catch (EntityStorageException) {
+            return new JsonResponse(['status' => 'error', 'message' => 'Unable to update last scan date.'], 500);
+        }
 
         return new JsonResponse([
             'name' => $data['name'],
             'surname' => $data['surname'],
             'nationality' => $data['country_origin'], //TODO Change to Nationality field once available
             'paidDate' => (new DrupalDateTime($data['date_paid']))->format('Y-m-d'),
-            'lastScanDate' => (new DrupalDateTime($data['last_scan_date']))->format('Y-m-d'),
+            'lastScanDate' => (new DrupalDateTime($last_scan_date))->format('Y-m-d'),
             'profileImageURL' => $data['profile_image_esncard'],
         ], 200);
-
     }
 }

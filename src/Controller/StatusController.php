@@ -35,7 +35,7 @@ class StatusController extends ControllerBase
             return new JsonResponse(['status' => 'error', 'message' => 'No status was provided.'], 400);
         }
 
-        if(Status::tryFrom($status) == null) {
+        if (Status::tryFrom($status) == null) {
             return new JsonResponse(['status' => 'error', 'message' => 'An invalid status was provided.'], 400);
         }
 
