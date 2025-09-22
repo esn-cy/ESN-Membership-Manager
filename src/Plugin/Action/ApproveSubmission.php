@@ -135,7 +135,20 @@ class ApproveSubmission extends ActionBase
                     'quantity' => 1,
                 ],
             ],
-            // Optional: add metadata to link payment to user or submission.
+            'payment_method_types' => [
+                'card',
+                'cartes_bancaires',
+                'apple_pay',
+                'google_pay',
+                'paypal',
+                'revolut_pay',
+                'amazon_pay',
+                'bancontact',
+                'blik',
+                'eps',
+                'ideal',
+                'link'
+            ],
             'metadata' => [
                 'webform_submission_id' => $entity->id(),
             ],
