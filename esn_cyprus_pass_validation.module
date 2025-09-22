@@ -5,37 +5,38 @@ use Drupal\Core\Form\FormStateInterface;
 /**
  * Implements hook_webform_element_alter().
  */
-function esn_cyprus_pass_validation_webform_element_alter(array &$element, FormStateInterface $form_state, array $context) {
+function esn_cyprus_pass_webform_element_alter(array &$element, FormStateInterface $form_state, array $context)
+{
 
-  $webform_id = $element['#webform_id'] ?? NULL;
-  $element_key = $element['#webform_key'] ?? NULL;
+    $webform_id = $element['#webform_id'] ?? NULL;
+    $element_key = $element['#webform_key'] ?? NULL;
 
-  if ($webform_id && strpos($webform_id, 'esn_cyprus_pass') === 0 && $element_key === 'choices') {
+    if ($webform_id && strpos($webform_id, 'esn_cyprus_pass') === 0 && $element_key === 'choices') {
 
-    // Count available ESNcards
-    $connection = \Drupal::database();
-    $query = $connection->select('esncard_numbers', 'e');
-    $query->addExpression('COUNT(*)', 'count');
-    $query->condition('assigned', 0);
-    $count = $query->execute()->fetchField();
+        // Count available ESNcards
+        $connection = \Drupal::database();
+        $query = $connection->select('esncard_numbers', 'e');
+        $query->addExpression('COUNT(*)', 'count');
+        $query->condition('assigned', 0);
+        $count = $query->execute()->fetchField();
 
-    \Drupal::logger('esn_cyprus_pass')->notice('Available ESNcards count: @count', ['@count' => $count]);
+        \Drupal::logger('esn_cyprus_pass')->notice('Available ESNcards count: @count', ['@count' => $count]);
 
-    if ($count == 0) {
-      // Disable the ESNcard option directly in options__properties
-      if (!isset($element['#options__properties'])) {
-        $element['#options__properties'] = [];
-      }
-      $element['#options__properties']['ESNcard']['#disabled'] = TRUE;
+        if ($count == 0) {
+            // Disable the ESNcard option directly in options__properties
+            if (!isset($element['#options__properties'])) {
+                $element['#options__properties'] = [];
+            }
+            $element['#options__properties']['ESNcard']['#disabled'] = TRUE;
 
-      // Add a small warning message
-      if (!isset($element['#description'])) {
-        $element['#description'] = '';
-      }
-      $element['#description'] .= '<div class="esncard-unavailable" style="color:red; font-size:0.9em; margin-top:4px;">No more ESNcards available at the moment</div>';
+            // Add a small warning message
+            if (!isset($element['#description'])) {
+                $element['#description'] = '';
+            }
+            $element['#description'] .= '<div class="esncard-unavailable" style="color:red; font-size:0.9em; margin-top:4px;">No more ESNcards available at the moment</div>';
 
-      \Drupal::logger('esn_cyprus_pass')->notice('ESNcard option disabled successfully.');
+            \Drupal::logger('esn_cyprus_pass')->notice('ESNcard option disabled successfully.');
+        }
     }
-  }
 }
 

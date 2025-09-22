@@ -28,64 +28,39 @@ class ApproveSubmission extends ActionBase
     public function execute($entity = NULL)
     {
         if ($entity instanceof WebformSubmissionInterface) {
+            // Mark submission as approved.
+            $entity->setElementData('approval_status', 'Approved');
+            $entity->setElementData('pass_is_enabled', 1);
 
-            // Load submission data.
-            $data = $entity->getData();
+            // Load Stripe secret key.
 
-            // Check if ESNcard option was selected.
-            if (!empty($data['choices']) && in_array('ESNcard', $data['choices'])) {
-                // Query DB for available ESNcards.
-                $connection = \Drupal::database();
-                $query = $connection->select('esncard_numbers', 'e');
-                $query->addExpression('COUNT(*)', 'count');
-                $query->condition('assigned', 0);
-                $count = $query->execute()->fetchField();
+            $stripeSecretKey = \Drupal::service('settings')->get('stripe.settings')['secret_key'];
 
-                if ($count == 0) {
-                    // No ESNcards available → block approval.
-                    \Drupal::logger('esn_cyprus_pass_validation')->warning(
-                        'Submission @id requested ESNcard but none are available.',
-                        ['@id' => $entity->id()]
-                    );
-                    return; // Exit without approving or creating payment link.
+            if (empty($stripeSecretKey)) {
+                \Drupal::logger('esn_cyprus_pass_validation')->error('Stripe secret key not set in settings.php.');
+                return;
+            }
+
+            // Initialize Stripe client.
+            Stripe::setApiKey($stripeSecretKey);
+
+            try {
+                // Create the payment link on Stripe.
+                $paymentLink = $this->createStripePaymentLink($entity);
+
+                if ($paymentLink) {
+                    // Save payment link URL in the submission field 'payment_link'.
+                    $entity->setElementData('payment_link', $paymentLink);
+                    $entity->save();
+
+                    \Drupal::logger('esn_cyprus_pass_validation')->notice('Approved submission @id and created payment link.', ['@id' => $entity->id()]);
+                } else {
+                    \Drupal::logger('esn_cyprus_pass_validation')->error('Failed to create payment link for submission @id.', ['@id' => $entity->id()]);
                 }
-
-
-                // Load Stripe secret key.
-
-                $stripeSecretKey = \Drupal::service('settings')->get('stripe.settings')['secret_key'];
-
-                if (empty($stripeSecretKey)) {
-                    \Drupal::logger('esn_cyprus_pass_validation')->error('Stripe secret key not set in settings.php.');
-                    return;
-                }
-
-                // Initialize Stripe client.
-                Stripe::setApiKey($stripeSecretKey);
-
-                try {
-                    // Create the payment link on Stripe.
-                    $paymentLink = $this->createStripePaymentLink($entity);
-
-                    if ($paymentLink) {
-                        // Save payment link URL in the submission field 'payment_link'.
-                        $entity->setElementData('payment_link', $paymentLink);
-
-                        \Drupal::logger('esn_cyprus_pass_validation')->notice('Approved submission @id and created payment link.', ['@id' => $entity->id()]);
-                    } else {
-                        \Drupal::logger('esn_cyprus_pass_validation')->error('Failed to create payment link for submission @id.', ['@id' => $entity->id()]);
-                    }
-                } catch (Exception $e) {
-                    \Drupal::logger('esn_cyprus_pass_validation')->error('Stripe API error for submission @id: @message', ['@id' => $entity->id(), '@message' => $e->getMessage()]);
-                }
+            } catch (Exception $e) {
+                \Drupal::logger('esn_cyprus_pass_validation')->error('Stripe API error for submission @id: @message', ['@id' => $entity->id(), '@message' => $e->getMessage()]);
             }
         }
-        // Mark submission as approved.
-        $entity->setElementData('approval_status', 'Approved');
-        $entity->setElementData('pass_is_enabled', 1);
-
-        $entity->save();
-
     }
 
     /**

@@ -5,7 +5,7 @@ esn_cyprus_pass_validation.validate_token:
     _title: 'Validate ESN Cyprus Pass token'
   requirements:
     _access: 'TRUE'
-  methods: [GET]
+  methods: [ GET ]
 
 esn_cyprus_pass_validation.stripe_webhook:
   path: '/stripe/webhook'
@@ -13,7 +13,7 @@ esn_cyprus_pass_validation.stripe_webhook:
     _controller: '\Drupal\esn_cyprus_pass_validation\Controller\StripeWebhookController::handleWebhook'
   requirements:
     _access: 'TRUE'
-  methods: [POST]
+  methods: [ POST ]
 
 
 esn_cyprus_pass_validation.bulk_insert:
