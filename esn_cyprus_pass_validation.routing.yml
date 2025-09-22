@@ -15,6 +15,14 @@ esn_cyprus_pass_validation.stripe_webhook:
     _access: 'TRUE'
   methods: [ POST ]
 
+esn_cyprus_pass_validation.insert_card:
+  path: '/admin/esncard/add-card'
+  defaults:
+    _controller: '\Drupal\esn_cyprus_pass_validation\Controller\AddESNcardController::addESNcard'
+    _title: 'Add ESNcard'
+    requirements:
+      _access: 'TRUE'
+    methods: [ PUT ]
 
 esn_cyprus_pass_validation.bulk_insert:
   path: '/admin/esncard/bulk-insert'
