@@ -99,41 +99,19 @@ class ApproveSubmission extends ActionBase
      */
     protected function createStripePaymentLink(WebformSubmissionInterface $entity)
     {
-        // Customize your price or product info here.
-        // Example: fixed product price $20.00 USD
+        $esnCardPriceID = 'price_1S8fkZHMzuv3hHfWqPB32nlF';
+        $processingFeePriceID = 'price_1S8fmvHMzuv3hHfWbTb3u97B';
 
-        $unitAmount = 1600; // in cents
-        $currency = 'eur';
-
-        // Create a Price object on Stripe (you may want to create once and reuse)
-        $price = \Stripe\Price::create([
-            'unit_amount' => $unitAmount,
-            'currency' => $currency,
-            'product_data' => [
-                'name' => 'ESNcard',
-            ],
-        ]);
-
-
-        $webform_id = $entity->getWebform()->id();
-
-        $url = \Drupal::service('url_generator')->generateFromRoute(
-            'entity.webform_submission.canonical',
-            [
-                'webform' => $webform_id,
-                'webform_submission' => $entity->id(),
-            ],
-            ['absolute' => TRUE]
-        );
-
-
-        // Create the payment link with the price
         $paymentLink = PaymentLink::create([
             'line_items' => [
                 [
-                    'price' => $price->id,
+                    'price' => $esnCardPriceID,
                     'quantity' => 1,
                 ],
+                [
+                    'price' => $processingFeePriceID,
+                    'quantity' => 1,
+                ]
             ],
             'payment_method_types' => [
                 'card',
@@ -150,15 +128,8 @@ class ApproveSubmission extends ActionBase
                 'link'
             ],
             'metadata' => [
-                'webform_submission_id' => $entity->id(),
-            ],
-            // Optional: customize success and cancel URLs
-            /*      'after_completion' => [
-              'type' => 'redirect',
-              'redirect' => [
-                'url' => $url,
-
-              ],],*/
+                'webform_submission_id' => (string) $entity->id(),
+            ]
         ]);
 
         return $paymentLink->url ?? null;
