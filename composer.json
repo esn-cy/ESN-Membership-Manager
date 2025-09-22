@@ -1,0 +1,21 @@
+{
+  "require": {
+    "stripe/stripe-php": "^17.6",
+    "drupal/core": "^10",
+    "drupal/webform": "^6.2"
+  },
+  "config": {
+    "allow-plugins": {
+      "composer/installers": true,
+      "drupal/core-vendor-hardening": true,
+      "drupal/core-recipe-unpack": true,
+      "drupal/core-project-message": true
+    }
+  },
+  "repositories": {
+    "drupal": {
+      "type": "composer",
+      "url": "https://packages.drupal.org/8"
+    }
+  }
+}
