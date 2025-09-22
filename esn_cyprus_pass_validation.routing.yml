@@ -25,6 +25,15 @@ esn_cyprus_pass_validation.insert_card:
       _access: 'TRUE'
     methods: [ PUT ]
 
+esn_cyprus_pass_validation.status:
+  path: '/api/esncard/status'
+  defaults:
+    _controller: '\Drupal\esn_cyprus_pass_validation\Controller\StatusController::changeStatus'
+    _title: 'Change the status of an ESNcard'
+  requirements:
+    _access: 'TRUE'
+  methods: [ POST ]
+
 esn_cyprus_pass_validation.stripe_webhook:
   path: '/stripe/webhook'
   defaults:

@@ -52,7 +52,6 @@ class ScanController
                     break;
                 }
             }
-
         }
 
         if (!$found_submission) {
