@@ -1,0 +1,5 @@
+access custom form:
+  title: 'Access Custom Form'
+  description: 'Allow users to access the custom form page'
+  restrict access: false
+

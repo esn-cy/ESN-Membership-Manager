@@ -1,0 +1,27 @@
+esn_cyprus_pass_validation.validate_token:
+  path: '/api/validate-token/{user_token}'
+  defaults:
+    _controller: '\Drupal\esn_cyprus_pass_validation\Controller\ValidationController::validateToken'
+    _title: 'Validate ESN Cyprus Pass token'
+  requirements:
+    _access: 'TRUE'
+  methods: [GET]
+
+esn_cyprus_pass_validation.stripe_webhook:
+  path: '/stripe/webhook'
+  defaults:
+    _controller: '\Drupal\esn_cyprus_pass_validation\Controller\StripeWebhookController::handleWebhook'
+  requirements:
+    _access: 'TRUE'
+  methods: [POST]
+
+
+esn_cyprus_pass_validation.bulk_insert:
+  path: '/admin/esncard/bulk-insert'
+  defaults:
+    _form: '\Drupal\esn_cyprus_pass_validation\Form\EsncardManageForm'
+    _title: 'Bulk Insert ESNcards'
+  requirements:
+    _permission: 'access custom form'
+  options:
+    _admin_route: FALSE

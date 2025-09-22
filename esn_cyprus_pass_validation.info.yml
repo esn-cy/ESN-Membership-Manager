@@ -1,0 +1,8 @@
+name: 'ESN Cyprus Pass Validation'
+type: module
+description: 'Provides a public API endpoint to validate ESN Cyprus Pass user tokens from webform submissions.'
+core_version_requirement: ^8 ||  ^9 || ^10
+package: Custom
+dependencies:
+  - webform:webform
+  - drupal:views_bulk_operations
