@@ -2,27 +2,62 @@
 
 namespace Drupal\esn_cyprus_pass_validation\Controller;
 
-use Drupal\Core\Datetime\DrupalDateTime;
+use Drupal\Core\Config\ConfigFactoryInterface;
 use Drupal\Core\Controller\ControllerBase;
+use Drupal\Core\Database\Connection;
+use Drupal\Core\Datetime\DrupalDateTime;
+use Drupal\Core\Entity\EntityStorageException;
+use Drupal\Core\Logger\LoggerChannelFactoryInterface;
+use Drupal\Core\Logger\LoggerChannelInterface;
 use Drupal\webform\Entity\WebformSubmission;
 use Drupal\webform\WebformSubmissionInterface;
+use Exception;
+use Stripe\PaymentLink;
 use Stripe\Stripe;
 use Stripe\Webhook;
+use Symfony\Component\DependencyInjection\ContainerInterface;
 use Symfony\Component\HttpFoundation\Request;
 use Symfony\Component\HttpFoundation\Response;
 
 class StripeWebhookController extends ControllerBase
 {
+    protected $configFactory;
+    protected Connection $database;
+    protected LoggerChannelInterface $logger;
 
-    public function handleWebhook(Request $request)
+    public function __construct(ConfigFactoryInterface $config_factory, Connection $database, LoggerChannelFactoryInterface $logger_factory)
+    {
+        $this->configFactory = $config_factory;
+        $this->database = $database;
+        $this->logger = $logger_factory->get('esn_cyprus_pass_validation');
+    }
+
+    public static function create(ContainerInterface $container): StripeWebhookController|static
+    {
+        /** @var ConfigFactoryInterface $configFactory */
+        $configFactory = $container->get('config.factory');
+
+        /** @var Connection $database */
+        $database = $container->get('database');
+
+        /** @var LoggerChannelFactoryInterface $loggerFactory */
+        $loggerFactory = $container->get('logger.factory');
+
+        return new static(
+            $configFactory,
+            $database,
+            $loggerFactory
+        );
+    }
+
+    public function handleWebhook(Request $request): Response
     {
         $payload = $request->getContent();
         $sig_header = $request->headers->get('Stripe-Signature');
 
-        // Get your webhook secret from config or settings.php
-        $endpoint_secret = \Drupal::config('stripe.settings')->get('webhook_secret');
-
-        Stripe::setApiKey(\Drupal::config('stripe.settings')->get('secret_key'));
+        $stripe_settings = $this->configFactory->get('stripe.settings');
+        $endpoint_secret = $stripe_settings->get('webhook_secret');
+        Stripe::setApiKey($stripe_settings->get('secret_key'));
 
         try {
             $event = Webhook::constructEvent($payload, $sig_header, $endpoint_secret);
@@ -39,66 +74,80 @@ class StripeWebhookController extends ControllerBase
                         $submission->setElementData('approval_status', 'Paid');
                         $submission->setElementData('date_paid', (new DrupalDateTime())->format('Y-m-d H:i:s'));
 
-                        // Assign next available ESNcard number.
                         $this->assign_esncard_number($submission);
-                        //$submission->save();
 
-                        PaymentLink::update(
-                            $link_id,
-                            ['active' => false]
-                        );
+                        try {
+                            PaymentLink::update(
+                                $link_id,
+                                ['active' => false]
+                            );
+                        } catch (Exception $e) {
+                            $this->logger->error(
+                                'Submission @id processed, but failed to deactivate Stripe Payment Link @link_id: @message',
+                                [
+                                    '@id' => $submission_id,
+                                    '@link_id' => $link_id,
+                                    '@message' => $e->getMessage()
+                                ]
+                            );
+                        }
 
-                        Drupal::logger('esn_cyprus_pass_validation')->notice('Submission @id marked as Paid and assigned ESNcard number.', ['@id' => $submission_id]);
+                        $this->logger->notice('Submission @id marked as Paid and assigned ESNcard number.', ['@id' => $submission_id]);
                     } else {
-                        \Drupal::logger('esn_cyprus_pass_validation')->warning('Submission ID @id from Stripe webhook not found.', ['@id' => $submission_id]);
+                        $this->logger->warning('Submission ID @id from Stripe webhook not found.', ['@id' => $submission_id]);
                     }
                 } else {
-                    \Drupal::logger('esn_cyprus_pass_validation')->warning('No webform_submission_id metadata in Stripe session.');
+                    $this->logger->warning('No webform_submission_id metadata in Stripe session.');
                 }
             }
 
             return new Response('Webhook handled', 200);
-        } catch (\Exception $e) {
-            \Drupal::logger('esn_cyprus_pass_validation')->error('Stripe webhook error: @message', ['@message' => $e->getMessage()]);
+        } catch (Exception $e) {
+            $this->logger->error('Stripe webhook error: @message', ['@message' => $e->getMessage()]);
             return new Response('Webhook error', 400);
         }
     }
 
     /**
      * Assigns the next available ESNcard number to a submission.
+     * @throws EntityStorageException
      */
-    private function assign_esncard_number(WebformSubmissionInterface $submission)
+    private function assign_esncard_number(WebformSubmissionInterface $submission): void
     {
-        $database = \Drupal::database();
+        $transaction = $this->database->startTransaction();
 
-        // Fetch the next available ESNcard number by sequence.
-        $next_number = $database->select('esncard_numbers', 'e')
-            ->fields('e', ['number'])
-            ->condition('assigned', 0)
-            ->orderBy('sequence', 'ASC') // Make sure you have a sequence column in your table
-            ->range(0, 1)
-            ->execute()
-            ->fetchField();
+        try {
+            $query = $this->database->select('esncard_numbers', 'e')
+                ->fields('e', ['number'])
+                ->condition('assigned', 0)
+                ->orderBy('sequence')
+                ->range(0, 1)
+                ->forUpdate();
 
-        if ($next_number) {
-            // Assign ESNcard number to the submission.
-            $submission->setElementData('esncard_number', $next_number);
-            $submission->save();
+            /** @noinspection PhpPossiblePolymorphicInvocationInspection */
+            $next_number = $query->execute()->fetchField();
 
-            // Mark the number as used in the table.
-            $database->update('esncard_numbers')
-                ->fields(['assigned' => 1])
-                ->condition('number', $next_number)
-                ->execute();
+            if ($next_number) {
+                $this->database->update('esncard_numbers')
+                    ->fields(['assigned' => 1])
+                    ->condition('number', $next_number)
+                    ->execute();
 
-            \Drupal::logger('esn_cyprus_pass_validation')->notice('Assigned ESNcard number @num to submission @id.', [
-                '@num' => $next_number,
-                '@id' => $submission->id(),
-            ]);
-        } else {
-            \Drupal::logger('esn_cyprus_pass_validation')->warning('No available ESNcard numbers left to assign.');
+                $submission->setElementData('esncard_number', $next_number);
+                $submission->save();
+
+                $this->logger->notice('Assigned ESNcard number @num to submission @id.', [
+                    '@num' => $next_number,
+                    '@id' => $submission->id(),
+                ]);
+            } else {
+                $this->logger->warning('No available ESNcard numbers left to assign.');
+            }
+        } catch (Exception $e) {
+            $transaction->rollBack();
+            $this->logger->error('Failed to assign ESNcard number: @message', ['@message' => $e->getMessage()]);
+            throw $e;
         }
     }
-
 }
 
