@@ -13,36 +13,45 @@ class AddESNcardController extends ControllerBase
     public function addESNcard(Request $request): JsonResponse
     {
         $body = $request->getContent();
-        $card_number = $body['card'];
+        $card_number = $body['card'] ?? null;
 
-        $query = Drupal::database()->select('esncard_numbers', 'e');
-        $query->addExpression('MAX(sequence)', 'max_seq');
-        try {
-            $max_sequence = (int)$query->execute()->fetchField();
-        } catch (Exception) {
-            return new JsonResponse(['status' => 'error', 'message' => 'There was a problem inserting the card.'], 500);
+        if (empty($card_number)) {
+            return new JsonResponse(['status' => 'error', 'message' => 'No ESNcard number was provided.'], 400);
         }
 
-        if (!empty($card_number)) {
-            if (preg_match("/\d\d\d\d\d\d\d[A-Z][A-Z][A-Z][A-Z0-9]/", $card_number) == 1) {
-                try {
-                    Drupal::database()->insert('esncard_numbers')
-                        ->fields([
-                            'number' => $card_number,
-                            'sequence' => $max_sequence + 1,
-                            'assigned' => 0,
-                        ])
-                        ->execute();
-                    return new JsonResponse(['status' => 'success', 'message' => 'The ESNcard was added successfully.'], 200);
+        if (preg_match("/\d\d\d\d\d\d\d[A-Z][A-Z][A-Z][A-Z0-9]/", $card_number) != 1) {
+            return new JsonResponse(['status' => 'error', 'message' => 'Invalid ESNcard number was provided.'], 400);
+        }
 
-                } catch (Exception) {
-                    return new JsonResponse(['status' => 'error', 'message' => 'There was a problem inserting the card.'], 500);
-                }
-            } else {
-                return new JsonResponse(['status' => 'error', 'message' => 'Invalid ESNcard number was provided.'], 400);
+        $connection = Drupal::database();
+
+        try {
+            $query = $connection->select('esncard_numbers', 'e');
+            $query->condition('e.number', $card_number);
+            $exists = $query->countQuery()->execute()->fetchField() > 0;
+
+            if ($exists) {
+                return new JsonResponse(['status' => 'error', 'message' => 'This ESNcard number already exists.'], 409);
             }
-        } else {
-            return new JsonResponse(['status' => 'error', 'message' => 'No ESNcard number was provided.'], 400);
+        } catch (Exception) {
+            return new JsonResponse(['status' => 'error', 'message' => 'There was a problem checking the card.'], 500);
+        }
+
+        try {
+            $query = $connection->select('esncard_numbers', 'e');
+            $query->addExpression('MAX(sequence)', 'max_seq');
+            $max_sequence = (int)$query->execute()->fetchField();
+
+            $connection->insert('esncard_numbers')
+                ->fields([
+                    'number' => $card_number,
+                    'sequence' => $max_sequence + 1,
+                    'assigned' => 0,
+                ])
+                ->execute();
+            return new JsonResponse(['status' => 'success', 'message' => 'The ESNcard was added successfully.'], 200);
+        } catch (Exception) {
+            return new JsonResponse(['status' => 'error', 'message' => 'There was a problem inserting the card.'], 500);
         }
     }
 }
