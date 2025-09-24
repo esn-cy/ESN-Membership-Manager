@@ -5,9 +5,11 @@ namespace Drupal\esn_cyprus_pass_validation\Controller;
 use Drupal\Component\Plugin\Exception\InvalidPluginDefinitionException;
 use Drupal\Component\Plugin\Exception\PluginNotFoundException;
 use Drupal\Core\Controller\ControllerBase;
+use Drupal\Core\Database\Connection;
 use Drupal\Core\Entity\EntityStorageException;
 use Drupal\Core\Entity\EntityTypeManagerInterface;
 use Drupal\webform\WebformSubmissionInterface;
+use Exception;
 use Symfony\Component\DependencyInjection\ContainerInterface;
 use Symfony\Component\HttpFoundation\JsonResponse;
 use Symfony\Component\HttpFoundation\Request;
@@ -24,16 +26,13 @@ enum Status: string
 
 class StatusController extends ControllerBase
 {
-    /**
-     * The entity type manager.
-     *
-     * @var EntityTypeManagerInterface
-     */
     protected $entityTypeManager;
+    protected Connection $database;
 
-    public function __construct(EntityTypeManagerInterface $entity_type_manager)
+    public function __construct(EntityTypeManagerInterface $entity_type_manager, Connection $database)
     {
         $this->entityTypeManager = $entity_type_manager;
+        $this->database = $database;
     }
 
     public static function create(ContainerInterface $container): self
@@ -41,8 +40,12 @@ class StatusController extends ControllerBase
         /** @var EntityTypeManagerInterface $entity_type_manager */
         $entity_type_manager = $container->get('entity_type.manager');
 
+        /** @var Connection $database */
+        $database = $container->get('database');
+
         return new static(
-            $entity_type_manager
+            $entity_type_manager,
+            $database
         );
     }
 
@@ -74,21 +77,26 @@ class StatusController extends ControllerBase
             return new JsonResponse(['status' => 'error', 'message' => 'Webform module was unavailable.'], 500);
         }
 
-        $query = $storage
-            ->getQuery()
-            ->accessCheck(FALSE)
-            ->condition('webform_id', 'esn_cyprus_pass')
-            ->condition('elements.esncard_number.value', $card_number);
+        try {
+            $query = $this->database->select('webform_submission', 'ws');
+            $query->join('webform_submission_data', 'wsd', 'ws.sid = wsd.sid');
+            $query->fields('ws', ['sid']);
+            $query->condition('ws.webform_id', 'esn_cyprus_pass');
+            $query->condition('wsd.name', 'esncard_number');
+            $query->condition('wsd.value', $card_number);
 
-        $sids = $query->execute();
+            $query->range(0, 1);
+            $sid = $query->execute()->fetchField();
+        } catch (Exception) {
+            return new JsonResponse(['status' => 'error', 'message' => 'There was a problem getting the card.'], 500);
+        }
 
-        if (empty($sids)) {
+        if (empty($sid)) {
             return new JsonResponse(['status' => 'error', 'message' => 'Card not found.'], 500);
         }
 
-        $submission_id = reset($sids);
         /** @var WebformSubmissionInterface $submission */
-        $submission = $storage->load($submission_id);
+        $submission = $storage->load($sid);
 
         $submission->setElementData('approval_status', $status);
         try {

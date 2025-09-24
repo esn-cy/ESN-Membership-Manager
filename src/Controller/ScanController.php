@@ -5,8 +5,12 @@ namespace Drupal\esn_cyprus_pass_validation\Controller;
 use Drupal\Component\Plugin\Exception\InvalidPluginDefinitionException;
 use Drupal\Component\Plugin\Exception\PluginNotFoundException;
 use Drupal\Core\Controller\ControllerBase;
+use Drupal\Core\Database\Connection;
 use Drupal\Core\Datetime\DrupalDateTime;
 use Drupal\Core\Entity\EntityTypeManagerInterface;
+use Drupal\Core\Logger\LoggerChannelFactoryInterface;
+use Drupal\Core\Logger\LoggerChannelInterface;
+use Drupal\file\FileInterface;
 use Drupal\webform\WebformSubmissionInterface;
 use Exception;
 use Symfony\Component\DependencyInjection\ContainerInterface;
@@ -15,16 +19,15 @@ use Symfony\Component\HttpFoundation\Request;
 
 class ScanController extends ControllerBase
 {
-    /**
-     * The entity type manager.
-     *
-     * @var EntityTypeManagerInterface
-     */
     protected $entityTypeManager;
+    protected Connection $database;
+    protected LoggerChannelInterface $logger;
 
-    public function __construct(EntityTypeManagerInterface $entity_type_manager)
+    public function __construct(EntityTypeManagerInterface $entity_type_manager, Connection $database, LoggerChannelFactoryInterface $logger_factory)
     {
         $this->entityTypeManager = $entity_type_manager;
+        $this->database = $database;
+        $this->logger = $logger_factory->get('esn_cyprus_pass_validation');
     }
 
     public static function create(ContainerInterface $container): self
@@ -32,8 +35,16 @@ class ScanController extends ControllerBase
         /** @var EntityTypeManagerInterface $entity_type_manager */
         $entity_type_manager = $container->get('entity_type.manager');
 
+        /** @var Connection $database */
+        $database = $container->get('database');
+
+        /** @var LoggerChannelFactoryInterface $loggerFactory */
+        $loggerFactory = $container->get('logger.factory');
+
         return new static(
-            $entity_type_manager
+            $entity_type_manager,
+            $database,
+            $loggerFactory
         );
     }
 
@@ -59,28 +70,50 @@ class ScanController extends ControllerBase
             return new JsonResponse(['status' => 'error', 'message' => 'Webform module was unavailable.'], 500);
         }
 
-        $query = $storage
-            ->getQuery()
-            ->accessCheck(FALSE)
-            ->condition('webform_id', 'esn_cyprus_pass');
+        try {
+            $query = $this->database->select('webform_submission', 'ws');
+            $query->join('webform_submission_data', 'wsd', 'ws.sid = wsd.sid');
+            $query->fields('ws', ['sid']);
+            $query->condition('ws.webform_id', 'esn_cyprus_pass');
 
-        $orGroup = $query->orConditionGroup()
-            ->condition('elements.esncard_number.value', $card_number)
-            ->condition('elements.user_token.value', $card_number);
+            if ($is_esncard) {
+                $query->condition('wsd.name', 'esncard_number');
+            } else {
+                $query->condition('wsd.name', 'user_token');
+            }
+            $query->condition('wsd.value', $card_number);
 
-        $query->condition($orGroup);
-        $sids = $query->execute();
-
-        if (empty($sids)) {
-            return new JsonResponse(['status' => 'error', 'message' => 'Card not found.'], 404);
+            $query->range(0, 1);
+            $sid = $query->execute()->fetchField();
+        } catch (Exception) {
+            return new JsonResponse(['status' => 'error', 'message' => 'There was a problem getting the card.'], 500);
         }
 
-        $submission_id = reset($sids);
+
+        if (empty($sid) && $is_esncard) {
+            return new JsonResponse(['status' => 'error', 'message' => 'Card not found.'], 404);
+        } else {
+            $sid = str_replace('ESNCYTKNESNCYTKN', '', $card_number);
+        }
+
         /** @var WebformSubmissionInterface $submission */
-        $submission = $storage->load($submission_id);
+        $submission = $storage->load($sid);
         $data = $submission->getData();
 
         $last_scan_date = $data['last_scan_date'] ?? NULL;
+
+        $profile_image_url = NULL;
+        $file_id = $data['profile_image_esncard'] ?? NULL;
+
+        if (!empty($file_id)) {
+            try {
+                /** @var FileInterface $file */
+                $file = $this->entityTypeManager->getStorage('file')->load($file_id);
+                $profile_image_url = $file?->createFileUrl(FALSE);
+            } catch (InvalidPluginDefinitionException|PluginNotFoundException) {
+                $this->logger->warning('File ID @id was unable to be retrieved.', ['@id' => $file_id]);
+            }
+        }
 
         try {
             $submission->setElementData('last_scan_date', (new DrupalDateTime())->format('Y-m-d H:i:s'));
@@ -93,9 +126,9 @@ class ScanController extends ControllerBase
             'name' => $data['name'],
             'surname' => $data['surname'],
             'nationality' => $data['country_origin'], //TODO Change to Nationality field once available
-            'paidDate' => (new DrupalDateTime($data['date_paid']))->format('Y-m-d'),
-            'lastScanDate' => (new DrupalDateTime($last_scan_date))->format('Y-m-d'),
-            'profileImageURL' => $data['profile_image_esncard'],
+            'paidDate' => !empty($data['date_paid']) ? (new DrupalDateTime($data['date_paid']))->format('Y-m-d') : null,
+            'lastScanDate' => !empty($last_scan_date) ? (new DrupalDateTime($last_scan_date))->format('Y-m-d') : null,
+            'profileImageURL' => $is_esncard ? $profile_image_url : null,
         ], 200);
     }
 }
