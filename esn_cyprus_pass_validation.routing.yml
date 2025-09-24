@@ -16,14 +16,14 @@ esn_cyprus_pass_validation.scan:
     _access: 'TRUE'
   methods: [ POST ]
 
-esn_cyprus_pass_validation.insert_card:
+esn_cyprus_pass_validation.add:
   path: '/api/esncard/add'
   defaults:
-    _controller: '\Drupal\esn_cyprus_pass_validation\Controller\AddESNcardController::addESNcard'
+    _controller: '\Drupal\esn_cyprus_pass_validation\Controller\AddController::addCard'
     _title: 'Add ESNcard'
     requirements:
       _access: 'TRUE'
-    methods: [ PUT ]
+    methods: [ POST ]
 
 esn_cyprus_pass_validation.status:
   path: '/api/esncard/status'

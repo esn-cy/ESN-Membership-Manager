@@ -11,7 +11,7 @@ use Symfony\Component\DependencyInjection\ContainerInterface;
 use Symfony\Component\HttpFoundation\JsonResponse;
 use Symfony\Component\HttpFoundation\Request;
 
-class AddESNcardController extends ControllerBase
+class AddController extends ControllerBase
 {
     protected Connection $database;
     protected LoggerChannelInterface $logger;
@@ -37,7 +37,7 @@ class AddESNcardController extends ControllerBase
         );
     }
 
-    public function addESNcard(Request $request): JsonResponse
+    public function addCard(Request $request): JsonResponse
     {
         $body = json_decode($request->getContent(), TRUE) ?? [];
         $card_number = $body['card'] ?? null;
