@@ -2,20 +2,45 @@
 
 namespace Drupal\esn_cyprus_pass_validation\Controller;
 
-use Drupal;
+use Drupal\Component\Plugin\Exception\InvalidPluginDefinitionException;
+use Drupal\Component\Plugin\Exception\PluginNotFoundException;
 use Drupal\Core\Controller\ControllerBase;
 use Drupal\Core\Datetime\DrupalDateTime;
-use Drupal\Core\Entity\EntityStorageException;
-use Drupal\webform\Entity\WebformSubmission;
+use Drupal\Core\Entity\EntityTypeManagerInterface;
+use Drupal\webform\WebformSubmissionInterface;
+use Exception;
+use Symfony\Component\DependencyInjection\ContainerInterface;
 use Symfony\Component\HttpFoundation\JsonResponse;
 use Symfony\Component\HttpFoundation\Request;
 
 class ScanController extends ControllerBase
 {
+    /**
+     * The entity type manager.
+     *
+     * @var EntityTypeManagerInterface
+     */
+    protected $entityTypeManager;
+
+    public function __construct(EntityTypeManagerInterface $entity_type_manager)
+    {
+        $this->entityTypeManager = $entity_type_manager;
+    }
+
+    public static function create(ContainerInterface $container): self
+    {
+        /** @var EntityTypeManagerInterface $entity_type_manager */
+        $entity_type_manager = $container->get('entity_type.manager');
+
+        return new static(
+            $entity_type_manager
+        );
+    }
+
     public function scanCard(Request $request): JsonResponse
     {
-        $body = $request->getContent();
-        $card_number = $body['card'];
+        $body = json_decode($request->getContent(), TRUE);
+        $card_number = $body['card'] ?? NULL;
 
         if (empty($card_number)) {
             return new JsonResponse(['status' => 'error', 'message' => 'No card number was provided.'], 400);
@@ -28,45 +53,39 @@ class ScanController extends ControllerBase
             return new JsonResponse(['status' => 'error', 'message' => 'An invalid card number was provided.'], 400);
         }
 
-        $webform_id = 'esn_cyprus_pass';
+        try {
+            $storage = $this->entityTypeManager->getStorage('webform_submission');
+        } catch (InvalidPluginDefinitionException|PluginNotFoundException) {
+            return new JsonResponse(['status' => 'error', 'message' => 'Webform module was unavailable.'], 500);
+        }
 
-        $query = Drupal::entityQuery('webform_submission')
+        $query = $storage
+            ->getQuery()
             ->accessCheck(FALSE)
-            ->condition('webform_id', $webform_id);
+            ->condition('webform_id', 'esn_cyprus_pass');
+
+        $orGroup = $query->orConditionGroup()
+            ->condition('elements.esncard_number.value', $card_number)
+            ->condition('elements.user_token.value', $card_number);
+
+        $query->condition($orGroup);
         $sids = $query->execute();
 
         if (empty($sids)) {
-            return new JsonResponse(['status' => 'error', 'message' => 'Form not found.'], 500);
-        }
-
-        $found_submission = null;
-        foreach ($sids as $sid) {
-            $submission = WebformSubmission::load($sid);
-            $data = $submission->getData();
-            if ($is_esncard) {
-                if (!empty($data['esncard_number']) && $data['esncard_number'] === $card_number) {
-                    $found_submission = $submission;
-                    break;
-                }
-            } else {
-                if (!empty($data['user_token']) && $data['user_token'] === $card_number) {
-                    $found_submission = $submission;
-                    break;
-                }
-            }
-        }
-
-        if (!$found_submission) {
             return new JsonResponse(['status' => 'error', 'message' => 'Card not found.'], 404);
         }
 
-        $data = $found_submission->getData();
-        $last_scan_date = $data['last_scan_date'];
+        $submission_id = reset($sids);
+        /** @var WebformSubmissionInterface $submission */
+        $submission = $storage->load($submission_id);
+        $data = $submission->getData();
+
+        $last_scan_date = $data['last_scan_date'] ?? NULL;
+
         try {
-            $data['last_scan_date'] = (new DrupalDateTime())->format('Y-m-d H:i:s');
-            $found_submission->setData($data);
-            $found_submission->save();
-        } catch (EntityStorageException) {
+            $submission->setElementData('last_scan_date', (new DrupalDateTime())->format('Y-m-d H:i:s'));
+            $submission->save();
+        } catch (Exception) {
             return new JsonResponse(['status' => 'error', 'message' => 'Unable to update last scan date.'], 500);
         }
 

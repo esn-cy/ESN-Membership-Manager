@@ -23,7 +23,7 @@ class StatusController extends ControllerBase
 {
     public function changeStatus(Request $request): JsonResponse
     {
-        $body = $request->getContent();
+        $body = json_decode($request->getContent(), TRUE);
         $card_number = $body['card'];
         $status = $body['status'];
 
