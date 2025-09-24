@@ -32,7 +32,7 @@ class StripeWebhookController extends ControllerBase
         $this->logger = $logger_factory->get('esn_cyprus_pass_validation');
     }
 
-    public static function create(ContainerInterface $container): StripeWebhookController|static
+    public static function create(ContainerInterface $container): self
     {
         /** @var ConfigFactoryInterface $configFactory */
         $configFactory = $container->get('config.factory');
