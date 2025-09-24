@@ -92,7 +92,9 @@ class ScanController extends ControllerBase
 
         if (empty($sid) && $is_esncard) {
             return new JsonResponse(['status' => 'error', 'message' => 'Card not found.'], 404);
-        } else {
+        }
+
+        if (empty($sid) && $is_esn_cyprus_pass) {
             $sid = str_replace('ESNCYTKNESNCYTKN', '', $card_number);
         }
 
