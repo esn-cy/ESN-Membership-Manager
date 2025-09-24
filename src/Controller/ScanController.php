@@ -39,7 +39,7 @@ class ScanController extends ControllerBase
 
     public function scanCard(Request $request): JsonResponse
     {
-        $body = json_decode($request->getContent(), TRUE);
+        $body = json_decode($request->getContent(), TRUE) ?? [];
         $card_number = $body['card'] ?? NULL;
 
         if (empty($card_number)) {
