@@ -7,6 +7,7 @@ use Drupal\Core\Controller\ControllerBase;
 use Drupal\Core\Database\Connection;
 use Drupal\Core\Datetime\DrupalDateTime;
 use Drupal\Core\Entity\EntityStorageException;
+use Drupal\Core\Lock\LockBackendInterface;
 use Drupal\Core\Logger\LoggerChannelFactoryInterface;
 use Drupal\Core\Logger\LoggerChannelInterface;
 use Drupal\webform\Entity\WebformSubmission;
@@ -23,12 +24,14 @@ class StripeWebhookController extends ControllerBase
 {
     protected $configFactory;
     protected Connection $database;
+    protected LockBackendInterface $lock;
     protected LoggerChannelInterface $logger;
 
-    public function __construct(ConfigFactoryInterface $config_factory, Connection $database, LoggerChannelFactoryInterface $logger_factory)
+    public function __construct(ConfigFactoryInterface $config_factory, Connection $database, LockBackendInterface $lock, LoggerChannelFactoryInterface $logger_factory)
     {
         $this->configFactory = $config_factory;
         $this->database = $database;
+        $this->lock = $lock;
         $this->logger = $logger_factory->get('esn_cyprus_pass_validation');
     }
 
@@ -40,12 +43,16 @@ class StripeWebhookController extends ControllerBase
         /** @var Connection $database */
         $database = $container->get('database');
 
+        /** @var LockBackendInterface $lock */
+        $lock = $container->get('lock');
+
         /** @var LoggerChannelFactoryInterface $loggerFactory */
         $loggerFactory = $container->get('logger.factory');
 
         return new static(
             $configFactory,
             $database,
+            $lock,
             $loggerFactory
         );
     }
@@ -73,33 +80,54 @@ class StripeWebhookController extends ControllerBase
                 $link_id = $session->metadata->payment_link ?? NULL;
 
                 if ($submission_id) {
-                    $submission = WebformSubmission::load($submission_id);
-                    if ($submission) {
-                        // Mark submission as Paid.
-                        $submission->setElementData('approval_status', 'Paid');
-                        $submission->setElementData('date_paid', (new DrupalDateTime())->format('Y-m-d H:i:s'));
+                    if (!$this->lock->acquire('process_submission_' . $submission_id)) {
+                        $this->logger->warning('Could not acquire lock for submission @id. Another process may be running.', ['@id' => $submission_id]);
+                        return new Response('Webhook handled with lock conflict', 200);
+                    }
 
-                        $this->assign_esncard_number($submission);
+                    try {
+                        $submission = WebformSubmission::load($submission_id);
+                        if ($submission) {
+                            $submissionData = $submission->getData();
+                            if ($submissionData['approval_status'] == 'Paid' && !empty($submissionData['esncard_number'])) {
+                                $this->logger->warning(
+                                    'Submission @id was already paid. Duplicate payment event detected @link_id: @message',
+                                    [
+                                        '@id' => $submission_id,
+                                        '@link_id' => $link_id,
+                                    ]
+                                );
+                                return new Response('Webhook handled with warning', 200);
+                            }
 
-                        try {
-                            PaymentLink::update(
-                                $link_id,
-                                ['active' => false]
-                            );
-                        } catch (Exception $e) {
-                            $this->logger->error(
-                                'Submission @id processed, but failed to deactivate Stripe Payment Link @link_id: @message',
-                                [
-                                    '@id' => $submission_id,
-                                    '@link_id' => $link_id,
-                                    '@message' => $e->getMessage()
-                                ]
-                            );
+                            // Mark submission as Paid.
+                            $submission->setElementData('approval_status', 'Paid');
+                            $submission->setElementData('date_paid', (new DrupalDateTime())->format('Y-m-d H:i:s'));
+
+                            $this->assign_esncard_number($submission);
+
+                            try {
+                                PaymentLink::update(
+                                    $link_id,
+                                    ['active' => false]
+                                );
+                            } catch (Exception $e) {
+                                $this->logger->error(
+                                    'Submission @id processed, but failed to deactivate Stripe Payment Link @link_id: @message',
+                                    [
+                                        '@id' => $submission_id,
+                                        '@link_id' => $link_id,
+                                        '@message' => $e->getMessage()
+                                    ]
+                                );
+                            }
+
+                            $this->logger->notice('Submission @id marked as Paid and assigned ESNcard number.', ['@id' => $submission_id]);
+                        } else {
+                            $this->logger->warning('Submission ID @id from Stripe webhook not found.', ['@id' => $submission_id]);
                         }
-
-                        $this->logger->notice('Submission @id marked as Paid and assigned ESNcard number.', ['@id' => $submission_id]);
-                    } else {
-                        $this->logger->warning('Submission ID @id from Stripe webhook not found.', ['@id' => $submission_id]);
+                    } finally {
+                        $this->lock->release('process_submission_' . $submission_id);
                     }
                 } else {
                     $this->logger->warning('No webform_submission_id metadata in Stripe session.');
