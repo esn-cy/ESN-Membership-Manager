@@ -27,12 +27,12 @@ class StripeWebhookController extends ControllerBase
     protected LockBackendInterface $lock;
     protected LoggerChannelInterface $logger;
 
-    public function __construct(ConfigFactoryInterface $config_factory, Connection $database, LockBackendInterface $lock, LoggerChannelFactoryInterface $logger_factory)
+    public function __construct(ConfigFactoryInterface $configFactory, Connection $database, LockBackendInterface $lock, LoggerChannelFactoryInterface $loggerFactory)
     {
-        $this->configFactory = $config_factory;
+        $this->configFactory = $configFactory;
         $this->database = $database;
         $this->lock = $lock;
-        $this->logger = $logger_factory->get('esn_cyprus_pass_validation');
+        $this->logger = $loggerFactory->get('esn_cyprus_pass_validation');
     }
 
     public static function create(ContainerInterface $container): self
@@ -60,11 +60,11 @@ class StripeWebhookController extends ControllerBase
     public function handleWebhook(Request $request): Response
     {
         $payload = $request->getContent();
-        $sig_header = $request->headers->get('Stripe-Signature');
+        $signatureHeader = $request->headers->get('Stripe-Signature');
 
-        $module_config = $this->configFactory->get('esn_cyprus_pass_validation.settings');
-        $stripeSecretKey = $module_config->get('stripe_secret_key');
-        $stripeWebhookSecret = $module_config->get('stripe_webhook_secret');
+        $moduleConfig = $this->configFactory->get('esn_cyprus_pass_validation.settings');
+        $stripeSecretKey = $moduleConfig->get('stripe_secret_key');
+        $stripeWebhookSecret = $moduleConfig->get('stripe_webhook_secret');
         if (empty($stripeSecretKey) || empty($stripeWebhookSecret)) {
             $this->logger->error('Stripe Secret Key and/or Stripe Webhook Key not set in the module configuration.');
             return new Response('Webhook error', 400);
@@ -72,29 +72,29 @@ class StripeWebhookController extends ControllerBase
         Stripe::setApiKey($stripeSecretKey);
 
         try {
-            $event = Webhook::constructEvent($payload, $sig_header, $stripeWebhookSecret);
+            $event = Webhook::constructEvent($payload, $signatureHeader, $stripeWebhookSecret);
 
             if ($event->type === 'checkout.session.completed') {
                 $session = $event->data->object;
-                $submission_id = $session->metadata->webform_submission_id ?? NULL;
-                $link_id = $session->payment_link ?? NULL;
+                $submissionID = $session->metadata->webform_submission_id ?? NULL;
+                $linkID = $session->payment_link ?? NULL;
 
-                if ($submission_id) {
-                    if (!$this->lock->acquire('process_submission_' . $submission_id)) {
-                        $this->logger->warning('Could not acquire lock for submission @id. Another process may be running.', ['@id' => $submission_id]);
+                if ($submissionID) {
+                    if (!$this->lock->acquire('process_submission_' . $submissionID)) {
+                        $this->logger->warning('Could not acquire lock for submission @id. Another process may be running.', ['@id' => $submissionID]);
                         return new Response('Webhook handled with lock conflict', 200);
                     }
 
                     try {
-                        $submission = WebformSubmission::load($submission_id);
+                        $submission = WebformSubmission::load($submissionID);
                         if ($submission) {
                             $submissionData = $submission->getData();
                             if ($submissionData['approval_status'] == 'Paid' && !empty($submissionData['esncard_number'])) {
                                 $this->logger->warning(
-                                    'Submission @id was already paid. Duplicate payment event detected @link_id: @message',
+                                    'Submission @id was already paid. Duplicate payment event detected @linkID: @message',
                                     [
-                                        '@id' => $submission_id,
-                                        '@link_id' => $link_id,
+                                        '@id' => $submissionID,
+                                        '@linkID' => $linkID,
                                     ]
                                 );
                                 return new Response('Webhook handled with warning', 200);
@@ -104,30 +104,30 @@ class StripeWebhookController extends ControllerBase
                             $submission->setElementData('approval_status', 'Paid');
                             $submission->setElementData('date_paid', (new DrupalDateTime())->format('Y-m-d H:i:s'));
 
-                            $this->assign_esncard_number($submission);
+                            $this->assignESNcardNumber($submission);
 
                             try {
                                 PaymentLink::update(
-                                    $link_id,
+                                    $linkID,
                                     ['active' => false]
                                 );
                             } catch (Exception $e) {
                                 $this->logger->error(
-                                    'Submission @id processed, but failed to deactivate Stripe Payment Link @link_id: @message',
+                                    'Submission @id processed, but failed to deactivate Stripe Payment Link @linkID: @message',
                                     [
-                                        '@id' => $submission_id,
-                                        '@link_id' => $link_id,
+                                        '@id' => $submissionID,
+                                        '@linkID' => $linkID,
                                         '@message' => $e->getMessage()
                                     ]
                                 );
                             }
 
-                            $this->logger->notice('Submission @id marked as Paid and assigned ESNcard number.', ['@id' => $submission_id]);
+                            $this->logger->notice('Submission @id marked as Paid and assigned ESNcard number.', ['@id' => $submissionID]);
                         } else {
-                            $this->logger->warning('Submission ID @id from Stripe webhook not found.', ['@id' => $submission_id]);
+                            $this->logger->warning('Submission ID @id from Stripe webhook not found.', ['@id' => $submissionID]);
                         }
                     } finally {
-                        $this->lock->release('process_submission_' . $submission_id);
+                        $this->lock->release('process_submission_' . $submissionID);
                     }
                 } else {
                     $this->logger->warning('No webform_submission_id metadata in Stripe session.');
@@ -145,7 +145,7 @@ class StripeWebhookController extends ControllerBase
      * Assigns the next available ESNcard number to a submission.
      * @throws EntityStorageException
      */
-    private function assign_esncard_number(WebformSubmissionInterface $submission): void
+    private function assignESNcardNumber(WebformSubmissionInterface $submission): void
     {
         $transaction = $this->database->startTransaction();
 
@@ -158,19 +158,19 @@ class StripeWebhookController extends ControllerBase
                 ->forUpdate();
 
             /** @noinspection PhpPossiblePolymorphicInvocationInspection */
-            $next_number = $query->execute()->fetchField();
+            $nextNumber = $query->execute()->fetchField();
 
-            if ($next_number) {
+            if ($nextNumber) {
                 $this->database->update('esncard_numbers')
                     ->fields(['assigned' => 1])
-                    ->condition('number', $next_number)
+                    ->condition('number', $nextNumber)
                     ->execute();
 
-                $submission->setElementData('esncard_number', $next_number);
+                $submission->setElementData('esncard_number', $nextNumber);
                 $submission->save();
 
                 $this->logger->notice('Assigned ESNcard number @num to submission @id.', [
-                    '@num' => $next_number,
+                    '@num' => $nextNumber,
                     '@id' => $submission->id(),
                 ]);
             } else {
