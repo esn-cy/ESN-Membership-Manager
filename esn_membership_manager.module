@@ -39,4 +39,3 @@ function esn_cyprus_pass_webform_element_alter(array &$element, FormStateInterfa
         }
     }
 }
-
