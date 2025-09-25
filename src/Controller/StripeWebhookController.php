@@ -77,7 +77,7 @@ class StripeWebhookController extends ControllerBase
             if ($event->type === 'checkout.session.completed') {
                 $session = $event->data->object;
                 $submission_id = $session->metadata->webform_submission_id ?? NULL;
-                $link_id = $session->metadata->payment_link ?? NULL;
+                $link_id = $session->payment_link ?? NULL;
 
                 if ($submission_id) {
                     if (!$this->lock->acquire('process_submission_' . $submission_id)) {
