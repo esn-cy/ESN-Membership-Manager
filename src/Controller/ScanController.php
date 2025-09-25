@@ -118,6 +118,7 @@ class ScanController extends ControllerBase
         }
 
         try {
+            $submission->setElementData('pass_is_enabled', 2);
             $submission->setElementData('last_scan_date', (new DrupalDateTime())->format('Y-m-d H:i:s'));
             $submission->save();
         } catch (Exception) {

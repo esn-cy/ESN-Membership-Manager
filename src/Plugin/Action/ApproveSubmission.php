@@ -158,6 +158,11 @@ class ApproveSubmission extends ActionBase
         $esnCardPriceID = $module_config->get('stripe_price_id_esncard');
         $processingFeePriceID = $module_config->get('stripe_price_id_processing');
 
+        if (empty($esnCardPriceID) || empty($processingFeePriceID)) {
+            $this->logger->error('Stripe Price IDs for ESNcard or Processing Fee are not configured.');
+            return null;
+        }
+
         $paymentLink = PaymentLink::create([
             'line_items' => [
                 ['price' => $esnCardPriceID, 'quantity' => 1,],
