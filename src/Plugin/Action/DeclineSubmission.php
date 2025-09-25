@@ -2,9 +2,15 @@
 
 namespace Drupal\esn_cyprus_pass_validation\Plugin\Action;
 
+use Drupal\Core\Access\AccessResult;
+use Drupal\Core\Access\AccessResultInterface;
 use Drupal\Core\Action\ActionBase;
+use Drupal\Core\Entity\EntityStorageException;
+use Drupal\Core\Logger\LoggerChannelFactoryInterface;
+use Drupal\Core\Logger\LoggerChannelInterface;
 use Drupal\Core\Session\AccountInterface;
 use Drupal\webform\WebformSubmissionInterface;
+use Symfony\Component\DependencyInjection\ContainerInterface;
 
 /**
  * Declines a webform submission.
@@ -18,27 +24,51 @@ use Drupal\webform\WebformSubmissionInterface;
  */
 class DeclineSubmission extends ActionBase
 {
+    protected LoggerChannelInterface $logger;
+
+    public function __construct(array $configuration, $plugin_id, $plugin_definition, LoggerChannelFactoryInterface $logger_factory)
+    {
+        parent::__construct($configuration, $plugin_id, $plugin_definition);
+        $this->logger = $logger_factory->get('esn_cyprus_pass_validation');
+    }
+
+    public static function create(ContainerInterface $container, array $configuration, $plugin_id, $plugin_definition): self
+    {
+        /** @var LoggerChannelFactoryInterface $loggerFactory */
+        $loggerFactory = $container->get('logger.factory');
+
+        return new static(
+            $configuration,
+            $plugin_id,
+            $plugin_definition,
+            $loggerFactory
+        );
+    }
 
     /**
      * {@inheritdoc}
      */
-    public function execute($entity = NULL)
+    public function execute($entity = NULL): void
     {
-        if ($entity instanceof WebformSubmissionInterface) {
+        if (!($entity instanceof WebformSubmissionInterface)) {
+            return;
+        }
+
+        try {
             $entity->setElementData('approval_status', 'Declined');
             $entity->save();
-            \Drupal::logger('esn_cyprus_pass_validation')->notice('Declined submission @id', ['@id' => $entity->id()]);
+            $this->logger->notice('Declined submission @id', ['@id' => $entity->id()]);
+        } catch (EntityStorageException) {
+            $this->logger->notice('Unable to save declined submission @id', ['@id' => $entity->id()]);
         }
     }
 
     /**
      * {@inheritdoc}
      */
-    public function access($object, AccountInterface $account = NULL, $return_as_object = FALSE)
+    public function access($object, AccountInterface $account = NULL, $return_as_object = FALSE): bool|AccessResultInterface
     {
-        // Allow only users with 'administer webform submissions' permission.
-        $result = $account->hasPermission('access custom form');
-        return $return_as_object ? $result : $result;
+        $access = AccessResult::allowedIfHasPermission($account, 'decline submission');
+        return $return_as_object ? $access : $access->isAllowed();
     }
-
 }

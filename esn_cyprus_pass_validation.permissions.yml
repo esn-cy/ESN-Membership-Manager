@@ -8,6 +8,11 @@ approve submission:
   description: "Allows users to approve submissions"
   restrict access: false
 
+decline submission:
+  title: "Decline Submission"
+  description: "Allows users to decline submissions"
+  restrict access: false
+
 manage module settings:
   title: "Manage the module's settings"
   description: "Allows users to manage the module's settings"
