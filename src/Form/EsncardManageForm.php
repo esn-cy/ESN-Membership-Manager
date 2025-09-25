@@ -2,18 +2,19 @@
 
 namespace Drupal\esn_cyprus_pass_validation\Form;
 
+use Drupal;
 use Drupal\Core\Form\FormBase;
 use Drupal\Core\Form\FormStateInterface;
 
 class EsncardManageForm extends FormBase
 {
 
-    public function getFormId()
+    public function getFormId(): string
     {
         return 'esncard_manage_form';
     }
 
-    public function buildForm(array $form, FormStateInterface $form_state)
+    public function buildForm(array $form, FormStateInterface $form_state): array
     {
 
         // Bulk insert textarea
@@ -40,10 +41,10 @@ class EsncardManageForm extends FormBase
         ];
 
         // Load existing ESNcards
-        $database = \Drupal::database();
+        $database = Drupal::database();
         $results = $database->select('esncard_numbers', 'e')
             ->fields('e', ['id', 'number', 'sequence', 'assigned'])
-            ->orderBy('sequence', 'ASC')
+            ->orderBy('sequence')
             ->execute()
             ->fetchAll();
 
@@ -117,7 +118,7 @@ class EsncardManageForm extends FormBase
             return;
         }
 
-        $query = \Drupal::database()->select('esncard_numbers', 'e');
+        $query = Drupal::database()->select('esncard_numbers', 'e');
         $query->addExpression('MAX(sequence)', 'max_seq');
         $max_sequence = (int)$query->execute()->fetchField();
 
@@ -126,7 +127,7 @@ class EsncardManageForm extends FormBase
 
         foreach ($codes as $code) {
             if (!empty($code)) {
-                \Drupal::database()->insert('esncard_numbers')
+                Drupal::database()->insert('esncard_numbers')
                     ->fields([
                         'number' => $code,
                         'sequence' => $sequence,
@@ -150,12 +151,12 @@ class EsncardManageForm extends FormBase
         $trigger = $form_state->getTriggeringElement();
 
         // Only run if this Delete button was clicked
-        if (strpos($trigger['#name'], 'delete_') !== 0) {
+        if (!str_starts_with($trigger['#name'], 'delete_')) {
             return;
         }
 
         $id = $trigger['#esncard_id'];
-        \Drupal::database()->delete('esncard_numbers')->condition('id', $id)->execute();
+        Drupal::database()->delete('esncard_numbers')->condition('id', $id)->execute();
         $this->messenger()->addStatus($this->t('Deleted ESNcard ID @id.', ['@id' => $id]));
         $form_state->setRebuild();
     }
@@ -168,7 +169,7 @@ class EsncardManageForm extends FormBase
         $trigger = $form_state->getTriggeringElement();
 
         // Only run if this Update button was clicked
-        if (strpos($trigger['#name'], 'edit_') !== 0) {
+        if (!str_starts_with($trigger['#name'], 'edit_')) {
             return;
         }
 
@@ -180,7 +181,7 @@ class EsncardManageForm extends FormBase
             return;
         }
 
-        \Drupal::database()->update('esncard_numbers')
+        Drupal::database()->update('esncard_numbers')
             ->fields(['number' => $value])
             ->condition('id', $id)
             ->execute();

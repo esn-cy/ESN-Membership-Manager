@@ -10,6 +10,7 @@ use Drupal\Core\Database\Connection;
 use Drupal\Core\Entity\EntityStorageException;
 use Drupal\Core\Logger\LoggerChannelFactoryInterface;
 use Drupal\Core\Logger\LoggerChannelInterface;
+use Drupal\Core\Plugin\ContainerFactoryPluginInterface;
 use Drupal\Core\Session\AccountInterface;
 use Drupal\webform\WebformSubmissionInterface;
 use Exception;
@@ -28,7 +29,7 @@ use Symfony\Component\DependencyInjection\ContainerInterface;
  *   confirm = TRUE
  * )
  */
-class ApproveSubmission extends ActionBase
+class ApproveSubmission extends ActionBase implements ContainerFactoryPluginInterface
 {
     protected ConfigFactoryInterface $configFactory;
     protected Connection $database;
@@ -109,8 +110,8 @@ class ApproveSubmission extends ActionBase
             return;
         }
 
-        $stripe_config = $this->configFactory->get('stripe.settings');
-        $stripeSecretKey = $stripe_config->get('secret_key');
+        $module_config = $this->configFactory->get('esn_cyprus_pass_validation.settings');
+        $stripeSecretKey = $module_config->get('stripe_secret_key');
         if (empty($stripeSecretKey)) {
             $this->logger->error('Stripe secret key not set in settings.php.');
             return;
@@ -150,7 +151,6 @@ class ApproveSubmission extends ActionBase
      *
      * @return string|null
      *   The payment link URL or null on failure.
-     * @throws ApiErrorException
      */
     protected function createStripePaymentLink(WebformSubmissionInterface $entity): ?string
     {
@@ -163,27 +163,17 @@ class ApproveSubmission extends ActionBase
             return null;
         }
 
-        $paymentLink = PaymentLink::create([
-            'line_items' => [
-                ['price' => $esnCardPriceID, 'quantity' => 1,],
-                ['price' => $processingFeePriceID, 'quantity' => 1,]
-            ],
-            'payment_method_types' => [
-                'card',
-                'cartes_bancaires',
-                'apple_pay',
-                'google_pay',
-                'paypal',
-                'revolut_pay',
-                'amazon_pay',
-                'bancontact',
-                'blik',
-                'eps',
-                'ideal',
-                'link'
-            ],
-            'metadata' => ['webform_submission_id' => (string)$entity->id(),]
-        ]);
+        try {
+            $paymentLink = PaymentLink::create([
+                'line_items' => [
+                    ['price' => $esnCardPriceID, 'quantity' => 1,],
+                    ['price' => $processingFeePriceID, 'quantity' => 1,]
+                ],
+                'metadata' => ['webform_submission_id' => (string)$entity->id(),]
+            ]);
+        } catch (ApiErrorException $e) {
+            $this->logger->error('Stripe API error for submission @id: @message.', ["@id" => (string)$entity->id(), "@message" => $e->getMessage()]);
+        }
 
         return $paymentLink->url ?? null;
     }
