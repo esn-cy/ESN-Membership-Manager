@@ -55,12 +55,17 @@ class StripeWebhookController extends ControllerBase
         $payload = $request->getContent();
         $sig_header = $request->headers->get('Stripe-Signature');
 
-        $stripe_settings = $this->configFactory->get('stripe.settings');
-        $endpoint_secret = $stripe_settings->get('webhook_secret');
-        Stripe::setApiKey($stripe_settings->get('secret_key'));
+        $module_config = $this->configFactory->get('esn_cyprus_pass_validation.settings');
+        $stripeSecretKey = $module_config->get('stripe_secret_key');
+        $stripeWebhookSecret = $module_config->get('stripe_webhook_secret');
+        if (empty($stripeSecretKey) || empty($stripeWebhookSecret)) {
+            $this->logger->error('Stripe Secret Key and/or Stripe Webhook Key not set in the module configuration.');
+            return new Response('Webhook error', 400);
+        }
+        Stripe::setApiKey($stripeSecretKey);
 
         try {
-            $event = Webhook::constructEvent($payload, $sig_header, $endpoint_secret);
+            $event = Webhook::constructEvent($payload, $sig_header, $stripeWebhookSecret);
 
             if ($event->type === 'checkout.session.completed') {
                 $session = $event->data->object;
@@ -150,4 +155,3 @@ class StripeWebhookController extends ControllerBase
         }
     }
 }
-

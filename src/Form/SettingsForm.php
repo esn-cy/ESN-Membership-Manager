@@ -26,6 +26,22 @@ class SettingsForm extends ConfigFormBase
     {
         $config = $this->config('esn_cyprus_pass_validation.settings');
 
+        $form['stripe_secret_key'] = [
+            '#type' => 'textfield',
+            '#title' => $this->t('Stripe Secret Key'),
+            '#description' => $this->t('Enter the Stripe Secret Key.'),
+            '#default_value' => $config->get('stripe_secret_key'),
+            '#required' => TRUE,
+        ];
+
+        $form['stripe_webhook_secret'] = [
+            '#type' => 'textfield',
+            '#title' => $this->t('Stripe Webhook Secret'),
+            '#description' => $this->t('Enter the Stripe Webhook Secret.'),
+            '#default_value' => $config->get('stripe_webhook_secret'),
+            '#required' => TRUE,
+        ];
+
         $form['stripe_price_id_esncard'] = [
             '#type' => 'textfield',
             '#title' => $this->t('Stripe Price ID for ESNcard'),
@@ -51,6 +67,8 @@ class SettingsForm extends ConfigFormBase
     public function submitForm(array &$form, FormStateInterface $form_state): void
     {
         $this->config('esn_cyprus_pass_validation.settings')
+            ->set('stripe_secret_key', $form_state->getValue('stripe_secret_key'))
+            ->set('stripe_webhook_secret', $form_state->getValue('stripe_webhook_secret'))
             ->set('stripe_price_id_esncard', $form_state->getValue('stripe_price_id_esncard'))
             ->set('stripe_price_id_processing', $form_state->getValue('stripe_price_id_processing'))
             ->save();

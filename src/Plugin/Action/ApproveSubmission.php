@@ -113,7 +113,7 @@ class ApproveSubmission extends ActionBase implements ContainerFactoryPluginInte
         $module_config = $this->configFactory->get('esn_cyprus_pass_validation.settings');
         $stripeSecretKey = $module_config->get('stripe_secret_key');
         if (empty($stripeSecretKey)) {
-            $this->logger->error('Stripe secret key not set in settings.php.');
+            $this->logger->error('Stripe Secret Key not set in the module configuration.');
             return;
         }
         Stripe::setApiKey($stripeSecretKey);
@@ -151,6 +151,7 @@ class ApproveSubmission extends ActionBase implements ContainerFactoryPluginInte
      *
      * @return string|null
      *   The payment link URL or null on failure.
+     * @throws ApiErrorException
      */
     protected function createStripePaymentLink(WebformSubmissionInterface $entity): ?string
     {
@@ -163,17 +164,13 @@ class ApproveSubmission extends ActionBase implements ContainerFactoryPluginInte
             return null;
         }
 
-        try {
-            $paymentLink = PaymentLink::create([
-                'line_items' => [
-                    ['price' => $esnCardPriceID, 'quantity' => 1,],
-                    ['price' => $processingFeePriceID, 'quantity' => 1,]
-                ],
-                'metadata' => ['webform_submission_id' => (string)$entity->id(),]
-            ]);
-        } catch (ApiErrorException $e) {
-            $this->logger->error('Stripe API error for submission @id: @message.', ["@id" => (string)$entity->id(), "@message" => $e->getMessage()]);
-        }
+        $paymentLink = PaymentLink::create([
+            'line_items' => [
+                ['price' => $esnCardPriceID, 'quantity' => 1,],
+                ['price' => $processingFeePriceID, 'quantity' => 1,]
+            ],
+            'metadata' => ['webform_submission_id' => (string)$entity->id(),]
+        ]);
 
         return $paymentLink->url ?? null;
     }
