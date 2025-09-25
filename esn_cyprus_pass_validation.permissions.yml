@@ -7,3 +7,8 @@ approve submission:
   title: "Approve Submission"
   description: "Allows users to approve submissions"
   restrict access: false
+
+manage module settings:
+  title: "Manage the module's settings"
+  description: "Allows users to manage the module's settings"
+  restrict access: true

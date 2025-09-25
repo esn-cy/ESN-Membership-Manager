@@ -51,3 +51,11 @@ esn_cyprus_pass_validation.bulk_insert:
     _permission: 'access custom form'
   options:
     _admin_route: FALSE
+
+esn_cyprus_pass_validation.settings:
+  path: '/admin/config/system/esn-cyprus-pass'
+  defaults:
+    _form: '\Drupal\esn_cyprus_pass_validation\Form\SettingsForm'
+    _title: 'ESN Cyprus Pass Settings'
+  requirements:
+    _permission: 'manage module settings'

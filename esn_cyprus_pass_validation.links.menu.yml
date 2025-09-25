@@ -1,0 +1,6 @@
+esn_cyprus_pass_validation.settings:
+  title: 'ESN Cyprus Pass Settings'
+  description: 'Configure settings for the ESN Cyprus Pass module.'
+  parent: system.admin_config_system
+  route_name: esn_cyprus_pass_validation.settings
+  weight: 10
