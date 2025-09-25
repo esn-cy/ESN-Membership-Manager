@@ -2,12 +2,21 @@
 
 namespace Drupal\esn_cyprus_pass_validation\Plugin\Action;
 
+use Drupal\Core\Access\AccessResult;
+use Drupal\Core\Access\AccessResultInterface;
 use Drupal\Core\Action\ActionBase;
+use Drupal\Core\Config\ConfigFactoryInterface;
+use Drupal\Core\Database\Connection;
+use Drupal\Core\Entity\EntityStorageException;
+use Drupal\Core\Logger\LoggerChannelFactoryInterface;
+use Drupal\Core\Logger\LoggerChannelInterface;
 use Drupal\Core\Session\AccountInterface;
 use Drupal\webform\WebformSubmissionInterface;
 use Exception;
+use Stripe\Exception\ApiErrorException;
 use Stripe\PaymentLink;
 use Stripe\Stripe;
+use Symfony\Component\DependencyInjection\ContainerInterface;
 
 /**
  * Approves a webform submission and creates a Stripe payment link.
@@ -21,97 +30,138 @@ use Stripe\Stripe;
  */
 class ApproveSubmission extends ActionBase
 {
+    protected ConfigFactoryInterface $configFactory;
+    protected Connection $database;
+    protected LoggerChannelInterface $logger;
+
+    public function __construct(array $configuration, $plugin_id, $plugin_definition, ConfigFactoryInterface $config_factory, Connection $database, LoggerChannelFactoryInterface $logger_factory)
+    {
+        parent::__construct($configuration, $plugin_id, $plugin_definition);
+        $this->configFactory = $config_factory;
+        $this->database = $database;
+        $this->logger = $logger_factory->get('esn_cyprus_pass_validation');
+    }
+
+    public static function create(ContainerInterface $container, array $configuration, $plugin_id, $plugin_definition): self
+    {
+        /** @var ConfigFactoryInterface $configFactory */
+        $configFactory = $container->get('config.factory');
+
+        /** @var Connection $database */
+        $database = $container->get('database');
+
+        /** @var LoggerChannelFactoryInterface $loggerFactory */
+        $loggerFactory = $container->get('logger.factory');
+
+        return new static(
+            $configuration,
+            $plugin_id,
+            $plugin_definition,
+            $configFactory,
+            $database,
+            $loggerFactory
+        );
+    }
 
     /**
      * {@inheritdoc}
      */
-    public function execute($entity = NULL)
+    public function execute($entity = null): void
     {
-        if ($entity instanceof WebformSubmissionInterface) {
+        if (!($entity instanceof WebformSubmissionInterface)) {
+            return;
+        }
 
-            // Load submission data.
-            $data = $entity->getData();
+        $data = $entity->getData();
 
-            // Check if ESNcard option was selected.
-            if (!empty($data['choices']) && in_array('ESNcard', $data['choices'])) {
-                // Query DB for available ESNcards.
-                $connection = \Drupal::database();
-                $query = $connection->select('esncard_numbers', 'e');
-                $query->addExpression('COUNT(*)', 'count');
-                $query->condition('assigned', 0);
-                $count = $query->execute()->fetchField();
+        if (empty($data['choices'])) {
+            return;
+        }
 
-                if ($count == 0) {
-                    // No ESNcards available → block approval.
-                    \Drupal::logger('esn_cyprus_pass_validation')->warning(
-                        'Submission @id requested ESNcard but none are available.',
-                        ['@id' => $entity->id()]
-                    );
-                    return; // Exit without approving or creating payment link.
-                }
-
-
-                // Load Stripe secret key.
-
-                $stripeSecretKey = \Drupal::service('settings')->get('stripe.settings')['secret_key'];
-
-                if (empty($stripeSecretKey)) {
-                    \Drupal::logger('esn_cyprus_pass_validation')->error('Stripe secret key not set in settings.php.');
-                    return;
-                }
-
-                // Initialize Stripe client.
-                Stripe::setApiKey($stripeSecretKey);
-
-                try {
-                    // Create the payment link on Stripe.
-                    $paymentLink = $this->createStripePaymentLink($entity);
-
-                    if ($paymentLink) {
-                        // Save payment link URL in the submission field 'payment_link'.
-                        $entity->setElementData('payment_link', $paymentLink);
-
-                        \Drupal::logger('esn_cyprus_pass_validation')->notice('Approved submission @id and created payment link.', ['@id' => $entity->id()]);
-                    } else {
-                        \Drupal::logger('esn_cyprus_pass_validation')->error('Failed to create payment link for submission @id.', ['@id' => $entity->id()]);
-                    }
-                } catch (Exception $e) {
-                    \Drupal::logger('esn_cyprus_pass_validation')->error('Stripe API error for submission @id: @message', ['@id' => $entity->id(), '@message' => $e->getMessage()]);
-                }
+        if (!in_array('ESNcard', $data['choices'])) {
+            try {
+                $entity->setElementData('approval_status', 'Approved');
+                $entity->setElementData('pass_is_enabled', 1);
+                $entity->save();
+                $this->logger->notice('Approved submission @id (no ESNcard requested).', ['@id' => $entity->id()]);
+                return;
+            } catch (EntityStorageException $e) {
+                $this->logger->error('Updating Submission @id failed: @message', ['@id' => $entity->id(), '@message' => $e->getMessage()]);
+                return;
             }
         }
-        // Mark submission as approved.
-        $entity->setElementData('approval_status', 'Approved');
-        $entity->setElementData('pass_is_enabled', 1);
 
-        $entity->save();
+        try {
+            $query = $this->database->select('esncard_numbers', 'e');
+            $query->addExpression('COUNT(*)', 'count');
+            $query->condition('assigned', 0);
+            $count = $query->execute()->fetchField();
+        } catch (Exception $e) {
+            $this->logger->error('Querying number of available ESNcards failed: @message.', ['@message' => $e->getMessage()]);
+            return;
+        }
 
+        if ($count == 0) {
+            $this->logger->warning(
+                'Submission @id requested ESNcard but none are available.',
+                ['@id' => $entity->id()]
+            );
+            return;
+        }
+
+        $stripe_config = $this->configFactory->get('stripe.settings');
+        $stripeSecretKey = $stripe_config->get('secret_key');
+        if (empty($stripeSecretKey)) {
+            $this->logger->error('Stripe secret key not set in settings.php.');
+            return;
+        }
+        Stripe::setApiKey($stripeSecretKey);
+
+        try {
+            $paymentLink = $this->createStripePaymentLink($entity);
+        } catch (ApiErrorException $e) {
+            $this->logger->error('Stripe API error for submission @id: @message', ['@id' => $entity->id(), '@message' => $e->getMessage()]);
+            return;
+        }
+
+        try {
+            if ($paymentLink) {
+                $entity->setElementData('payment_link', $paymentLink);
+                $entity->setElementData('approval_status', 'Approved');
+                $entity->setElementData('pass_is_enabled', 1);
+                $entity->save();
+                $this->logger->notice('Approved submission @id and created payment link.', ['@id' => $entity->id()]);
+            } else {
+                $this->logger->error('Failed to create payment link for submission @id.', ['@id' => $entity->id()]);
+            }
+        } catch (EntityStorageException $e) {
+            $this->logger->error('Failed to save submission @id after creating payment link: @message.', [
+                '@id' => $entity->id(),
+                '@message' => $e->getMessage()
+            ]);
+        }
     }
 
     /**
      * Create a Stripe payment link for the given submission.
      *
-     * @param \Drupal\webform\WebformSubmissionInterface $entity
+     * @param WebformSubmissionInterface $entity
      *   The webform submission.
      *
      * @return string|null
      *   The payment link URL or null on failure.
+     * @throws ApiErrorException
      */
-    protected function createStripePaymentLink(WebformSubmissionInterface $entity)
+    protected function createStripePaymentLink(WebformSubmissionInterface $entity): ?string
     {
-        $esnCardPriceID = 'price_1S8fkZHMzuv3hHfWqPB32nlF';
-        $processingFeePriceID = 'price_1S8fmvHMzuv3hHfWbTb3u97B';
+        $module_config = $this->configFactory->get('esn_cyprus_pass_validation.settings');
+        $esnCardPriceID = $module_config->get('stripe_price_id_esncard');
+        $processingFeePriceID = $module_config->get('stripe_price_id_processing');
 
         $paymentLink = PaymentLink::create([
             'line_items' => [
-                [
-                    'price' => $esnCardPriceID,
-                    'quantity' => 1,
-                ],
-                [
-                    'price' => $processingFeePriceID,
-                    'quantity' => 1,
-                ]
+                ['price' => $esnCardPriceID, 'quantity' => 1,],
+                ['price' => $processingFeePriceID, 'quantity' => 1,]
             ],
             'payment_method_types' => [
                 'card',
@@ -127,9 +177,7 @@ class ApproveSubmission extends ActionBase
                 'ideal',
                 'link'
             ],
-            'metadata' => [
-                'webform_submission_id' => (string) $entity->id(),
-            ]
+            'metadata' => ['webform_submission_id' => (string)$entity->id(),]
         ]);
 
         return $paymentLink->url ?? null;
@@ -138,11 +186,9 @@ class ApproveSubmission extends ActionBase
     /**
      * {@inheritdoc}
      */
-    public function access($object, AccountInterface $account = NULL, $return_as_object = FALSE)
+    public function access($object, AccountInterface $account = NULL, $return_as_object = FALSE): bool|AccessResultInterface
     {
-        $result = $account->hasPermission('access custom form');
-        return $return_as_object ? $result : $result;
+        $access = AccessResult::allowedIfHasPermission($account, 'approve submission');
+        return $return_as_object ? $access : $access->isAllowed();
     }
-
 }
-

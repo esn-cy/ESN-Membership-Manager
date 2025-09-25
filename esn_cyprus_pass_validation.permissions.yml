@@ -3,3 +3,7 @@ access custom form:
   description: 'Allow users to access the custom form page'
   restrict access: false
 
+approve submission:
+  title: "Approve Submission"
+  description: "Allows users to approve submissions"
+  restrict access: false
