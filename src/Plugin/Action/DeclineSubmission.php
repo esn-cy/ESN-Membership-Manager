@@ -1,6 +1,6 @@
 <?php
 
-namespace Drupal\esn_cyprus_pass_validation\Plugin\Action;
+namespace Drupal\esn_membership_manager\Plugin\Action;
 
 use Drupal\Core\Access\AccessResult;
 use Drupal\Core\Access\AccessResultInterface;
@@ -16,7 +16,7 @@ use Symfony\Component\DependencyInjection\ContainerInterface;
  * Declines a webform submission.
  *
  * @Action(
- *   id = "esn_cyprus_pass_validation_decline",
+ *   id = "esn_membership_manager_decline",
  *   label = @Translation("Decline submissions"),
  *   type = "webform_submission",
  *   confirm = TRUE
@@ -29,7 +29,7 @@ class DeclineSubmission extends ActionBase
     public function __construct(array $configuration, $plugin_id, $plugin_definition, LoggerChannelFactoryInterface $logger_factory)
     {
         parent::__construct($configuration, $plugin_id, $plugin_definition);
-        $this->logger = $logger_factory->get('esn_cyprus_pass_validation');
+        $this->logger = $logger_factory->get('esn_membership_manager');
     }
 
     public static function create(ContainerInterface $container, array $configuration, $plugin_id, $plugin_definition): self

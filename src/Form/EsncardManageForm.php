@@ -1,6 +1,6 @@
 <?php
 
-namespace Drupal\esn_cyprus_pass_validation\Form;
+namespace Drupal\esn_membership_manager\Form;
 
 use Drupal;
 use Drupal\Core\Form\FormBase;

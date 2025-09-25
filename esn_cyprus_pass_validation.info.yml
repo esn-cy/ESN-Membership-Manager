@@ -1,7 +1,7 @@
-name: 'ESN Cyprus Pass Validation'
+name: 'ESN Membership Manager'
 type: module
-description: 'Provides a public API endpoint to validate ESN Cyprus Pass user tokens from webform submissions.'
-core_version_requirement: ^8 ||  ^9 || ^10
+description: 'Provides a framework to accept submissions for both Free Passes and ESNcards.'
+core_version_requirement: ^9 || ^10
 package: Custom
 dependencies:
   - webform:webform

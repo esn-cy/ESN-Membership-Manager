@@ -1,6 +1,6 @@
-esn_cyprus_pass_validation.settings:
-  title: 'ESN Cyprus Pass Settings'
-  description: 'Configure settings for the ESN Cyprus Pass module.'
+esn_membership_manager.settings:
+  title: 'ESN Membership Manager Settings'
+  description: 'Configure settings for the ESN Membership Manager module.'
   parent: system.admin_config_system
-  route_name: esn_cyprus_pass_validation.settings
+  route_name: esn_membership_manager.settings
   weight: 10

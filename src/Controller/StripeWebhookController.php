@@ -1,6 +1,6 @@
 <?php
 
-namespace Drupal\esn_cyprus_pass_validation\Controller;
+namespace Drupal\esn_membership_manager\Controller;
 
 use Drupal\Core\Config\ConfigFactoryInterface;
 use Drupal\Core\Controller\ControllerBase;
@@ -32,7 +32,7 @@ class StripeWebhookController extends ControllerBase
         $this->configFactory = $configFactory;
         $this->database = $database;
         $this->lock = $lock;
-        $this->logger = $loggerFactory->get('esn_cyprus_pass_validation');
+        $this->logger = $loggerFactory->get('esn_membership_manager');
     }
 
     public static function create(ContainerInterface $container): self
@@ -62,7 +62,7 @@ class StripeWebhookController extends ControllerBase
         $payload = $request->getContent();
         $signatureHeader = $request->headers->get('Stripe-Signature');
 
-        $moduleConfig = $this->configFactory->get('esn_cyprus_pass_validation.settings');
+        $moduleConfig = $this->configFactory->get('esn_membership_manager.settings');
         $stripeSecretKey = $moduleConfig->get('stripe_secret_key');
         $stripeWebhookSecret = $moduleConfig->get('stripe_webhook_secret');
         if (empty($stripeSecretKey) || empty($stripeWebhookSecret)) {

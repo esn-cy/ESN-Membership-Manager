@@ -1,7 +1,8 @@
 <?php
 
-namespace Drupal\esn_cyprus_pass_validation\Controller;
+namespace Drupal\esn_membership_manager\Controller;
 
+use Drupal;
 use Drupal\Core\Controller\ControllerBase;
 use Drupal\Core\Datetime\DrupalDateTime;
 use Drupal\webform\Entity\WebformSubmission;
@@ -13,7 +14,7 @@ class ValidationController extends ControllerBase
     {
         $webform_id = 'esn_cyprus_pass';
 
-        $query = \Drupal::entityQuery('webform_submission')
+        $query = Drupal::entityQuery('webform_submission')
             ->accessCheck(FALSE)
             ->condition('webform_id', $webform_id);
         $sids = $query->execute();

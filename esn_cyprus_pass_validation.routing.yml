@@ -1,61 +1,61 @@
-esn_cyprus_pass_validation.validate_token:
+esn_membership_manager.validate_token:
   path: '/api/validate-token/{user_token}'
   defaults:
-    _controller: '\Drupal\esn_cyprus_pass_validation\Controller\ValidationController::validateToken'
+    _controller: '\Drupal\esn_membership_manager\Controller\ValidationController::validateToken'
     _title: 'Validate ESN Cyprus Pass token'
   requirements:
     _access: 'TRUE'
   methods: [ GET ]
 
-esn_cyprus_pass_validation.scan:
+esn_membership_manager.scan:
   path: '/api/esncard/scan'
   defaults:
-    _controller: '\Drupal\esn_cyprus_pass_validation\Controller\ScanController::scanCard'
-    _title: 'Validate ESN Cyprus Pass token'
+    _controller: '\Drupal\esn_membership_manager\Controller\ScanController::scanCard'
+    _title: 'Scan Free Passes and ESNcards'
   requirements:
     _access: 'TRUE'
   methods: [ POST ]
 
-esn_cyprus_pass_validation.add:
+esn_membership_manager.add:
   path: '/api/esncard/add'
   defaults:
-    _controller: '\Drupal\esn_cyprus_pass_validation\Controller\AddController::addCard'
+    _controller: '\Drupal\esn_membership_manager\Controller\AddController::addCard'
     _title: 'Add ESNcard'
     requirements:
       _access: 'TRUE'
     methods: [ POST ]
 
-esn_cyprus_pass_validation.status:
+esn_membership_manager.status:
   path: '/api/esncard/status'
   defaults:
-    _controller: '\Drupal\esn_cyprus_pass_validation\Controller\StatusController::changeStatus'
+    _controller: '\Drupal\esn_membership_manager\Controller\StatusController::changeStatus'
     _title: 'Change the status of an ESNcard'
   requirements:
     _access: 'TRUE'
   methods: [ POST ]
 
-esn_cyprus_pass_validation.stripe_webhook:
+esn_membership_manager.stripe_webhook:
   path: '/stripe/webhook'
   defaults:
-    _controller: '\Drupal\esn_cyprus_pass_validation\Controller\StripeWebhookController::handleWebhook'
+    _controller: '\Drupal\esn_membership_manager\Controller\StripeWebhookController::handleWebhook'
   requirements:
     _access: 'TRUE'
   methods: [ POST ]
 
-esn_cyprus_pass_validation.bulk_insert:
+esn_membership_manager.bulk_insert:
   path: '/admin/esncard/bulk-insert'
   defaults:
-    _form: '\Drupal\esn_cyprus_pass_validation\Form\EsncardManageForm'
+    _form: '\Drupal\esn_membership_manager\Form\EsncardManageForm'
     _title: 'Bulk Insert ESNcards'
   requirements:
     _permission: 'access custom form'
   options:
     _admin_route: FALSE
 
-esn_cyprus_pass_validation.settings:
+esn_membership_manager.settings:
   path: '/admin/config/system/esn-cyprus-pass'
   defaults:
-    _form: '\Drupal\esn_cyprus_pass_validation\Form\SettingsForm'
-    _title: 'ESN Cyprus Pass Settings'
+    _form: '\Drupal\esn_membership_manager\Form\SettingsForm'
+    _title: 'ESN Membership Manager Settings'
   requirements:
     _permission: 'manage module settings'

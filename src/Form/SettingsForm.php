@@ -1,12 +1,12 @@
 <?php
 
-namespace Drupal\esn_cyprus_pass_validation\Form;
+namespace Drupal\esn_membership_manager\Form;
 
 use Drupal\Core\Form\ConfigFormBase;
 use Drupal\Core\Form\FormStateInterface;
 
 /**
- * Defines a configuration form for ESN Cyprus Pass settings.
+ * Defines a configuration form for ESN Membership Manager settings.
  */
 class SettingsForm extends ConfigFormBase
 {
@@ -16,7 +16,7 @@ class SettingsForm extends ConfigFormBase
      */
     public function getFormId(): string
     {
-        return 'esn_cyprus_pass_validation_settings_form';
+        return 'esn_membership_manager_settings_form';
     }
 
     /**
@@ -24,7 +24,7 @@ class SettingsForm extends ConfigFormBase
      */
     public function buildForm(array $form, FormStateInterface $form_state): array
     {
-        $config = $this->config('esn_cyprus_pass_validation.settings');
+        $config = $this->config('esn_membership_manager.settings');
 
         $form['stripe_secret_key'] = [
             '#type' => 'textfield',
@@ -66,7 +66,7 @@ class SettingsForm extends ConfigFormBase
      */
     public function submitForm(array &$form, FormStateInterface $form_state): void
     {
-        $this->config('esn_cyprus_pass_validation.settings')
+        $this->config('esn_membership_manager.settings')
             ->set('stripe_secret_key', $form_state->getValue('stripe_secret_key'))
             ->set('stripe_webhook_secret', $form_state->getValue('stripe_webhook_secret'))
             ->set('stripe_price_id_esncard', $form_state->getValue('stripe_price_id_esncard'))
@@ -81,6 +81,6 @@ class SettingsForm extends ConfigFormBase
      */
     protected function getEditableConfigNames(): array
     {
-        return ['esn_cyprus_pass_validation.settings'];
+        return ['esn_membership_manager.settings'];
     }
 }

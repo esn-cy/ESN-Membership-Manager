@@ -1,6 +1,6 @@
 <?php
 
-namespace Drupal\esn_cyprus_pass_validation\Controller;
+namespace Drupal\esn_membership_manager\Controller;
 
 use Drupal\Component\Plugin\Exception\InvalidPluginDefinitionException;
 use Drupal\Component\Plugin\Exception\PluginNotFoundException;
@@ -27,7 +27,7 @@ class ScanController extends ControllerBase
     {
         $this->entityTypeManager = $entity_type_manager;
         $this->database = $database;
-        $this->logger = $logger_factory->get('esn_cyprus_pass_validation');
+        $this->logger = $logger_factory->get('esn_membership_manager');
     }
 
     public static function create(ContainerInterface $container): self

@@ -1,6 +1,6 @@
 <?php
 
-namespace Drupal\esn_cyprus_pass_validation\Controller;
+namespace Drupal\esn_membership_manager\Controller;
 
 use Drupal\Component\Plugin\Exception\InvalidPluginDefinitionException;
 use Drupal\Component\Plugin\Exception\PluginNotFoundException;

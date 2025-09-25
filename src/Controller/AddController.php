@@ -1,6 +1,6 @@
 <?php
 
-namespace Drupal\esn_cyprus_pass_validation\Controller;
+namespace Drupal\esn_membership_manager\Controller;
 
 use Drupal\Core\Controller\ControllerBase;
 use Drupal\Core\Database\Connection;
@@ -20,7 +20,7 @@ class AddController extends ControllerBase
     public function __construct(Connection $database, LoggerChannelFactoryInterface $logger_factory)
     {
         $this->database = $database;
-        $this->logger = $logger_factory->get('esn_cyprus_pass_validation');
+        $this->logger = $logger_factory->get('esn_membership_manager');
     }
 
     public static function create(ContainerInterface $container): self

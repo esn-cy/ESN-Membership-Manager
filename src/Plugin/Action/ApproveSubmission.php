@@ -1,6 +1,6 @@
 <?php
 
-namespace Drupal\esn_cyprus_pass_validation\Plugin\Action;
+namespace Drupal\esn_membership_manager\Plugin\Action;
 
 use Drupal\Core\Access\AccessResult;
 use Drupal\Core\Access\AccessResultInterface;
@@ -23,7 +23,7 @@ use Symfony\Component\DependencyInjection\ContainerInterface;
  * Approves a webform submission and creates a Stripe payment link.
  *
  * @Action(
- *   id = "esn_cyprus_pass_validation_approve",
+ *   id = "esn_membership_manager_approve",
  *   label = @Translation("Approve submissions and generate Stripe payment link"),
  *   type = "webform_submission",
  *   confirm = TRUE
@@ -40,7 +40,7 @@ class ApproveSubmission extends ActionBase implements ContainerFactoryPluginInte
         parent::__construct($configuration, $plugin_id, $plugin_definition);
         $this->configFactory = $config_factory;
         $this->database = $database;
-        $this->logger = $logger_factory->get('esn_cyprus_pass_validation');
+        $this->logger = $logger_factory->get('esn_membership_manager');
     }
 
     public static function create(ContainerInterface $container, array $configuration, $plugin_id, $plugin_definition): self
@@ -110,7 +110,7 @@ class ApproveSubmission extends ActionBase implements ContainerFactoryPluginInte
             return;
         }
 
-        $module_config = $this->configFactory->get('esn_cyprus_pass_validation.settings');
+        $module_config = $this->configFactory->get('esn_membership_manager.settings');
         $stripeSecretKey = $module_config->get('stripe_secret_key');
         if (empty($stripeSecretKey)) {
             $this->logger->error('Stripe Secret Key not set in the module configuration.');
@@ -155,7 +155,7 @@ class ApproveSubmission extends ActionBase implements ContainerFactoryPluginInte
      */
     protected function createStripePaymentLink(WebformSubmissionInterface $entity): ?string
     {
-        $module_config = $this->configFactory->get('esn_cyprus_pass_validation.settings');
+        $module_config = $this->configFactory->get('esn_membership_manager.settings');
         $esnCardPriceID = $module_config->get('stripe_price_id_esncard');
         $processingFeePriceID = $module_config->get('stripe_price_id_processing');
 
