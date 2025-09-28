@@ -7,6 +7,7 @@ use Drupal\Core\Access\AccessResultInterface;
 use Drupal\Core\Action\ActionBase;
 use Drupal\Core\Config\ConfigFactoryInterface;
 use Drupal\Core\Database\Connection;
+use Drupal\Core\Datetime\DrupalDateTime;
 use Drupal\Core\Entity\EntityStorageException;
 use Drupal\Core\Logger\LoggerChannelFactoryInterface;
 use Drupal\Core\Logger\LoggerChannelInterface;
@@ -129,6 +130,7 @@ class ApproveSubmission extends ActionBase implements ContainerFactoryPluginInte
             if ($paymentLink) {
                 $entity->setElementData('payment_link', $paymentLink);
                 $entity->setElementData('approval_status', 'Approved');
+                $entity->setElementData('date_approved', (new DrupalDateTime())->format('Y-m-d H:i:s'));
                 $entity->setElementData('pass_is_enabled', 1);
                 $entity->save();
                 $this->logger->notice('Approved submission @id and created payment link.', ['@id' => $entity->id()]);
