@@ -2,12 +2,39 @@
 
 namespace Drupal\esn_membership_manager\Form;
 
-use Drupal;
+use Drupal\Core\Database\Connection;
 use Drupal\Core\Form\FormBase;
 use Drupal\Core\Form\FormStateInterface;
+use Drupal\Core\Logger\LoggerChannelFactoryInterface;
+use Drupal\Core\Logger\LoggerChannelInterface;
+use Exception;
+use Symfony\Component\DependencyInjection\ContainerInterface;
 
 class EsncardManageForm extends FormBase
 {
+    protected Connection $database;
+    protected LoggerChannelInterface $logger;
+
+
+    public function __construct(Connection $database, LoggerChannelFactoryInterface $logger_factory)
+    {
+        $this->database = $database;
+        $this->logger = $logger_factory->get('esn_membership_manager');
+    }
+
+    public static function create(ContainerInterface $container): self
+    {
+        /** @var Connection $database */
+        $database = $container->get('database');
+
+        /** @var LoggerChannelFactoryInterface $logger */
+        $logger = $container->get('logger.factory');
+
+        return new static(
+            $database,
+            $logger
+        );
+    }
 
     public function getFormId(): string
     {
@@ -16,8 +43,6 @@ class EsncardManageForm extends FormBase
 
     public function buildForm(array $form, FormStateInterface $form_state): array
     {
-
-        // Bulk insert textarea
         $form['cards'] = [
             '#type' => 'textarea',
             '#title' => $this->t('Bulk ESNcard Numbers'),
@@ -32,7 +57,6 @@ class EsncardManageForm extends FormBase
             '#name' => 'submit_new', // important for triggering check
         ];
 
-        // Table header
         $header = [
             'sequence' => $this->t('Sequence'),
             'number' => $this->t('Number'),
@@ -40,13 +64,14 @@ class EsncardManageForm extends FormBase
             'operations' => $this->t('Operations'),
         ];
 
-        // Load existing ESNcards
-        $database = Drupal::database();
-        $results = $database->select('esncard_numbers', 'e')
+        /** @noinspection PhpPossiblePolymorphicInvocationInspection */
+        $query = $this->database->select('esncard_numbers', 'e')
             ->fields('e', ['id', 'number', 'sequence', 'assigned'])
-            ->orderBy('sequence')
-            ->execute()
-            ->fetchAll();
+            ->extend('Drupal\Core\Database\Query\PagerSelectExtender')
+            ->limit(50)
+            ->orderBy('sequence');
+
+        $results = $query->execute()->fetchAll();
 
         $form['esncards_table'] = [
             '#type' => 'table',
@@ -85,9 +110,16 @@ class EsncardManageForm extends FormBase
                     '#submit' => ['::deleteEsncard'],
                     '#limit_validation_errors' => [], // prevents Insert/Update from running
                     '#esncard_id' => $row->id,
+                    '#attributes' => [
+                        'onclick' => 'return confirm("Are you sure you want to delete this card?");',
+                    ],
                 ],
             ];
         }
+
+        $form['pager'] = [
+            '#type' => 'pager',
+        ];
 
         return $form;
     }
@@ -100,7 +132,7 @@ class EsncardManageForm extends FormBase
     /**
      * Bulk insert handler.
      */
-    public function submitBulkInsert(array &$form, FormStateInterface $form_state)
+    public function submitBulkInsert(array &$form, FormStateInterface $form_state): void
     {
         $trigger = $form_state->getTriggeringElement();
 
@@ -118,25 +150,60 @@ class EsncardManageForm extends FormBase
             return;
         }
 
-        $query = Drupal::database()->select('esncard_numbers', 'e');
-        $query->addExpression('MAX(sequence)', 'max_seq');
-        $max_sequence = (int)$query->execute()->fetchField();
+        try {
+            $query = $this->database->select('esncard_numbers', 'e');
+            $query->addExpression('MAX(sequence)', 'max_seq');
+            $max_sequence = (int)$query->execute()->fetchField();
+        } catch (Exception $e) {
+            $this->messenger()->addError($e->getMessage());
+            $this->logger->error('Failed to insert ESNcard numbers: ' . $e->getMessage());
+            return;
+        }
 
-        $sequence = $max_sequence + 1;
+        $sequence = ($max_sequence ?: 0) + 1;
         $inserted = 0;
 
-        foreach ($codes as $code) {
-            if (!empty($code)) {
-                Drupal::database()->insert('esncard_numbers')
-                    ->fields([
-                        'number' => $code,
-                        'sequence' => $sequence,
-                        'assigned' => 0,
-                    ])
-                    ->execute();
-                $sequence++;
-                $inserted++;
+        try {
+            $existingCards = $this->database->select('esncard_numbers', 'e')
+                ->fields('e', ['id', 'number'])
+                ->execute()
+                ->fetchAll();
+        } catch (Exception $e) {
+            $this->messenger()->addError($e->getMessage());
+            $this->logger->error('Failed to insert ESNcard numbers: ' . $e->getMessage());
+            return;
+        }
+
+        $existingCardMap = array_flip(array_column($existingCards, 'number'));
+
+        $transaction = $this->database->startTransaction();
+        try {
+            foreach ($codes as $code) {
+                $trimmedCode = trim($code);
+
+                if (!empty($trimmedCode)) {
+                    if (!isset($existingCardMap[$trimmedCode])) {
+                        $this->database->insert('esncard_numbers')
+                            ->fields([
+                                'number' => $trimmedCode,
+                                'sequence' => $sequence,
+                                'assigned' => 0,
+                            ])
+                            ->execute();
+
+                        $sequence++;
+                        $inserted++;
+
+                        $existingCardMap[$trimmedCode] = true;
+                    } else {
+                        $this->messenger()->addWarning($this->t('Card @cardNumber already exists.', ['@cardNumber' => $trimmedCode]));
+                    }
+                }
             }
+        } catch (Exception $e) {
+            $transaction->rollBack();
+            $this->logger->error('Bulk insert failed: @message', ['@message' => $e->getMessage()]);
+            $this->messenger()->addError($this->t('An error occurred during the bulk insert. No cards were added.'));
         }
 
         $this->messenger()->addStatus($this->t('Inserted @count ESNcard numbers.', ['@count' => $inserted]));
@@ -146,7 +213,7 @@ class EsncardManageForm extends FormBase
     /**
      * Delete ESNcard.
      */
-    public function deleteEsncard(array &$form, FormStateInterface $form_state)
+    public function deleteEsncard(array &$form, FormStateInterface $form_state): void
     {
         $trigger = $form_state->getTriggeringElement();
 
@@ -156,7 +223,14 @@ class EsncardManageForm extends FormBase
         }
 
         $id = $trigger['#esncard_id'];
-        Drupal::database()->delete('esncard_numbers')->condition('id', $id)->execute();
+        try {
+            $this->database->delete('esncard_numbers')->condition('id', $id)->execute();
+        } catch (Exception $e) {
+            $this->messenger()->addError($e->getMessage());
+            $this->logger->error('Failed to delete ESNcard number with ID @number. Error: @error', ['@number' => $id, '@error' => $e->getMessage()]);
+            return;
+        }
+
         $this->messenger()->addStatus($this->t('Deleted ESNcard ID @id.', ['@id' => $id]));
         $form_state->setRebuild();
     }
@@ -164,7 +238,7 @@ class EsncardManageForm extends FormBase
     /**
      * Update ESNcard number.
      */
-    public function updateEsncard(array &$form, FormStateInterface $form_state)
+    public function updateEsncard(array &$form, FormStateInterface $form_state): void
     {
         $trigger = $form_state->getTriggeringElement();
 
@@ -174,21 +248,42 @@ class EsncardManageForm extends FormBase
         }
 
         $id = $trigger['#esncard_id'];
-        $value = $form_state->getValue(['esncards_table', $id, 'number']);
+        $value = trim($form_state->getValue(['esncards_table', $id, 'number']));
 
-        if ($value === null || $value === '') {
+        if (empty($value)) {
             $this->messenger()->addError($this->t('ESNcard number cannot be empty.'));
             return;
         }
 
-        Drupal::database()->update('esncard_numbers')
-            ->fields(['number' => $value])
-            ->condition('id', $id)
-            ->execute();
+        try {
+            $query = $this->database->select('esncard_numbers', 'e');
+            $exists = $query->condition('number', $value)
+                ->condition('id', $id, '<>')
+                ->countQuery()
+                ->execute()
+                ->fetchField();
+        } catch (Exception $e) {
+            $this->messenger()->addError($e->getMessage());
+            $this->logger->error('Failed to update the ESNcard number: ' . $e->getMessage());
+            return;
+        }
+        if ($exists) {
+            $this->messenger()->addError($this->t('A duplicate ESNcard number already exists.'));
+            return;
+        }
+
+        try {
+            $this->database->update('esncard_numbers')
+                ->fields(['number' => $value])
+                ->condition('id', $id)
+                ->execute();
+        } catch (Exception $e) {
+            $this->messenger()->addError($e->getMessage());
+            $this->logger->error('Failed to update ESNcard number @number. Error: @error', ['@number' => $value, '@error' => $e->getMessage()]);
+            return;
+        }
 
         $this->messenger()->addStatus($this->t('Updated ESNcard ID @id.', ['@id' => $id]));
         $form_state->setRebuild();
     }
-
 }
-
