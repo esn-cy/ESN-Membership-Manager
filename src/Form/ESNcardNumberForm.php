@@ -10,7 +10,7 @@ use Drupal\Core\Logger\LoggerChannelInterface;
 use Exception;
 use Symfony\Component\DependencyInjection\ContainerInterface;
 
-class EsncardManageForm extends FormBase
+class ESNcardNumberForm extends FormBase
 {
     protected Connection $database;
     protected LoggerChannelInterface $logger;
@@ -99,7 +99,7 @@ class EsncardManageForm extends FormBase
                     '#type' => 'submit',
                     '#value' => $this->t('Update'),
                     '#name' => 'edit_' . $row->id,
-                    '#submit' => ['::updateEsncard'],
+                    '#submit' => ['::updateESNcard'],
                     '#limit_validation_errors' => [['esncards_table', $row->id, 'number']],
                     '#esncard_id' => $row->id,
                 ],
@@ -107,7 +107,7 @@ class EsncardManageForm extends FormBase
                     '#type' => 'submit',
                     '#value' => $this->t('Delete'),
                     '#name' => 'delete_' . $row->id,
-                    '#submit' => ['::deleteEsncard'],
+                    '#submit' => ['::deleteESNcard'],
                     '#limit_validation_errors' => [], // prevents Insert/Update from running
                     '#esncard_id' => $row->id,
                     '#attributes' => [
@@ -213,7 +213,7 @@ class EsncardManageForm extends FormBase
     /**
      * Delete ESNcard.
      */
-    public function deleteEsncard(array &$form, FormStateInterface $form_state): void
+    public function deleteESNcard(array &$form, FormStateInterface $form_state): void
     {
         $trigger = $form_state->getTriggeringElement();
 
@@ -238,7 +238,7 @@ class EsncardManageForm extends FormBase
     /**
      * Update ESNcard number.
      */
-    public function updateEsncard(array &$form, FormStateInterface $form_state): void
+    public function updateESNcard(array &$form, FormStateInterface $form_state): void
     {
         $trigger = $form_state->getTriggeringElement();
 

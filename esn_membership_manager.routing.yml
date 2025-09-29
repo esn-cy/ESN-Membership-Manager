@@ -45,7 +45,7 @@ esn_membership_manager.stripe_webhook:
 esn_membership_manager.bulk_insert:
   path: '/admin/esncard/bulk-insert'
   defaults:
-    _form: '\Drupal\esn_membership_manager\Form\EsncardManageForm'
+    _form: '\Drupal\esn_membership_manager\Form\ESNcardNumberForm'
     _title: 'Bulk Insert ESNcards'
   requirements:
     _permission: 'access custom form'
