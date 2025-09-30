@@ -118,6 +118,9 @@ class ScanController extends ControllerBase
         }
 
         try {
+            if ($is_esncard) {
+                $submission->setElementData('approval_status', 'Delivered');
+            }
             $submission->setElementData('pass_is_enabled', 2);
             $submission->setElementData('last_scan_date', (new DrupalDateTime())->format('Y-m-d H:i:s'));
             $submission->save();
