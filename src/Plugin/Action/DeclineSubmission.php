@@ -8,6 +8,7 @@ use Drupal\Core\Action\ActionBase;
 use Drupal\Core\Entity\EntityStorageException;
 use Drupal\Core\Logger\LoggerChannelFactoryInterface;
 use Drupal\Core\Logger\LoggerChannelInterface;
+use Drupal\Core\Plugin\ContainerFactoryPluginInterface;
 use Drupal\Core\Session\AccountInterface;
 use Drupal\webform\WebformSubmissionInterface;
 use Symfony\Component\DependencyInjection\ContainerInterface;
@@ -22,7 +23,7 @@ use Symfony\Component\DependencyInjection\ContainerInterface;
  *   confirm = TRUE
  * )
  */
-class DeclineSubmission extends ActionBase
+class DeclineSubmission extends ActionBase implements ContainerFactoryPluginInterface
 {
     protected LoggerChannelInterface $logger;
 
