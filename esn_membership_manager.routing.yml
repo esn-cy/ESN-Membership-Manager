@@ -14,7 +14,7 @@ esn_membership_manager.scan:
     _title: 'Scan Free Passes and ESNcards'
   requirements:
     _access: 'TRUE'
-  methods: [ POST ]
+  methods: [ HEAD, POST ]
 
 esn_membership_manager.add:
   path: '/api/esncard/add'
