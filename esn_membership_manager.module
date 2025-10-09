@@ -5,24 +5,27 @@ use Drupal\Core\Form\FormStateInterface;
 /**
  * Implements hook_webform_element_alter().
  */
-function esn_cyprus_pass_webform_element_alter(array &$element, FormStateInterface $form_state, array $context)
+function esn_membership_manager_webform_element_alter(array &$element, FormStateInterface $form_state, array $context): void
 {
+    static $available_esncards_count = NULL;
 
     $webform_id = $element['#webform_id'] ?? NULL;
     $element_key = $element['#webform_key'] ?? NULL;
 
-    if ($webform_id && strpos($webform_id, 'esn_cyprus_pass') === 0 && $element_key === 'choices') {
+    if ($webform_id && str_starts_with($webform_id, 'esn_cyprus_pass') && $element_key === 'choices') {
 
-        // Count available ESNcards
-        $connection = \Drupal::database();
-        $query = $connection->select('esncard_numbers', 'e');
-        $query->addExpression('COUNT(*)', 'count');
-        $query->condition('assigned', 0);
-        $count = $query->execute()->fetchField();
+        if ($available_esncards_count === NULL) {
+            $query = Drupal::database()->select('esncard_numbers', 'e');
+            $query->condition('assigned', 0);
+            $available_esncards_count = (int)$query->countQuery()->execute()->fetchField();
 
-        \Drupal::logger('esn_cyprus_pass')->notice('Available ESNcards count: @count', ['@count' => $count]);
+            Drupal::logger('esn_membership_manager')->notice('Available ESNcards count: @count', [
+                '@count' => $available_esncards_count,
+            ]);
+        }
+        Drupal::logger('esn_membership_manager')->notice('Available ESNcards count: @count', ['@count' => $available_esncards_count]);
 
-        if ($count == 0) {
+        if ($available_esncards_count === 0) {
             // Disable the ESNcard option directly in options__properties
             if (!isset($element['#options__properties'])) {
                 $element['#options__properties'] = [];
@@ -35,7 +38,47 @@ function esn_cyprus_pass_webform_element_alter(array &$element, FormStateInterfa
             }
             $element['#description'] .= '<div class="esncard-unavailable" style="color:red; font-size:0.9em; margin-top:4px;">No more ESNcards available at the moment</div>';
 
-            \Drupal::logger('esn_cyprus_pass')->notice('ESNcard option disabled successfully.');
+            Drupal::logger('esn_membership_manager')->notice('ESNcard option disabled successfully.');
+        }
+    }
+}
+
+/**
+ * Implements hook_preprocess_menu().
+ *
+ * This hook is used to remove parent menu items that have no visible children
+ * after access checks have been performed.
+ */
+function esn_membership_manager_preprocess_menu(&$variables): void
+{
+    if (isset($variables['menu_name']) && $variables['menu_name'] == 'main') {
+        if (isset($variables['items'])) {
+            _esn_membership_manager_menu_hide_empty_parents($variables['items']);
+        }
+    }
+}
+
+/**
+ * A recursive helper function to traverse the menu tree.
+ *
+ * @param array $items
+ * The menu items array, passed by reference.
+ */
+function _esn_membership_manager_menu_hide_empty_parents(array &$items): void
+{
+    foreach ($items as $key => &$item) {
+        if (!empty($item['below'])) {
+            _esn_membership_manager_menu_hide_empty_parents($item['below']);
+        }
+
+        $is_non_linking_parent = FALSE;
+        if ($item['url']->isRouted()) {
+            $routeName = $item['url']->getRouteName();
+            $is_non_linking_parent = $routeName === '<nolink>' || $routeName === '<none>';
+        }
+
+        if ($is_non_linking_parent && empty($item['below'])) {
+            unset($items[$key]);
         }
     }
 }

@@ -1,6 +1,15 @@
+esn_membership_manager.category:
+  title: 'ESN Memberships'
+  description: 'A category for all links from the ESN Memberships Manager Module.'
+  route_name: '<nolink>'
+  menu_name: main
+  weight: -50
+
 esn_membership_manager.settings:
   title: 'ESN Membership Manager Settings'
   description: 'Configure settings for the ESN Membership Manager module.'
-  parent: system.admin_config_system
+  parent: esn_membership_manager.category
   route_name: esn_membership_manager.settings
   weight: 10
+  options:
+    _permission: 'manage module settings'

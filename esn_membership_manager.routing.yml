@@ -53,7 +53,7 @@ esn_membership_manager.bulk_insert:
     _admin_route: FALSE
 
 esn_membership_manager.settings:
-  path: '/admin/config/system/esn-cyprus-pass'
+  path: '/admin/config/system/esn-membership-manager'
   defaults:
     _form: '\Drupal\esn_membership_manager\Form\SettingsForm'
     _title: 'ESN Membership Manager Settings'

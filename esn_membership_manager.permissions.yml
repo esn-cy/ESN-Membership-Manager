@@ -13,6 +13,11 @@ decline submission:
   description: "Allows users to decline submissions"
   restrict access: false
 
+view membership menu:
+  title: "View Membership Menu"
+  description: "Allows users to view the internal membership menus"
+  restrict access: false
+
 manage module settings:
   title: "Manage the module's settings"
   description: "Allows users to manage the module's settings"
