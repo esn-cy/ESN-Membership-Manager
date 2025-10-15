@@ -1,0 +1,333 @@
+<style>
+    :root {
+        --surface-container: #f0f2f5;
+        --surface-container-highest: #dde2e7;
+        --on-surface: #1a1c1e;
+        --status-warning: #ffb74d;
+        --status-success: #4caf50;
+        --color-error: #f44336;
+        --esn-cyan: #00aeef;
+        --esn-dark-blue: #2e3192;
+    }
+
+    .qr-reader {
+        width: 300px;
+        margin: auto;
+    }
+
+    .loader {
+        display: none;
+        width: 120px;
+        height: 120px;
+        border: 16px solid #eee;
+        border-top: 16px solid var(--esn-cyan);
+        border-radius: 50%;
+        z-index: 5;
+        animation: spin 2s linear infinite;
+    }
+
+    @keyframes spin {
+        0% {
+            transform: rotate(0deg);
+        }
+        100% {
+            transform: rotate(360deg);
+        }
+    }
+
+    .qr-modal {
+        position: fixed;
+        top: 0;
+        left: 0;
+        height: 100%;
+        width: 100%;
+        display: none;
+        align-items: center;
+        justify-content: center;
+        z-index: 100;
+        background-color: #00000099;
+    }
+
+    .qr-modal-contents {
+        position: absolute;
+        max-width: 90%;
+        padding: 20px;
+        background-color: white;
+        border-radius: 10px;
+        text-align: center;
+    }
+
+    .success-content {
+        width: 100%;
+        height: 300px;
+    }
+
+    .image-container {
+        position: relative;
+        display: flex;
+        flex-shrink: 0;
+        justify-content: center;
+        align-items: center;
+        align-self: center;
+        height: 35%;
+        aspect-ratio: 2 / 3;
+        border-radius: 12px;
+        background-color: var(--surface-container-highest);
+        margin-right: 10px;
+        overflow: hidden;
+    }
+
+    .profile-image {
+        width: 100%;
+        height: 100%;
+        object-fit: cover;
+    }
+
+    .overlay-text {
+        position: absolute;
+        font-weight: bold;
+        font-size: 64px;
+        text-align: center;
+        line-height: 1;
+    }
+
+    .info-column {
+        display: flex;
+        flex-direction: column;
+        justify-content: space-evenly;
+        height: 100%;
+        margin-left: 10px;
+        flex-grow: 1;
+        min-width: 0;
+    }
+
+    .info-row {
+        display: flex;
+        flex-direction: column;
+    }
+
+    .info-label {
+        color: var(--on-surface);
+        font-size: 12px;
+        opacity: 0.8;
+    }
+
+    .info-value {
+        color: var(--on-surface);
+        font-weight: bold;
+        font-size: 16px;
+        overflow: hidden;
+        text-overflow: ellipsis;
+    }
+
+    .close-button {
+        margin-top: 10px;
+        padding: 5px;
+        border: none;
+        border-radius: 5px;
+        background: var(--surface-container-highest);
+        color: var(--on-surface);
+    }
+
+    .text-warning {
+        color: var(--status-warning) !important;
+    }
+
+    .text-success {
+        color: var(--status-success) !important;
+    }
+
+    .text-error {
+        color: var(--color-error) !important;
+    }
+</style>
+
+<div class="qr-reader" id="reader">
+    <div class="loader"></div>
+</div>
+
+<div class="qr-modal" id="qrModal">
+    <div class="qr-modal-contents">
+        <h2>
+            Scan Result
+        </h2>
+        <div class="success-content" id="success">
+            <div class="image-container">
+                <img alt="Cardholder Picture" class="profile-image" id="profileImage" src="">
+                <span class="overlay-text text-success" id="overlayText">✓</span>
+            </div>
+            <div class="info-column">
+                <div class="info-row">
+                    <span class="info-label">Name:</span>
+                    <span class="info-value" id="name"></span>
+                </div>
+                <div class="info-row">
+                    <span class="info-label">Nationality:</span>
+                    <span class="info-value" id="nationality"></span>
+                </div>
+                <div class="info-row">
+                    <span class="info-label">Occupation:</span>
+                    <span class="info-value" id="occupation"></span>
+                </div>
+                <div class="info-row">
+                    <span class="info-label">Status:</span>
+                    <span class="info-value" id="status"></span>
+                </div>
+                <div class="info-row">
+                    <span class="info-label">Expires:</span>
+                    <span class="info-value" id="expires"></span>
+                </div>
+                <div class="info-row">
+                    <span class="info-label">Last Scan:</span>
+                    <span class="info-value" id="lastScan"></span>
+                </div>
+            </div>
+        </div>
+        <span id="error"></span>
+        <button class="close-button" onclick="closeModal()">OK</button>
+    </div>
+</div>
+<script src="https://unpkg.com/html5-qrcode"></script>
+<script>
+    const scanner = new Html5Qrcode("reader", {formatsToSupport: [Html5QrcodeSupportedFormats.QR_CODE, Html5QrcodeSupportedFormats.CODE_128]});
+    let processing = false;
+
+    const ESNCardNumberRegex = /\d\d\d\d\d\d\d[A-Z][A-Z][A-Z][A-Z0-9]/
+    const FreePassRegex = /ESNCYTKNESNCYTKN\d*/
+
+    const breaks = Array.from(document.getElementById("qrModal").getElementsByTagName("br"));
+    for (let i = 0; i < breaks.length; i++) {
+        breaks[i].parentNode.removeChild(breaks[i]);
+    }
+
+    function showModal(result) {
+        document.getElementById("success").style.display = "none";
+        document.getElementById("error").style.display = "none";
+        if (result.status === "Success") {
+            document.getElementById("expires").classList.remove("text-error");
+            document.getElementById("expires").classList.remove("text-warning");
+            document.getElementById("lastScan").classList.remove("text-error");
+            document.getElementById("status").classList.remove("text-success");
+            document.getElementById("status").classList.remove("text-error");
+
+            let status = "Valid";
+            let now = Date.now();
+            document.getElementById("name").innerText = result.name;
+            document.getElementById("nationality").innerText = result.nationality;
+            document.getElementById("occupation").innerText = result.occupation;
+            document.getElementById("lastScan").innerText = result.lastScan.toISOString().slice(0, 10);
+            if (result.lastScan !== "Never Scanned") {
+                if (result.lastScan.getTime() + 8.64e+7 > now) {
+                    status = "Already Scanned";
+                    document.getElementById("lastScan").classList.add("text-error");
+                }
+            }
+            if (result.expires !== "UNKNOWN") {
+                document.getElementById("expires").innerText = result.expires.toISOString().slice(0, 10);
+                if (result.expires.getTime() < now) {
+                    status = "Expired";
+                    document.getElementById("expires").classList.add("text-error");
+                }
+            } else {
+                document.getElementById("expires").innerText = result.expires;
+                document.getElementById("expires").classList.add("text-warning");
+            }
+            document.getElementById("status").innerText = status;
+            switch (status) {
+                case "Valid":
+                    document.getElementById("status").classList.add("text-success");
+                    break;
+                case "Expired":
+                case "Already Scanned":
+                    document.getElementById("status").classList.add("text-error");
+                    break;
+            }
+            if (result.imageURL) {
+                document.getElementById("profileImage").style.display = "block";
+                document.getElementById("overlayText").style.display = "none";
+                document.getElementById("profileImage").src = result.imageURL;
+            } else {
+                document.getElementById("overlayText").style.display = "block";
+                document.getElementById("profileImage").style.display = "none";
+            }
+            document.getElementById("success").style.display = "flex";
+        } else {
+            document.getElementById("error").style.display = "block";
+            document.getElementById("error").innerText = result.message;
+        }
+        document.getElementById("qrModal").style.display = "flex";
+    }
+
+    function closeModal() {
+        document.getElementById("qrModal").style.display = "none";
+        setTimeout(() => {
+            processing = false;
+        }, 1000);
+    }
+
+    scanner.start(
+        {facingMode: "environment"},
+        {fps: 10, qrbox: 250},
+        async (qrText) => {
+            if (processing) return;
+            processing = true;
+
+            let identifier;
+
+            const esnCardMatch = ESNCardNumberRegex.exec(qrText);
+            const isESNcard = esnCardMatch !== null;
+            if (isESNcard) {
+                identifier = esnCardMatch[0];
+            } else {
+                const freePassMatch = FreePassRegex.exec(qrText);
+                if (!freePassMatch) {
+                    showModal(
+                        {
+                            status: "Error",
+                            message: "🚫 Invalid Code",
+                        });
+                    return;
+                }
+                identifier = freePassMatch[0];
+            }
+
+            try {
+                const response = await fetch("/api/esncard/scan", {
+                    method: "POST",
+                    body: JSON.stringify({
+                        card: identifier
+                    })
+                });
+                const json = await response.json();
+
+                let expiryDate;
+                if (json.datePaid) {
+                    expiryDate = new Date(Date.parse(json.datePaid) + 3.156e+10);
+                } else {
+                    if (json.dateApproved) {
+                        expiryDate = new Date(Date.parse(json.dateApproved) + 3.156e+10);
+                    }
+                }
+
+                showModal({
+                    status: "Success",
+                    name: `${json.name} ${json.surname}`,
+                    nationality: json.nationality,
+                    occupation: json.occupation,
+                    expires: expiryDate ? expiryDate : "UNKNOWN",
+                    lastScan: json.lastScanDate ? new Date(Date.parse(json.lastScanDate)) : "Never Scanned",
+                    imageURL: json.profileImageURL,
+                });
+            } catch (error) {
+                showModal({
+                    status: "Error",
+                    message: error.message,
+                });
+            }
+        },
+        () => {
+        }
+    ).catch(err => {
+        console.error("Camera start error", err);
+    });
+</script>

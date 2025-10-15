@@ -16,6 +16,14 @@ esn_membership_manager.scan:
     _access: 'TRUE'
   methods: [ HEAD, POST ]
 
+esn_membership_manager.scan_page:
+  path: '/memberships/scan'
+  defaults:
+    _controller: '\Drupal\esn_membership_manager\Page\ScanPage::scanPage'
+    _title: 'Scan Free Passes and ESNcards'
+  requirements:
+    _permission: 'scan cards'
+
 esn_membership_manager.add:
   path: '/api/esncard/add'
   defaults:

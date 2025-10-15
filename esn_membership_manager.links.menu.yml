@@ -5,6 +5,15 @@ esn_membership_manager.category:
   menu_name: main
   weight: -50
 
+esn_membership_manager.scan:
+  title: 'Scan ESNcards / Passes'
+  description: 'Scan ESNcards and Free Passes and get validity information'
+  parent: esn_membership_manager.category
+  route_name: esn_membership_manager.scan_page
+  weight: 1
+  options:
+    _permission: 'scan cards'
+
 esn_membership_manager.settings:
   title: 'ESN Membership Manager Settings'
   description: 'Configure settings for the ESN Membership Manager module.'

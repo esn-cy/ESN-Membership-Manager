@@ -136,10 +136,11 @@ class ScanController extends ControllerBase
             'name' => $data['name'],
             'surname' => $data['surname'],
             'nationality' => $data['country_origin'], //TODO Change to Nationality field once available
+            'occupation' => $data['occupation'],
             'datePaid' => !empty($data['date_paid']) ? (new DrupalDateTime($data['date_paid']))->format('Y-m-d') : null,
             'dateApproved' => !empty($data['date_approved']) ? (new DrupalDateTime($data['date_approved']))->format('Y-m-d') : (new DrupalDateTime('@' . $submission->getCompletedTime()))->format('Y-m-d'),
             'lastScanDate' => !empty($last_scan_date) ? (new DrupalDateTime($last_scan_date))->format('Y-m-d') : null,
-            'profileImageURL' => $is_esncard ? $profile_image_url : null,
+            'profileImageURL' => $profile_image_url,
         ], 200);
     }
 }

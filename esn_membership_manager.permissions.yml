@@ -1,6 +1,6 @@
 access custom form:
-  title: 'Access Custom Form'
-  description: 'Allow users to access the custom form page'
+  title: "Access Custom Form"
+  description: "Allow users to access the custom form page"
   restrict access: false
 
 approve submission:
@@ -16,6 +16,11 @@ decline submission:
 view membership menu:
   title: "View Membership Menu"
   description: "Allows users to view the internal membership menus"
+  restrict access: false
+
+scan cards:
+  title: "Scan Cards"
+  description: "Allows users to scan cards and passes"
   restrict access: false
 
 manage module settings:
