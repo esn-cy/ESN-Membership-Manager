@@ -1,4 +1,4 @@
-<?php
+<?php /** @noinspection PhpUnused */
 
 namespace Drupal\esn_membership_manager\Controller;
 
@@ -92,7 +92,6 @@ class ScanController extends ControllerBase
         } catch (Exception) {
             return new JsonResponse(['status' => 'error', 'message' => 'There was a problem getting the card.'], 500);
         }
-
 
         if (empty($sid) && $is_esncard) {
             return new JsonResponse(['status' => 'error', 'message' => 'Card not found.'], 404);

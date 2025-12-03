@@ -1,4 +1,4 @@
-<?php
+<?php /** @noinspection PhpUnused */
 
 namespace Drupal\esn_membership_manager\Plugin\Action;
 

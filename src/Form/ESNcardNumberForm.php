@@ -1,4 +1,4 @@
-<?php
+<?php /** @noinspection PhpUnused */
 
 namespace Drupal\esn_membership_manager\Form;
 
@@ -14,7 +14,6 @@ class ESNcardNumberForm extends FormBase
 {
     protected Connection $database;
     protected LoggerChannelInterface $logger;
-
 
     public function __construct(Connection $database, LoggerChannelFactoryInterface $logger_factory)
     {
