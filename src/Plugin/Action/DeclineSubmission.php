@@ -18,7 +18,7 @@ use Symfony\Component\DependencyInjection\ContainerInterface;
  *
  * @Action(
  *   id = "esn_membership_manager_decline",
- *   label = @Translation("Decline submissions"),
+ *   label = @Translation("Decline Submissions"),
  *   type = "webform_submission",
  *   confirm = TRUE
  * )

@@ -25,7 +25,7 @@ use Symfony\Component\DependencyInjection\ContainerInterface;
  *
  * @Action(
  *   id = "esn_membership_manager_approve",
- *   label = @Translation("Approve submissions and generate Stripe payment link"),
+ *   label = @Translation("Approve Submissions"),
  *   type = "webform_submission",
  *   confirm = TRUE
  * )
