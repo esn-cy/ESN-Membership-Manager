@@ -4,6 +4,7 @@ namespace Drupal\esn_membership_manager\Controller;
 
 use Drupal\Component\Plugin\Exception\InvalidPluginDefinitionException;
 use Drupal\Component\Plugin\Exception\PluginNotFoundException;
+use Drupal\Core\Config\ConfigFactoryInterface;
 use Drupal\Core\Controller\ControllerBase;
 use Drupal\Core\Database\Connection;
 use Drupal\Core\Datetime\DrupalDateTime;
@@ -19,12 +20,14 @@ use Symfony\Component\HttpFoundation\Request;
 
 class ScanController extends ControllerBase
 {
+    protected $configFactory;
     protected $entityTypeManager;
     protected Connection $database;
     protected LoggerChannelInterface $logger;
 
-    public function __construct(EntityTypeManagerInterface $entity_type_manager, Connection $database, LoggerChannelFactoryInterface $logger_factory)
+    public function __construct(ConfigFactoryInterface $configFactory, EntityTypeManagerInterface $entity_type_manager, Connection $database, LoggerChannelFactoryInterface $logger_factory)
     {
+        $this->configFactory = $configFactory;
         $this->entityTypeManager = $entity_type_manager;
         $this->database = $database;
         $this->logger = $logger_factory->get('esn_membership_manager');
@@ -32,6 +35,9 @@ class ScanController extends ControllerBase
 
     public static function create(ContainerInterface $container): self
     {
+        /** @var ConfigFactoryInterface $configFactory */
+        $configFactory = $container->get('config.factory');
+
         /** @var EntityTypeManagerInterface $entity_type_manager */
         $entity_type_manager = $container->get('entity_type.manager');
 
@@ -42,6 +48,7 @@ class ScanController extends ControllerBase
         $loggerFactory = $container->get('logger.factory');
 
         return new static(
+            $configFactory,
             $entity_type_manager,
             $database,
             $loggerFactory
@@ -50,6 +57,8 @@ class ScanController extends ControllerBase
 
     public function scanCard(Request $request): JsonResponse
     {
+        $moduleConfig = $this->configFactory->get('esn_membership_manager.settings');
+
         if (!$request->isMethod('POST')) {
             return new JsonResponse();
         }
@@ -78,7 +87,7 @@ class ScanController extends ControllerBase
             $query = $this->database->select('webform_submission', 'ws');
             $query->join('webform_submission_data', 'wsd', 'ws.sid = wsd.sid');
             $query->fields('ws', ['sid']);
-            $query->condition('ws.webform_id', 'esn_cyprus_pass');
+            $query->condition('ws.webform_id', $moduleConfig->get('webform_id'));
 
             if ($is_esncard) {
                 $query->condition('wsd.name', 'esncard_number');

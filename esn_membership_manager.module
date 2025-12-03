@@ -7,23 +7,26 @@ use Drupal\Core\Form\FormStateInterface;
  */
 function esn_membership_manager_webform_element_alter(array &$element, FormStateInterface $form_state, array $context): void
 {
+    $logger = Drupal::service('logger.factory')->get('esn_membership_manager');
+    $database = Drupal::database();
+    $moduleConfig = Drupal::config('esn_membership_manager.settings');
+
     static $available_esncards_count = NULL;
 
     $webform_id = $element['#webform_id'] ?? NULL;
     $element_key = $element['#webform_key'] ?? NULL;
 
-    if ($webform_id && str_starts_with($webform_id, 'esn_cyprus_pass') && $element_key === 'choices') {
-
+    if ($webform_id && str_starts_with($webform_id, $moduleConfig->get('webform_id')) && $element_key === 'choices') {
         if ($available_esncards_count === NULL) {
-            $query = Drupal::database()->select('esncard_numbers', 'e');
+            $query = $database->select('esncard_numbers', 'e');
             $query->condition('assigned', 0);
             $available_esncards_count = (int)$query->countQuery()->execute()->fetchField();
 
-            Drupal::logger('esn_membership_manager')->notice('Available ESNcards count: @count', [
+            $logger->notice('Available ESNcards count: @count', [
                 '@count' => $available_esncards_count,
             ]);
         }
-        Drupal::logger('esn_membership_manager')->notice('Available ESNcards count: @count', ['@count' => $available_esncards_count]);
+        $logger->notice('Available ESNcards count: @count', ['@count' => $available_esncards_count]);
 
         if ($available_esncards_count === 0) {
             // Disable the ESNcard option directly in options__properties
@@ -38,7 +41,7 @@ function esn_membership_manager_webform_element_alter(array &$element, FormState
             }
             $element['#description'] .= '<div class="esncard-unavailable" style="color:red; font-size:0.9em; margin-top:4px;">No more ESNcards available at the moment</div>';
 
-            Drupal::logger('esn_membership_manager')->notice('ESNcard option disabled successfully.');
+            $logger->notice('ESNcard option disabled successfully.');
         }
     }
 }

@@ -4,6 +4,7 @@ namespace Drupal\esn_membership_manager\Controller;
 
 use Drupal\Component\Plugin\Exception\InvalidPluginDefinitionException;
 use Drupal\Component\Plugin\Exception\PluginNotFoundException;
+use Drupal\Core\Config\ConfigFactoryInterface;
 use Drupal\Core\Controller\ControllerBase;
 use Drupal\Core\Database\Connection;
 use Drupal\Core\Entity\EntityStorageException;
@@ -26,17 +27,22 @@ enum Status: string
 
 class StatusController extends ControllerBase
 {
+    protected $configFactory;
     protected $entityTypeManager;
     protected Connection $database;
 
-    public function __construct(EntityTypeManagerInterface $entity_type_manager, Connection $database)
+    public function __construct(ConfigFactoryInterface $configFactory, EntityTypeManagerInterface $entity_type_manager, Connection $database)
     {
+        $this->configFactory = $configFactory;
         $this->entityTypeManager = $entity_type_manager;
         $this->database = $database;
     }
 
     public static function create(ContainerInterface $container): self
     {
+        /** @var ConfigFactoryInterface $configFactory */
+        $configFactory = $container->get('config.factory');
+
         /** @var EntityTypeManagerInterface $entity_type_manager */
         $entity_type_manager = $container->get('entity_type.manager');
 
@@ -44,6 +50,7 @@ class StatusController extends ControllerBase
         $database = $container->get('database');
 
         return new static(
+            $configFactory,
             $entity_type_manager,
             $database
         );
@@ -51,6 +58,8 @@ class StatusController extends ControllerBase
 
     public function changeStatus(Request $request): JsonResponse
     {
+        $moduleConfig = $this->configFactory->get('esn_membership_manager.settings');
+
         $body = json_decode($request->getContent(), TRUE) ?? [];
         $card_number = $body['card'] ?? null;
         $status = $body['status'] ?? null;
@@ -81,7 +90,7 @@ class StatusController extends ControllerBase
             $query = $this->database->select('webform_submission', 'ws');
             $query->join('webform_submission_data', 'wsd', 'ws.sid = wsd.sid');
             $query->fields('ws', ['sid']);
-            $query->condition('ws.webform_id', 'esn_cyprus_pass');
+            $query->condition('ws.webform_id', $moduleConfig->get('webform_id'));
             $query->condition('wsd.name', 'esncard_number');
             $query->condition('wsd.value', $card_number);
 

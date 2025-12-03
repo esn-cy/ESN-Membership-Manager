@@ -3,20 +3,39 @@
 namespace Drupal\esn_membership_manager\Controller;
 
 use Drupal;
+use Drupal\Core\Config\ConfigFactoryInterface;
 use Drupal\Core\Controller\ControllerBase;
 use Drupal\Core\Datetime\DrupalDateTime;
 use Drupal\webform\Entity\WebformSubmission;
+use Symfony\Component\DependencyInjection\ContainerInterface;
 use Symfony\Component\HttpFoundation\JsonResponse;
 
 class ValidationController extends ControllerBase
 {
+    protected $configFactory;
+
+    public function __construct(ConfigFactoryInterface $configFactory)
+    {
+        $this->configFactory = $configFactory;
+    }
+
+    public static function create(ContainerInterface $container): self
+    {
+        /** @var ConfigFactoryInterface $configFactory */
+        $configFactory = $container->get('config.factory');
+
+        return new static(
+            $configFactory
+        );
+    }
+
     public function validateToken($user_token): JsonResponse
     {
-        $webform_id = 'esn_cyprus_pass';
+        $moduleConfig = $this->configFactory->get('esn_membership_manager.settings');
 
         $query = Drupal::entityQuery('webform_submission')
             ->accessCheck(FALSE)
-            ->condition('webform_id', $webform_id);
+            ->condition('webform_id', $moduleConfig->get('webform_id'));
         $sids = $query->execute();
 
         if (empty($sids)) {
