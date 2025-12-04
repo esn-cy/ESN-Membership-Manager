@@ -59,8 +59,8 @@ class ScanController extends ControllerBase
     {
         $moduleConfig = $this->configFactory->get('esn_membership_manager.settings');
 
-        if (!$request->isMethod('POST')) {
-            return new JsonResponse();
+        if ($request->isMethod('GET')) {
+            return new JsonResponse(null, 200);
         }
 
         $body = json_decode($request->getContent(), TRUE) ?? [];
