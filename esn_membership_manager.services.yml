@@ -1,0 +1,13 @@
+services:
+  logger.channel.esn_membership_manager:
+    parent: logger.channel_base
+    arguments: [ 'esn_membership_manager' ]
+
+  esn_membership_manager.weeztix_api_service:
+    class: Drupal\esn_membership_manager\Service\WeeztixApiService
+    arguments:
+      - '@config.factory'
+      - '@http_client'
+      - '@state'
+      - '@logger.factory'
+      - '@datetime.time'

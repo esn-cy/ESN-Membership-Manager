@@ -10,6 +10,7 @@ use Drupal\Core\Entity\EntityStorageException;
 use Drupal\Core\Lock\LockBackendInterface;
 use Drupal\Core\Logger\LoggerChannelFactoryInterface;
 use Drupal\Core\Logger\LoggerChannelInterface;
+use Drupal\esn_membership_manager\Service\WeeztixApiService;
 use Drupal\webform\Entity\WebformSubmission;
 use Drupal\webform\WebformSubmissionInterface;
 use Exception;
@@ -26,13 +27,22 @@ class StripeWebhookController extends ControllerBase
     protected Connection $database;
     protected LockBackendInterface $lock;
     protected LoggerChannelInterface $logger;
+    protected WeeztixApiService $apiService;
 
-    public function __construct(ConfigFactoryInterface $configFactory, Connection $database, LockBackendInterface $lock, LoggerChannelFactoryInterface $loggerFactory)
+    public function __construct(
+        ConfigFactoryInterface        $configFactory,
+        Connection                    $database,
+        LockBackendInterface          $lock,
+        LoggerChannelFactoryInterface $loggerFactory,
+        WeeztixApiService             $apiService
+    )
     {
         $this->configFactory = $configFactory;
         $this->database = $database;
         $this->lock = $lock;
         $this->logger = $loggerFactory->get('esn_membership_manager');
+        $this->apiService = $apiService;
+
     }
 
     public static function create(ContainerInterface $container): self
@@ -49,11 +59,15 @@ class StripeWebhookController extends ControllerBase
         /** @var LoggerChannelFactoryInterface $loggerFactory */
         $loggerFactory = $container->get('logger.factory');
 
+        /** @var WeeztixApiService $apiService */
+        $apiService = $container->get('esn_membership_manager.weeztix_api_service');
+
         return new static(
             $configFactory,
             $database,
             $lock,
-            $loggerFactory
+            $loggerFactory,
+            $apiService
         );
     }
 
@@ -104,7 +118,7 @@ class StripeWebhookController extends ControllerBase
                             $submission->setElementData('approval_status', 'Paid');
                             $submission->setElementData('date_paid', (new DrupalDateTime())->format('Y-m-d H:i:s'));
 
-                            $this->assignESNcardNumber($submission);
+                            $esnCard = $this->assignESNcardNumber($submission);
 
                             try {
                                 PaymentLink::update(
@@ -123,6 +137,8 @@ class StripeWebhookController extends ControllerBase
                             }
 
                             $this->logger->notice('Submission @id marked as Paid and assigned ESNcard number.', ['@id' => $submissionID]);
+
+                            $this->apiService->addCoupon($esnCard, ['applies_to_count' => 1]);
                         } else {
                             $this->logger->warning('Submission ID @id from Stripe webhook not found.', ['@id' => $submissionID]);
                         }
@@ -145,7 +161,7 @@ class StripeWebhookController extends ControllerBase
      * Assigns the next available ESNcard number to a submission.
      * @throws EntityStorageException
      */
-    private function assignESNcardNumber(WebformSubmissionInterface $submission): void
+    private function assignESNcardNumber(WebformSubmissionInterface $submission): string
     {
         $transaction = $this->database->startTransaction();
 
@@ -173,8 +189,10 @@ class StripeWebhookController extends ControllerBase
                     '@num' => $nextNumber,
                     '@id' => $submission->id(),
                 ]);
+                return $nextNumber;
             } else {
                 $this->logger->warning('No available ESNcard numbers left to assign.');
+                throw new Exception('Failed to assign ESNcard number: No available ESNcard numbers left to assign.');
             }
         } catch (Exception $e) {
             $transaction->rollBack();

@@ -67,3 +67,11 @@ esn_membership_manager.settings:
     _title: 'ESN Membership Manager Settings'
   requirements:
     _permission: 'manage module settings'
+
+esn_membership_manager.weeztix_oauth_callback:
+  path: '/admin/config/system/esn-membership-manager/weeztix-auth-callback'
+  defaults:
+    _controller: '\Drupal\esn_membership_manager\Controller\WeeztixAuthController::callback'
+    _title: 'Weeztix Authentication'
+  requirements:
+    _permission: 'manage module settings'
