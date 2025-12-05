@@ -11,3 +11,9 @@ services:
       - '@state'
       - '@logger.factory'
       - '@datetime.time'
+
+  esn_membership_manager.google_sheets_service:
+    class: Drupal\esn_membership_manager\Service\GoogleSheetsService
+    arguments:
+      - '@config.factory'
+      - '@logger.factory'

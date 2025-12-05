@@ -10,6 +10,7 @@ use Drupal\Core\State\StateInterface;
 use Drupal\Core\Url;
 use Drupal\esn_membership_manager\Service\WeeztixApiService;
 use Symfony\Component\DependencyInjection\ContainerInterface;
+use Symfony\Component\HttpFoundation\File\UploadedFile;
 use Symfony\Component\HttpFoundation\RequestStack;
 
 /**
@@ -190,7 +191,87 @@ class SettingsForm extends ConfigFormBase
             }
         }
 
+        $form['google_sheets'] = [
+            '#type' => 'details',
+            '#title' => $this->t('Google Sheets Settings'),
+            '#open' => TRUE,
+            '#description' => $this->t('Configuration for the Google Sheets Service.'),
+        ];
+
+        $form['google_sheets']['google_spreadsheet_id'] = [
+            '#type' => 'textfield',
+            '#title' => $this->t('Spreadsheet ID'),
+            '#default_value' => $config->get('google_spreadsheet_id'),
+            '#description' => $this->t('The long ID string from the Google Sheet URL.'),
+            '#required' => TRUE,
+        ];
+
+        $form['google_sheets']['google_sheet_name'] = [
+            '#type' => 'textfield',
+            '#title' => $this->t('Sheet Name'),
+            '#default_value' => $config->get('google_sheet_name') ?: 'Data',
+            '#description' => $this->t('The name of the specific tab (e.g., "Data").'),
+            '#required' => TRUE,
+        ];
+
+        $email = $config->get('google_client_email');
+
+        if ($email) {
+            $form['google_sheets']['current_status'] = [
+                '#markup' => '<div class="messages messages--status">' .
+                    $this->t('Currently connected as: <strong>@email</strong>', ['@email' => $email]) .
+                    '</div>',
+            ];
+        } else {
+            $form['google_sheets']['current_status'] = [
+                '#markup' => '<div class="messages messages--warning">' .
+                    $this->t('No Service Account credentials configured.') .
+                    '</div>',
+            ];
+        }
+
+        $form['google_sheets']['google_json_key_file'] = [
+            '#type' => 'file',
+            '#title' => $this->t('Upload Google Service Account JSON'),
+            '#description' => $this->t('Upload the .json file you downloaded from Google Console. The system will extract the keys and discard the file.'),
+            '#attributes' => [
+                'accept' => '.json',
+            ],
+            '#required' => empty($email),
+        ];
+
         return parent::buildForm($form, $form_state);
+    }
+
+    /**
+     * {@inheritdoc}
+     */
+    public function validateForm(array &$form, FormStateInterface $form_state): void
+    {
+        parent::validateForm($form, $form_state);
+
+        $all_files = $this->getRequest()->files->get('files', []);
+        /** @var UploadedFile $file */
+        $file = $all_files['google_json_key_file'] ?? NULL;
+
+        if ($file instanceof UploadedFile) {
+            if ($file->isValid()) {
+                $content = file_get_contents($file->getRealPath());
+                $json = json_decode($content, TRUE);
+
+                if (json_last_error() !== JSON_ERROR_NONE) {
+                    $form_state->setErrorByName('google_json_key_file', $this->t('The uploaded file is not valid JSON.'));
+                    return;
+                }
+
+                if (empty($json['client_email']) || empty($json['private_key'])) {
+                    $form_state->setErrorByName('json_key_file', $this->t('The JSON file does not contain "client_email" or "private_key". Are you sure this is a Service Account key file?'));
+                    return;
+                }
+
+                $form_state->set('parsed_google_credentials', $json);
+            }
+        }
     }
 
     /**
@@ -198,8 +279,9 @@ class SettingsForm extends ConfigFormBase
      */
     public function submitForm(array &$form, FormStateInterface $form_state): void
     {
-        $this->config('esn_membership_manager.settings')
-            ->set('webform_id', $form_state->getValue('webform_id'))
+        $config = $this->config('esn_membership_manager.settings');
+
+        $config->set('webform_id', $form_state->getValue('webform_id'))
             ->set('stripe_secret_key', $form_state->getValue('stripe_secret_key'))
             ->set('stripe_webhook_secret', $form_state->getValue('stripe_webhook_secret'))
             ->set('stripe_price_id_esncard', $form_state->getValue('stripe_price_id_esncard'))
@@ -207,7 +289,22 @@ class SettingsForm extends ConfigFormBase
             ->set('weeztix_client_id', $form_state->getValue('weeztix_client_id'))
             ->set('weeztix_client_secret', $form_state->getValue('weeztix_client_secret'))
             ->set('weeztix_coupon_list_id', $form_state->getValue('weeztix_coupon_list_id'))
-            ->save();
+            ->set('google_spreadsheet_id', $form_state->getValue('google_spreadsheet_id'))
+            ->set('google_sheet_name', $form_state->getValue('google_sheet_name'));
+
+        $google_credentials = $form_state->get('parsed_google_credentials');
+
+        if ($google_credentials) {
+            $config->set('google_client_email', $google_credentials['client_email']);
+            $config->set('google_private_key', $google_credentials['private_key']);
+            $config->set('google_project_id', $google_credentials['project_id'] ?? '');
+            $config->set('google_private_key_id', $google_credentials['private_key_id'] ?? '');
+            $config->set('google_client_id', $google_credentials['client_id'] ?? '');
+
+            $this->messenger()->addStatus($this->t('Credentials updated for @email. Remember to share your sheet with this email!', ['@email' => $google_credentials['client_email']]));
+        }
+
+        $config->save();
 
         parent::submitForm($form, $form_state);
     }

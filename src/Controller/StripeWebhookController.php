@@ -10,6 +10,7 @@ use Drupal\Core\Entity\EntityStorageException;
 use Drupal\Core\Lock\LockBackendInterface;
 use Drupal\Core\Logger\LoggerChannelFactoryInterface;
 use Drupal\Core\Logger\LoggerChannelInterface;
+use Drupal\esn_membership_manager\Service\GoogleSheetsService;
 use Drupal\esn_membership_manager\Service\WeeztixApiService;
 use Drupal\webform\Entity\WebformSubmission;
 use Drupal\webform\WebformSubmissionInterface;
@@ -28,13 +29,15 @@ class StripeWebhookController extends ControllerBase
     protected LockBackendInterface $lock;
     protected LoggerChannelInterface $logger;
     protected WeeztixApiService $apiService;
+    protected GoogleSheetsService $sheetsService;
 
     public function __construct(
         ConfigFactoryInterface        $configFactory,
         Connection                    $database,
         LockBackendInterface          $lock,
         LoggerChannelFactoryInterface $loggerFactory,
-        WeeztixApiService             $apiService
+        WeeztixApiService   $apiService,
+        GoogleSheetsService $sheetsService
     )
     {
         $this->configFactory = $configFactory;
@@ -42,7 +45,7 @@ class StripeWebhookController extends ControllerBase
         $this->lock = $lock;
         $this->logger = $loggerFactory->get('esn_membership_manager');
         $this->apiService = $apiService;
-
+        $this->sheetsService = $sheetsService;
     }
 
     public static function create(ContainerInterface $container): self
@@ -62,12 +65,16 @@ class StripeWebhookController extends ControllerBase
         /** @var WeeztixApiService $apiService */
         $apiService = $container->get('esn_membership_manager.weeztix_api_service');
 
+        /** @var GoogleSheetsService $sheetsService */
+        $sheetsService = $container->get('esn_membership_manager.google_sheets_service');
+
         return new static(
             $configFactory,
             $database,
             $lock,
             $loggerFactory,
-            $apiService
+            $apiService,
+            $sheetsService
         );
     }
 
@@ -138,7 +145,24 @@ class StripeWebhookController extends ControllerBase
 
                             $this->logger->notice('Submission @id marked as Paid and assigned ESNcard number.', ['@id' => $submissionID]);
 
-                            $this->apiService->addCoupon($esnCard, ['applies_to_count' => 1]);
+                            if (!empty($moduleConfig->get('weeztix_client_id'))) {
+                                $this->apiService->addCoupon($esnCard, ['applies_to_count' => 1]);
+                            }
+
+                            if (!empty($moduleConfig->get('weeztix_client_id'))) {
+                                $this->sheetsService->appendRow(
+                                    [
+                                        'date' => str_replace('-', '/', date('d-m-y')),
+                                        'name' => $submissionData['name'] . ' ' . $submissionData['surname'],
+                                        'card_number' => $submissionData['esncard_number'],
+                                        'pos' => 'ESN Memberships Manager',
+                                        'host' => 'REPLACE MANUALLY',
+                                        'nationality' => $submissionData['country_origin'],
+                                        'mop' => 'Stripe',
+                                        'amount' => 16,
+                                    ]
+                                );
+                            }
                         } else {
                             $this->logger->warning('Submission ID @id from Stripe webhook not found.', ['@id' => $submissionID]);
                         }
