@@ -1,6 +1,7 @@
 <?php /** @noinspection PhpUnused */
 
 use Drupal\Core\Form\FormStateInterface;
+use Drupal\Core\Render\Markup;
 
 /**
  * Implements hook_webform_element_alter().
@@ -83,5 +84,116 @@ function _esn_membership_manager_menu_hide_empty_parents(array &$items): void
         if ($is_non_linking_parent && empty($item['below'])) {
             unset($items[$key]);
         }
+    }
+}
+
+/**
+ * Implements hook_theme().
+ * Registers the Twig email templates.
+ */
+function esn_membership_manager_theme($existing, $type, $theme, $path): array
+{
+    $common_vars = [
+        'name' => 'Student',
+        'logo_location' => 'https://esn.org/sites/default/files/ESN_full-logo-Satellite.png',
+        'custom_footer' => '',
+        'scheme_name' => 'ESN Pass',
+    ];
+
+    return [
+        // 1. Pass Approval (QR Code only)
+        'emm_pass_approval' => [
+            'variables' => array_merge($common_vars, [
+                'user_token' => '',
+            ])
+        ],
+
+        // 2. Both Approval (Pass + ESNcard)
+        'emm_both_approval' => [
+            'variables' => array_merge($common_vars, [
+                'user_token' => '',
+                'payment_link' => '',
+            ]),
+        ],
+
+        // 3. ESNcard Assignment (Card issued/Created)
+        'emm_card_assignment' => [
+            'variables' => [
+                'name' => 'Student',
+                'logo_location' => 'https://esn.org/sites/default/files/ESN_full-logo-Satellite.png',
+                'custom_footer' => '',
+                'esncard_number' => NULL,
+            ],
+        ],
+
+        // 4. ESNcard Approval (Payment request)
+        'emm_card_approval' => [
+            'variables' => [
+                'name' => 'Student',
+                'logo_location' => 'https://esn.org/sites/default/files/ESN_full-logo-Satellite.png',
+                'custom_footer' => '',
+                'payment_link' => NULL,
+            ],
+        ],
+
+        // 5. Denial (Both)
+        'emm_both_denial' => [
+            'variables' => $common_vars,
+        ],
+    ];
+}
+
+/**
+ * Implements hook_mail().
+ */
+function esn_membership_manager_mail($key, &$message, $params): void
+{
+    $config = Drupal::config('esn_membership_manager.settings');
+    $from_email = $config->get('email_from_address');
+    $from_name = $config->get('email_from_name');
+
+    if ($from_email) {
+        if ($from_name) {
+            $message['from'] = "$from_name <$from_email>";
+            $message['headers']['From'] = "$from_name <$from_email>";
+        } else {
+            $message['from'] = $from_email;
+            $message['headers']['From'] = $from_email;
+        }
+    }
+
+    $options = [
+        'langcode' => $message['langcode'],
+    ];
+
+    $message['headers']['Content-Type'] = 'text/html; charset=UTF-8';
+    $message['headers']['MIME-Version'] = '1.0';
+
+    $scheme = $params['scheme_name'] ?? 'ESN Pass';
+
+    switch ($key) {
+        case 'pass_approval':
+            $message['subject'] = t('@scheme Approval', ['@scheme' => $scheme], $options);
+            break;
+
+        case 'both_approval':
+            $message['subject'] = t('@scheme and ESNcard Approval', ['@scheme' => $scheme], $options);
+            break;
+
+        case 'card_approval':
+            $message['subject'] = t('ESNcard Application Approved', [], $options);
+            break;
+
+        case 'card_assignment':
+            $message['subject'] = t('Your ESNcard Details', [], $options);
+            break;
+
+        case 'both_denial':
+            $message['subject'] = t('Application Declined', [], $options);
+            break;
+    }
+
+    if (isset($params['body'])) {
+        $message['body'][] = Markup::create($params['body']);
     }
 }

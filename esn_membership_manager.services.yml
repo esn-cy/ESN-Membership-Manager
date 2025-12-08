@@ -17,3 +17,11 @@ services:
     arguments:
       - '@config.factory'
       - '@logger.factory'
+
+  esn_membership_manager.email_manager:
+    class: Drupal\esn_membership_manager\Service\EmailManager
+    arguments:
+      - '@config.factory'
+      - '@logger.factory'
+      - '@plugin.manager.mail'
+      - '@renderer'

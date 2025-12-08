@@ -92,12 +92,59 @@ class SettingsForm extends ConfigFormBase
             '#description' => $this->t('Configuration for the ESN Membership Manager module.'),
         ];
 
+        $form['general']['scheme_name'] = [
+            '#type' => 'textfield',
+            '#title' => $this->t('Free Pass Scheme Name'),
+            '#description' => $this->t('Enter the Webform ID where the applications are made.'),
+            '#default_value' => $config->get('scheme_name') ?: 'ESN Pass',
+            '#required' => TRUE,
+        ];
+
+        $form['general']['logo_url'] = [
+            '#type' => 'textfield',
+            '#title' => $this->t('Logo URL'),
+            '#description' => $this->t('Enter the url of the section logo.'),
+            '#default_value' => $config->get('logo_url') ?: 'https://esn.org/sites/default/files/ESN_full-logo-Satellite.png',
+            '#required' => TRUE,
+        ];
+
         $form['general']['webform_id'] = [
             '#type' => 'textfield',
             '#title' => $this->t('Webform ID'),
             '#description' => $this->t('Enter the Webform ID where the applications are made.'),
             '#default_value' => $config->get('webform_id'),
             '#required' => TRUE,
+        ];
+
+        $form['email'] = [
+            '#type' => 'details',
+            '#title' => $this->t('Email Settings'),
+            '#open' => TRUE,
+            '#description' => $this->t('Configuration for the parameters needed for sending emails.'),
+        ];
+
+        $form['email']['email_from_address'] = [
+            '#type' => 'textfield',
+            '#title' => $this->t('Sender Email Address'),
+            '#description' => $this->t('Enter the email address from where the emails will be sent.'),
+            '#default_value' => $config->get('email_from_address'),
+            '#required' => TRUE,
+        ];
+
+        $form['email']['email_from_name'] = [
+            '#type' => 'textfield',
+            '#title' => $this->t('Sender Email Name'),
+            '#description' => $this->t('Enter the user-friendly name from where the emails will be sent.'),
+            '#default_value' => $config->get('email_from_name'),
+            '#required' => TRUE,
+        ];
+
+        $form['email']['email_footer'] = [
+            '#type' => 'textarea',
+            '#title' => $this->t('Email Footer'),
+            '#description' => $this->t('Enter the HTML for the footer of the emails to be sent.'),
+            '#default_value' => $config->get('email_footer'),
+            '#required' => FALSE,
         ];
 
         $form['stripe'] = [
@@ -265,7 +312,7 @@ class SettingsForm extends ConfigFormBase
                 }
 
                 if (empty($json['client_email']) || empty($json['private_key'])) {
-                    $form_state->setErrorByName('json_key_file', $this->t('The JSON file does not contain "client_email" or "private_key". Are you sure this is a Service Account key file?'));
+                    $form_state->setErrorByName('google_json_key_file', $this->t('The JSON file does not contain "client_email" or "private_key". Are you sure this is a Service Account key file?'));
                     return;
                 }
 
@@ -281,7 +328,12 @@ class SettingsForm extends ConfigFormBase
     {
         $config = $this->config('esn_membership_manager.settings');
 
-        $config->set('webform_id', $form_state->getValue('webform_id'))
+        $config->set('scheme_name', $form_state->getValue('scheme_name'))
+            ->set('logo_url', $form_state->getValue('logo_url'))
+            ->set('webform_id', $form_state->getValue('webform_id'))
+            ->set('email_from_address', $form_state->getValue('email_from_address'))
+            ->set('email_from_name', $form_state->getValue('email_from_name'))
+            ->set('email_footer', $form_state->getValue('email_footer'))
             ->set('stripe_secret_key', $form_state->getValue('stripe_secret_key'))
             ->set('stripe_webhook_secret', $form_state->getValue('stripe_webhook_secret'))
             ->set('stripe_price_id_esncard', $form_state->getValue('stripe_price_id_esncard'))
