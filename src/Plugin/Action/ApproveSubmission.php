@@ -94,7 +94,7 @@ class ApproveSubmission extends ActionBase implements ContainerFactoryPluginInte
         }
 
         try {
-            $query = $this->database->select('esncard_numbers', 'e');
+            $query = $this->database->select('esn_membership_manager_cards', 'e');
             $query->addExpression('COUNT(*)', 'count');
             $query->condition('assigned', 0);
             $count = $query->execute()->fetchField();

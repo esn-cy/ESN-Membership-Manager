@@ -1,24 +1,33 @@
 esn_membership_manager.category:
-  title: 'ESN Memberships'
-  description: 'A category for all links from the ESN Memberships Manager Module.'
-  route_name: '<nolink>'
+  title: "ESN Memberships"
+  description: "A category for all links from the ESN Memberships Manager Module."
+  route_name: "<nolink>"
   menu_name: main
   weight: -50
 
 esn_membership_manager.scan:
-  title: 'Scan ESNcards / Passes'
-  description: 'Scan ESNcards and Free Passes and get validity information'
+  title: "Scan ESNcards / Passes"
+  description: "Scan ESNcards and Free Passes and get validity information"
   parent: esn_membership_manager.category
   route_name: esn_membership_manager.scan_page
   weight: 1
   options:
-    _permission: 'scan cards'
+    _permission: "scan cards"
+
+esn_membership_manager.manage_esncard_numbers:
+  title: "Manage ESNcard Numbers"
+  description: "Manage available ESNcard numbers for distribution"
+  parent: esn_membership_manager.category
+  route_name: esn_membership_manager.manage_esncard_numbers
+  weight: 3
+  options:
+    _permission: "manage esncard numbers"
 
 esn_membership_manager.settings:
-  title: 'ESN Membership Manager Settings'
-  description: 'Configure settings for the ESN Membership Manager module.'
+  title: "ESN Membership Manager Settings"
+  description: "Configure settings for the ESN Membership Manager module."
   parent: esn_membership_manager.category
   route_name: esn_membership_manager.settings
   weight: 10
   options:
-    _permission: 'manage module settings'
+    _permission: "manage module settings"

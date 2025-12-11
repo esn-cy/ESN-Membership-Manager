@@ -29,9 +29,9 @@ esn_membership_manager.add:
   defaults:
     _controller: '\Drupal\esn_membership_manager\Controller\AddController::addCard'
     _title: 'Add ESNcard'
-    requirements:
-      _access: 'TRUE'
-    methods: [ POST ]
+  requirements:
+    _access: 'TRUE'
+  methods: [ POST ]
 
 esn_membership_manager.status:
   path: '/api/esncard/status'
@@ -50,13 +50,13 @@ esn_membership_manager.stripe_webhook:
     _access: 'TRUE'
   methods: [ POST ]
 
-esn_membership_manager.bulk_insert:
-  path: '/admin/esncard/bulk-insert'
+esn_membership_manager.manage_esncard_numbers:
+  path: '/memberships/manage-esncard-numbers'
   defaults:
     _form: '\Drupal\esn_membership_manager\Form\ESNcardNumberForm'
     _title: 'Bulk Insert ESNcards'
   requirements:
-    _permission: 'access custom form'
+    _permission: 'manage esncard numbers'
   options:
     _admin_route: FALSE
 

@@ -16,7 +16,6 @@ class AddController extends ControllerBase
     protected Connection $database;
     protected LoggerChannelInterface $logger;
 
-
     public function __construct(Connection $database, LoggerChannelFactoryInterface $logger_factory)
     {
         $this->database = $database;
@@ -51,7 +50,7 @@ class AddController extends ControllerBase
         }
 
         try {
-            $query = $this->database->select('esncard_numbers', 'e');
+            $query = $this->database->select('esn_membership_manager_cards', 'e');
             $query->condition('e.number', $card_number);
             $exists = $query->countQuery()->execute()->fetchField() > 0;
 
@@ -70,14 +69,9 @@ class AddController extends ControllerBase
         try {
             $transaction = $this->database->startTransaction();
 
-            $query = $this->database->select('esncard_numbers', 'e');
-            $query->addExpression('MAX(sequence)', 'max_seq');
-            $max_sequence = (int)$query->execute()->fetchField();
-
-            $this->database->insert('esncard_numbers')
+            $this->database->insert('esn_membership_manager_cards')
                 ->fields([
                     'number' => $card_number,
-                    'sequence' => $max_sequence + 1,
                     'assigned' => 0,
                 ])
                 ->execute();

@@ -37,7 +37,7 @@ class ESNcardNumberForm extends FormBase
 
     public function getFormId(): string
     {
-        return 'esncard_manage_form';
+        return 'esncard_number_form';
     }
 
     public function buildForm(array $form, FormStateInterface $form_state): array
@@ -57,18 +57,18 @@ class ESNcardNumberForm extends FormBase
         ];
 
         $header = [
-            'sequence' => $this->t('Sequence'),
+            'id' => $this->t('ID'),
             'number' => $this->t('Number'),
             'assigned' => $this->t('Assigned'),
             'operations' => $this->t('Operations'),
         ];
 
         /** @noinspection PhpPossiblePolymorphicInvocationInspection */
-        $query = $this->database->select('esncard_numbers', 'e')
-            ->fields('e', ['id', 'number', 'sequence', 'assigned'])
+        $query = $this->database->select('esn_membership_manager_cards', 'e')
+            ->fields('e', ['id', 'number', 'assigned'])
             ->extend('Drupal\Core\Database\Query\PagerSelectExtender')
             ->limit(50)
-            ->orderBy('sequence');
+            ->orderBy('id');
 
         $results = $query->execute()->fetchAll();
 
@@ -78,8 +78,8 @@ class ESNcardNumberForm extends FormBase
         ];
 
         foreach ($results as $row) {
-            $form['esncards_table'][$row->id]['sequence'] = [
-                '#markup' => $row->sequence,
+            $form['esncards_table'][$row->id]['id'] = [
+                '#markup' => $row->id,
             ];
 
             $form['esncards_table'][$row->id]['number'] = [
@@ -149,21 +149,10 @@ class ESNcardNumberForm extends FormBase
             return;
         }
 
-        try {
-            $query = $this->database->select('esncard_numbers', 'e');
-            $query->addExpression('MAX(sequence)', 'max_seq');
-            $max_sequence = (int)$query->execute()->fetchField();
-        } catch (Exception $e) {
-            $this->messenger()->addError($e->getMessage());
-            $this->logger->error('Failed to insert ESNcard numbers: ' . $e->getMessage());
-            return;
-        }
-
-        $sequence = ($max_sequence ?: 0) + 1;
         $inserted = 0;
 
         try {
-            $existingCards = $this->database->select('esncard_numbers', 'e')
+            $existingCards = $this->database->select('esn_membership_manager_cards', 'e')
                 ->fields('e', ['id', 'number'])
                 ->execute()
                 ->fetchAll();
@@ -182,15 +171,13 @@ class ESNcardNumberForm extends FormBase
 
                 if (!empty($trimmedCode)) {
                     if (!isset($existingCardMap[$trimmedCode])) {
-                        $this->database->insert('esncard_numbers')
+                        $this->database->insert('esn_membership_manager_cards')
                             ->fields([
                                 'number' => $trimmedCode,
-                                'sequence' => $sequence,
                                 'assigned' => 0,
                             ])
                             ->execute();
 
-                        $sequence++;
                         $inserted++;
 
                         $existingCardMap[$trimmedCode] = true;
@@ -223,7 +210,7 @@ class ESNcardNumberForm extends FormBase
 
         $id = $trigger['#esncard_id'];
         try {
-            $this->database->delete('esncard_numbers')->condition('id', $id)->execute();
+            $this->database->delete('esn_membership_manager_cards')->condition('id', $id)->execute();
         } catch (Exception $e) {
             $this->messenger()->addError($e->getMessage());
             $this->logger->error('Failed to delete ESNcard number with ID @number. Error: @error', ['@number' => $id, '@error' => $e->getMessage()]);
@@ -255,7 +242,7 @@ class ESNcardNumberForm extends FormBase
         }
 
         try {
-            $query = $this->database->select('esncard_numbers', 'e');
+            $query = $this->database->select('esn_membership_manager_cards', 'e');
             $exists = $query->condition('number', $value)
                 ->condition('id', $id, '<>')
                 ->countQuery()
@@ -266,13 +253,14 @@ class ESNcardNumberForm extends FormBase
             $this->logger->error('Failed to update the ESNcard number: ' . $e->getMessage());
             return;
         }
+
         if ($exists) {
             $this->messenger()->addError($this->t('A duplicate ESNcard number already exists.'));
             return;
         }
 
         try {
-            $this->database->update('esncard_numbers')
+            $this->database->update('esn_membership_manager_cards')
                 ->fields(['number' => $value])
                 ->condition('id', $id)
                 ->execute();

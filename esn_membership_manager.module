@@ -19,7 +19,7 @@ function esn_membership_manager_webform_element_alter(array &$element, FormState
 
     if ($webform_id && str_starts_with($webform_id, $moduleConfig->get('webform_id')) && $element_key === 'choices') {
         if ($available_esncards_count === NULL) {
-            $query = $database->select('esncard_numbers', 'e');
+            $query = $database->select('esn_membership_manager_cards', 'e');
             $query->condition('assigned', 0);
             $available_esncards_count = (int)$query->countQuery()->execute()->fetchField();
 

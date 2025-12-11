@@ -154,7 +154,7 @@ class StripeWebhookController extends ControllerBase
                                     [
                                         'date' => str_replace('-', '/', date('d-m-y')),
                                         'name' => $submissionData['name'] . ' ' . $submissionData['surname'],
-                                        'card_number' => $submissionData['esncard_number'],
+                                        'card_number' => $esnCard,
                                         'pos' => 'ESN Memberships Manager',
                                         'host' => 'REPLACE MANUALLY',
                                         'nationality' => $submissionData['country_origin'],
@@ -190,10 +190,10 @@ class StripeWebhookController extends ControllerBase
         $transaction = $this->database->startTransaction();
 
         try {
-            $query = $this->database->select('esncard_numbers', 'e')
+            $query = $this->database->select('esn_membership_manager_cards', 'e')
                 ->fields('e', ['number'])
                 ->condition('assigned', 0)
-                ->orderBy('sequence')
+                ->orderBy('id')
                 ->range(0, 1)
                 ->forUpdate();
 
@@ -201,7 +201,7 @@ class StripeWebhookController extends ControllerBase
             $nextNumber = $query->execute()->fetchField();
 
             if ($nextNumber) {
-                $this->database->update('esncard_numbers')
+                $this->database->update('esn_membership_manager_cards')
                     ->fields(['assigned' => 1])
                     ->condition('number', $nextNumber)
                     ->execute();

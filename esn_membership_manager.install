@@ -1,0 +1,38 @@
+<?php
+
+/**
+ * Implements hook_schema().
+ */
+function esn_membership_manager_schema(): array
+{
+    $schema['esn_membership_manager_cards'] = [
+        'description' => 'Stores ESNcard numbers for distribution.',
+        'fields' => [
+            'id' => [
+                'description' => 'Primary Key: Unique ESNcard ID.',
+                'type' => 'serial',
+                'unsigned' => TRUE,
+                'not null' => TRUE,
+            ],
+            'number' => [
+                'description' => 'The ESNcard number.',
+                'type' => 'varchar',
+                'length' => 20,
+                'not null' => TRUE,
+            ],
+            'assigned' => [
+                'description' => 'Indicates whether the card is assigned or not.',
+                'type' => 'int',
+                'size' => 'tiny',
+                'not null' => TRUE,
+                'default' => 0,
+            ]
+        ],
+        'primary key' => ['id'],
+        'unique keys' => [
+            'number' => ['number'],
+        ],
+    ];
+
+    return $schema;
+}

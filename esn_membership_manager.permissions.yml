@@ -23,6 +23,11 @@ scan cards:
   description: "Allows users to scan cards and passes"
   restrict access: false
 
+manage esncard numbers:
+  title: "Manage ESNcard Numbers"
+  description: "Allow users to manage the ESNcard Numbers ready for distribution"
+  restrict access: false
+
 manage module settings:
   title: "Manage the module's settings"
   description: "Allows users to manage the module's settings"
