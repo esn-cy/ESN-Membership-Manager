@@ -10,7 +10,7 @@ use Drupal\Core\Entity\EntityStorageException;
 use Drupal\Core\Lock\LockBackendInterface;
 use Drupal\Core\Logger\LoggerChannelFactoryInterface;
 use Drupal\Core\Logger\LoggerChannelInterface;
-use Drupal\esn_membership_manager\Service\GoogleSheetsService;
+use Drupal\esn_membership_manager\Service\GoogleService;
 use Drupal\esn_membership_manager\Service\WeeztixApiService;
 use Drupal\webform\Entity\WebformSubmission;
 use Drupal\webform\WebformSubmissionInterface;
@@ -29,7 +29,7 @@ class StripeWebhookController extends ControllerBase
     protected LockBackendInterface $lock;
     protected LoggerChannelInterface $logger;
     protected WeeztixApiService $apiService;
-    protected GoogleSheetsService $sheetsService;
+    protected GoogleService $sheetsService;
 
     public function __construct(
         ConfigFactoryInterface        $configFactory,
@@ -37,7 +37,7 @@ class StripeWebhookController extends ControllerBase
         LockBackendInterface          $lock,
         LoggerChannelFactoryInterface $loggerFactory,
         WeeztixApiService   $apiService,
-        GoogleSheetsService $sheetsService
+        GoogleService $sheetsService
     )
     {
         $this->configFactory = $configFactory;
@@ -65,8 +65,8 @@ class StripeWebhookController extends ControllerBase
         /** @var WeeztixApiService $apiService */
         $apiService = $container->get('esn_membership_manager.weeztix_api_service');
 
-        /** @var GoogleSheetsService $sheetsService */
-        $sheetsService = $container->get('esn_membership_manager.google_sheets_service');
+        /** @var GoogleService $sheetsService */
+        $sheetsService = $container->get('esn_membership_manager.google_service');
 
         return new static(
             $configFactory,
