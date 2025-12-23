@@ -238,46 +238,30 @@ class SettingsForm extends ConfigFormBase
             }
         }
 
-        $form['google_sheets'] = [
+        $form['google'] = [
             '#type' => 'details',
-            '#title' => $this->t('Google Sheets Settings'),
+            '#title' => $this->t('Google Settings'),
             '#open' => TRUE,
-            '#description' => $this->t('Configuration for the Google Sheets Service.'),
-        ];
-
-        $form['google_sheets']['google_spreadsheet_id'] = [
-            '#type' => 'textfield',
-            '#title' => $this->t('Spreadsheet ID'),
-            '#default_value' => $config->get('google_spreadsheet_id'),
-            '#description' => $this->t('The long ID string from the Google Sheet URL.'),
-            '#required' => TRUE,
-        ];
-
-        $form['google_sheets']['google_sheet_name'] = [
-            '#type' => 'textfield',
-            '#title' => $this->t('Sheet Name'),
-            '#default_value' => $config->get('google_sheet_name') ?: 'Data',
-            '#description' => $this->t('The name of the specific tab (e.g., "Data").'),
-            '#required' => TRUE,
+            '#description' => $this->t('Configuration for the Google Service.'),
         ];
 
         $email = $config->get('google_client_email');
 
         if ($email) {
-            $form['google_sheets']['current_status'] = [
+            $form['google']['current_status'] = [
                 '#markup' => '<div class="messages messages--status">' .
                     $this->t('Currently connected as: <strong>@email</strong>', ['@email' => $email]) .
                     '</div>',
             ];
         } else {
-            $form['google_sheets']['current_status'] = [
+            $form['google']['current_status'] = [
                 '#markup' => '<div class="messages messages--warning">' .
                     $this->t('No Service Account credentials configured.') .
                     '</div>',
             ];
         }
 
-        $form['google_sheets']['google_json_key_file'] = [
+        $form['google']['google_json_key_file'] = [
             '#type' => 'file',
             '#title' => $this->t('Upload Google Service Account JSON'),
             '#description' => $this->t('Upload the .json file you downloaded from Google Console. The system will extract the keys and discard the file.'),
@@ -285,6 +269,30 @@ class SettingsForm extends ConfigFormBase
                 'accept' => '.json',
             ],
             '#required' => empty($email),
+        ];
+
+        $form['google']['google_spreadsheet_id'] = [
+            '#type' => 'textfield',
+            '#title' => $this->t('Spreadsheet ID'),
+            '#default_value' => $config->get('google_spreadsheet_id'),
+            '#description' => $this->t('The long ID string from the Google Sheet URL.'),
+            '#required' => TRUE,
+        ];
+
+        $form['google']['google_sheet_name'] = [
+            '#type' => 'textfield',
+            '#title' => $this->t('Sheet Name'),
+            '#default_value' => $config->get('google_sheet_name') ?: 'Data',
+            '#description' => $this->t('The name of the specific tab (e.g., "Data").'),
+            '#required' => TRUE,
+        ];
+
+        $form['google']['google_issuer_id'] = [
+            '#type' => 'textfield',
+            '#title' => $this->t('Issuer ID'),
+            '#default_value' => $config->get('google_issuer_id'),
+            '#description' => $this->t('The Issuer ID from the Google Wallet Console.'),
+            '#required' => TRUE,
         ];
 
         return parent::buildForm($form, $form_state);
@@ -342,7 +350,8 @@ class SettingsForm extends ConfigFormBase
             ->set('weeztix_client_secret', $form_state->getValue('weeztix_client_secret'))
             ->set('weeztix_coupon_list_id', $form_state->getValue('weeztix_coupon_list_id'))
             ->set('google_spreadsheet_id', $form_state->getValue('google_spreadsheet_id'))
-            ->set('google_sheet_name', $form_state->getValue('google_sheet_name'));
+            ->set('google_sheet_name', $form_state->getValue('google_sheet_name'))
+            ->set('google_issuer_id', $form_state->getValue('google_issuer_id'));
 
         $google_credentials = $form_state->get('parsed_google_credentials');
 

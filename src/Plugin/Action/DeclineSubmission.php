@@ -10,6 +10,7 @@ use Drupal\Core\Logger\LoggerChannelFactoryInterface;
 use Drupal\Core\Logger\LoggerChannelInterface;
 use Drupal\Core\Plugin\ContainerFactoryPluginInterface;
 use Drupal\Core\Session\AccountInterface;
+use Drupal\esn_membership_manager\Service\EmailManager;
 use Drupal\webform\WebformSubmissionInterface;
 use Symfony\Component\DependencyInjection\ContainerInterface;
 
@@ -25,16 +26,24 @@ use Symfony\Component\DependencyInjection\ContainerInterface;
  */
 class DeclineSubmission extends ActionBase implements ContainerFactoryPluginInterface
 {
+    protected EmailManager $emailManager;
     protected LoggerChannelInterface $logger;
 
-    public function __construct(array $configuration, $plugin_id, $plugin_definition, LoggerChannelFactoryInterface $logger_factory)
+    public function __construct(array                         $configuration, $plugin_id, $plugin_definition,
+                                EmailManager                  $emailManager,
+                                LoggerChannelFactoryInterface $logger_factory
+    )
     {
         parent::__construct($configuration, $plugin_id, $plugin_definition);
+        $this->emailManager = $emailManager;
         $this->logger = $logger_factory->get('esn_membership_manager');
     }
 
     public static function create(ContainerInterface $container, array $configuration, $plugin_id, $plugin_definition): self
     {
+        /** @var EmailManager $emailManager */
+        $emailManager = $container->get('esn_membership_manager.email_manager');
+
         /** @var LoggerChannelFactoryInterface $loggerFactory */
         $loggerFactory = $container->get('logger.factory');
 
@@ -42,6 +51,7 @@ class DeclineSubmission extends ActionBase implements ContainerFactoryPluginInte
             $configuration,
             $plugin_id,
             $plugin_definition,
+            $emailManager,
             $loggerFactory
         );
     }
@@ -55,6 +65,8 @@ class DeclineSubmission extends ActionBase implements ContainerFactoryPluginInte
             return;
         }
 
+        $data = $entity->getData();
+
         try {
             $entity->setElementData('approval_status', 'Declined');
             $entity->save();
@@ -62,6 +74,7 @@ class DeclineSubmission extends ActionBase implements ContainerFactoryPluginInte
         } catch (EntityStorageException) {
             $this->logger->notice('Unable to save declined submission @id', ['@id' => $entity->id()]);
         }
+        $this->emailManager->sendEmail($data['name'], 'both_denial', []);
     }
 
     /**

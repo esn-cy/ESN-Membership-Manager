@@ -13,6 +13,8 @@ use Drupal\Core\Logger\LoggerChannelFactoryInterface;
 use Drupal\Core\Logger\LoggerChannelInterface;
 use Drupal\Core\Plugin\ContainerFactoryPluginInterface;
 use Drupal\Core\Session\AccountInterface;
+use Drupal\esn_membership_manager\Service\EmailManager;
+use Drupal\esn_membership_manager\Service\GoogleService;
 use Drupal\webform\WebformSubmissionInterface;
 use Exception;
 use Stripe\Exception\ApiErrorException;
@@ -34,13 +36,24 @@ class ApproveSubmission extends ActionBase implements ContainerFactoryPluginInte
 {
     protected ConfigFactoryInterface $configFactory;
     protected Connection $database;
+    protected EmailManager $emailManager;
+    protected GoogleService $googleService;
     protected LoggerChannelInterface $logger;
 
-    public function __construct(array $configuration, $plugin_id, $plugin_definition, ConfigFactoryInterface $config_factory, Connection $database, LoggerChannelFactoryInterface $logger_factory)
+    public function __construct(
+        array                         $configuration, $plugin_id, $plugin_definition,
+        ConfigFactoryInterface        $config_factory,
+        Connection                    $database,
+        EmailManager                  $emailManager,
+        GoogleService                 $googleService,
+        LoggerChannelFactoryInterface $logger_factory
+    )
     {
         parent::__construct($configuration, $plugin_id, $plugin_definition);
         $this->configFactory = $config_factory;
         $this->database = $database;
+        $this->emailManager = $emailManager;
+        $this->googleService = $googleService;
         $this->logger = $logger_factory->get('esn_membership_manager');
     }
 
@@ -52,6 +65,12 @@ class ApproveSubmission extends ActionBase implements ContainerFactoryPluginInte
         /** @var Connection $database */
         $database = $container->get('database');
 
+        /** @var EmailManager $emailManager */
+        $emailManager = $container->get('esn_membership_manager.email_manager');
+
+        /** @var GoogleService $googleService */
+        $googleService = $container->get('esn_membership_manager.google_service');
+
         /** @var LoggerChannelFactoryInterface $loggerFactory */
         $loggerFactory = $container->get('logger.factory');
 
@@ -61,6 +80,8 @@ class ApproveSubmission extends ActionBase implements ContainerFactoryPluginInte
             $plugin_definition,
             $configFactory,
             $database,
+            $emailManager,
+            $googleService,
             $loggerFactory
         );
     }
@@ -80,11 +101,31 @@ class ApproveSubmission extends ActionBase implements ContainerFactoryPluginInte
             return;
         }
 
+        $moduleConfig = $this->configFactory->get('esn_membership_manager.settings');
+
         if (!in_array('ESNcard', $data['choices'])) {
             try {
                 $entity->setElementData('approval_status', 'Approved');
                 $entity->setElementData('pass_is_enabled', 1);
                 $entity->save();
+
+                if (!empty($moduleConfig->get('google_issuer_id'))) {
+                    try {
+                        $google_wallet_link = $this->googleService->getFreePassObject($data);
+                    } catch (\Google\Service\Exception $e) {
+                        $this->logger->warning('Google Wallet Error: @error.', ['@error' => $e->getErrors()]);
+                    } catch (Exception $e) {
+                        $this->logger->warning('Google Wallet Error: @error.', ['@error' => $e->getMessage()]);
+                    }
+                }
+
+                $email_params = [
+                    'name' => $data['name'],
+                    'token' => $data['user_token'],
+                    'google_wallet_link' => $google_wallet_link ?? '',
+                ];
+                $this->emailManager->sendEmail($data['email'], 'pass_approval', $email_params);
+
                 $this->logger->notice('Approved submission @id (no ESNcard requested).', ['@id' => $entity->id()]);
                 return;
             } catch (EntityStorageException $e) {
@@ -111,8 +152,7 @@ class ApproveSubmission extends ActionBase implements ContainerFactoryPluginInte
             return;
         }
 
-        $module_config = $this->configFactory->get('esn_membership_manager.settings');
-        $stripeSecretKey = $module_config->get('stripe_secret_key');
+        $stripeSecretKey = $moduleConfig->get('stripe_secret_key');
         if (empty($stripeSecretKey)) {
             $this->logger->error('Stripe Secret Key not set in the module configuration.');
             return;
@@ -133,6 +173,31 @@ class ApproveSubmission extends ActionBase implements ContainerFactoryPluginInte
                 $entity->setElementData('date_approved', (new DrupalDateTime())->format('Y-m-d H:i:s'));
                 $entity->setElementData('pass_is_enabled', 1);
                 $entity->save();
+
+                $email_params = [
+                    'name' => $data['name'],
+                    'token' => $data['user_token'],
+                    'payment_link' => $paymentLink,
+                    'google_wallet_link' => ''
+                ];
+
+                if (in_array('pass', $data['choices'])) {
+                    if (!empty($moduleConfig->get('google_issuer_id'))) {
+                        try {
+                            if (!empty($moduleConfig->get('google_issuer_id'))) {
+                                $email_params['google_wallet_link'] = $this->googleService->getFreePassObject($data);
+                            }
+                        } catch (\Google\Service\Exception $e) {
+                            $this->logger->warning('Google Wallet Error: @error.', ['@error' => $e->getErrors()]);
+                        } catch (Exception $e) {
+                            $this->logger->warning('Google Wallet Error: @error.', ['@error' => $e->getMessage()]);
+                        }
+                    }
+                    $this->emailManager->sendEmail($data['name'], 'both_approval', $email_params);
+                } else {
+                    $this->emailManager->sendEmail($data['name'], 'card_approval', $email_params);
+                }
+
                 $this->logger->notice('Approved submission @id and created payment link.', ['@id' => $entity->id()]);
             } else {
                 $this->logger->error('Failed to create payment link for submission @id.', ['@id' => $entity->id()]);
@@ -157,9 +222,9 @@ class ApproveSubmission extends ActionBase implements ContainerFactoryPluginInte
      */
     protected function createStripePaymentLink(WebformSubmissionInterface $entity): ?string
     {
-        $module_config = $this->configFactory->get('esn_membership_manager.settings');
-        $esnCardPriceID = $module_config->get('stripe_price_id_esncard');
-        $processingFeePriceID = $module_config->get('stripe_price_id_processing');
+        $moduleConfig = $this->configFactory->get('esn_membership_manager.settings');
+        $esnCardPriceID = $moduleConfig->get('stripe_price_id_esncard');
+        $processingFeePriceID = $moduleConfig->get('stripe_price_id_processing');
 
         if (empty($esnCardPriceID) || empty($processingFeePriceID)) {
             $this->logger->error('Stripe Price IDs for ESNcard or Processing Fee are not configured.');
