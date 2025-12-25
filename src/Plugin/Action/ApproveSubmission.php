@@ -193,9 +193,9 @@ class ApproveSubmission extends ActionBase implements ContainerFactoryPluginInte
                             $this->logger->warning('Google Wallet Error: @error.', ['@error' => $e->getMessage()]);
                         }
                     }
-                    $this->emailManager->sendEmail($data['name'], 'both_approval', $email_params);
+                    $this->emailManager->sendEmail($data['email'], 'both_approval', $email_params);
                 } else {
-                    $this->emailManager->sendEmail($data['name'], 'card_approval', $email_params);
+                    $this->emailManager->sendEmail($data['email'], 'card_approval', $email_params);
                 }
 
                 $this->logger->notice('Approved submission @id and created payment link.', ['@id' => $entity->id()]);

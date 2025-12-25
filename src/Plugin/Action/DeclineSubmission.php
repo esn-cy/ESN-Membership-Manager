@@ -74,7 +74,7 @@ class DeclineSubmission extends ActionBase implements ContainerFactoryPluginInte
         } catch (EntityStorageException) {
             $this->logger->notice('Unable to save declined submission @id', ['@id' => $entity->id()]);
         }
-        $this->emailManager->sendEmail($data['name'], 'both_denial', []);
+        $this->emailManager->sendEmail($data['email'], 'both_denial', []);
     }
 
     /**
