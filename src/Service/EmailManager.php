@@ -37,20 +37,6 @@ class EmailManager
         $moduleConfig = $this->configFactory->get('esn_membership_manager.settings');
         $scheme_name = $moduleConfig->get('scheme_name');
 
-        if (!empty($data['google_wallet_link'])) {
-            $googleWalletButton = "<table border=\"0\" cellpadding=\"0\" cellspacing=\"0\" role=\"presentation\" width=\"100%\">
-                            <tbody>
-                            <tr>
-                                <td style=\"padding: 9px 20px;\" width=\"100%\" align=\"center\">
-                                    <a href=\"{$data['google_wallet_link']}\">
-                                        <img src=\"https://esncy.org/sites/default/files/2025-12/add_to_google_wallet_badge.png\" alt=\"Add to Google Wallet\" height=\"45\">
-                                    </a>
-                                </td>
-                            </tr>
-                            </tbody>
-                        </table>";
-        }
-
         $render_array = [
             '#theme' => 'emm_' . $key,
 
@@ -63,7 +49,7 @@ class EmailManager
             '#payment_link' => $data['payment_link'] ?? NULL,
             '#esncard_number' => $data['esncard_number'] ?? NULL,
 
-            '#google_wallet_button' => $googleWalletButton ?? NULL,
+            '#google_wallet_link' => $data['google_wallet_link'] ?? NULL,
         ];
 
         try {

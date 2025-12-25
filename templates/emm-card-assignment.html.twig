@@ -78,7 +78,21 @@
                             </tbody>
                         </table>
 
-                        {{ google_wallet_button }}
+                        {% if google_wallet_link is not empty %}
+                            <table border="0" cellpadding="0" cellspacing="0" role="presentation" width="100%">
+                                <tbody>
+                                <tr>
+                                    <td style="padding: 9px 20px;" width="100%" align=\"center\">
+                                        <a href="{{ google_wallet_link }}">
+                                            <img alt="Add to Google Wallet"
+                                                 src="https://esncy.org/sites/default/files/2025-12/add_to_google_wallet_badge.png"
+                                                 height="45">
+                                        </a>
+                                    </td>
+                                </tr>
+                                </tbody>
+                            </table>
+                        {% endif %}
 
                         <table border="0" cellpadding="0" cellspacing="0" role="presentation" width="100%">
                             <tbody>

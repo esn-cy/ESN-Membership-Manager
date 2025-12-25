@@ -105,7 +105,7 @@ function esn_membership_manager_theme($existing, $type, $theme, $path): array
         'emm_pass_approval' => [
             'variables' => array_merge($common_vars, [
                 'user_token' => '',
-                'google_wallet_button' => ''
+                'google_wallet_link' => ''
             ])
         ],
 
@@ -114,7 +114,7 @@ function esn_membership_manager_theme($existing, $type, $theme, $path): array
             'variables' => array_merge($common_vars, [
                 'user_token' => '',
                 'payment_link' => '',
-                'google_wallet_button' => ''
+                'google_wallet_link' => ''
             ]),
         ],
 
@@ -125,7 +125,7 @@ function esn_membership_manager_theme($existing, $type, $theme, $path): array
                 'logo_location' => 'https://esn.org/sites/default/files/ESN_full-logo-Satellite.png',
                 'custom_footer' => '',
                 'esncard_number' => NULL,
-                'google_wallet_button' => ''
+                'google_wallet_link' => ''
             ],
         ],
 
