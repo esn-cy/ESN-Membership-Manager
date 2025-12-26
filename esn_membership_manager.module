@@ -143,6 +143,21 @@ function esn_membership_manager_theme($existing, $type, $theme, $path): array
         'emm_both_denial' => [
             'variables' => $common_vars,
         ],
+
+        // 6. Pass Confirmation
+        'emm_pass_confirmation' => [
+            'variables' => $common_vars,
+        ],
+
+        // 7. Card Confirmation
+        'emm_card_confirmation' => [
+            'variables' => $common_vars,
+        ],
+
+        // 8. Both Confirmation
+        'emm_both_confirmation' => [
+            'variables' => $common_vars,
+        ],
     ];
 }
 
@@ -193,6 +208,18 @@ function esn_membership_manager_mail($key, &$message, $params): void
 
         case 'both_denial':
             $message['subject'] = t('Application Declined', [], $options);
+            break;
+
+        case 'pass_confirmation':
+            $message['subject'] = t('@scheme Application Received', ['@scheme' => $scheme], $options);
+            break;
+
+        case 'card_confirmation':
+            $message['subject'] = t('ESNcard Application Received', [], $options);
+            break;
+
+        case 'both_confirmation':
+            $message['subject'] = t('@scheme and ESNcard Application Received', ['@scheme' => $scheme], $options);
             break;
     }
 

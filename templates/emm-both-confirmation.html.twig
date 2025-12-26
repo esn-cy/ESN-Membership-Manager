@@ -1,0 +1,109 @@
+<table border="0" cellpadding="0" cellspacing="0" role="presentation"
+       style="background-color: #ffffff; width: 100%; border-collapse: collapse; border-spacing: 0; font-family: Arial, sans-serif;"
+       width="100%">
+    <tbody>
+    <tr>
+        <td>
+            <table align="center" border="0" cellpadding="0" cellspacing="0"
+                   role="presentation"
+                   style="margin:auto; border-collapse:collapse; border-spacing:0; max-width: 800px; min-width: 320px;">
+                <tbody>
+                <tr>
+                    <td align="center" width="100%">
+                        <table border="0" cellpadding="0" cellspacing="0" role="presentation"
+                               style="background-color: #ffffff;"
+                               width="100%">
+                            <tbody>
+                            <tr>
+                                <td align="center" style="padding: 10px 0;" width="100%">
+                                    <img alt="ESN Logo" height="62"
+                                         src="{{ logo_location }}" style="display: block; border: 0;" width="111">
+                                </td>
+                            </tr>
+                            </tbody>
+                        </table>
+
+                        <table border="0" cellpadding="0" cellspacing="0" role="presentation" width="100%">
+                            <tbody>
+                            <tr>
+                                <td style="padding: 9px 20px;" width="100%">
+                                    <h1 style="font-family: Arial, sans-serif; font-weight: 700; text-align: center; margin: 0; line-height: 1.2; color: #2e3192; font-size: 34pt;">
+                                        Application Confirmation
+                                    </h1>
+                                </td>
+                            </tr>
+                            </tbody>
+                        </table>
+
+                        <table border="0" cellpadding="0" cellspacing="0" role="presentation" width="100%">
+                            <tbody>
+                            <tr>
+                                <td style="padding: 9px 20px;" width="100%">
+                                    <p style="font-family: Arial, sans-serif; font-weight: 400; text-align: center; font-size: 12pt; color: #1c1c1c; margin: 0; line-height: 1.38;">
+                                        Hello {{ name }},
+                                    </p>
+                                    <p style="font-family: Arial, sans-serif; font-weight: 400; text-align: center; font-size: 12pt; color: #1c1c1c; margin: 15px 0 0 0; line-height: 1.38;">
+                                        Thank you for applying for an {{ scheme_name }} and ESNcard.<br>
+                                    </p>
+                                    <p style="font-family: Arial, sans-serif; font-weight: 400; text-align: center; font-size: 12pt; color: #1c1c1c; margin: 15px 0 0 0; line-height: 1.38;">
+                                        Your application has been received and will be processed shortly.
+                                    </p>
+                                </td>
+                            </tr>
+                            </tbody>
+                        </table>
+
+                        <table border="0" cellpadding="0" cellspacing="0" role="presentation" width="100%">
+                            <tbody>
+                            <tr>
+                                <td align="center" style="padding: 15px 0;" width="100%">
+                                    <h3 style="font-family: Arial, sans-serif; font-weight: 700; text-align: center; margin: 0; line-height: 1.2; color: #2e3192; font-size: 18pt;">
+                                        Next Steps
+                                    </h3>
+                                </td>
+                            </tr>
+                            </tbody>
+                        </table>
+
+                        <table border="0" cellpadding="0" cellspacing="0" role="presentation" width="100%">
+                            <tbody>
+                            <tr>
+                                <td style="padding: 9px 20px;" width="100%">
+                                    <p style="font-family: Arial, sans-serif; font-weight: 400; text-align: center; font-size: 12pt; color: #1c1c1c; margin: 15px 0 0 0; line-height: 1.38;">
+                                        You will receive an email with the verdict of your application (if you don't see
+                                        one please check your junk).<br>
+                                    </p>
+                                    <p style="font-family: Arial, sans-serif; font-weight: 400; text-align: center; font-size: 12pt; color: #1c1c1c; margin: 15px 0 0 0; line-height: 1.38;">
+                                        The email will contain your {{ scheme_name }} that is going to be ready for use.<br>
+                                    </p>
+                                    <p style="font-family: Arial, sans-serif; font-weight: 400; text-align: center; font-size: 12pt; color: #1c1c1c; margin: 15px 0 0 0; line-height: 1.38;">
+                                        It will also contain a payment link that will allow you to pay for your ESNcard.
+                                    </p>
+                                    <p style="font-family: Arial, sans-serif; font-weight: 400; text-align: center; font-size: 12pt; color: #1c1c1c; margin: 15px 0 0 0; line-height: 1.38;">
+                                        Please refrain from submitting another application until you receive the verdict
+                                        of this one.
+                                    </p>
+                                </td>
+                            </tr>
+                            </tbody>
+                        </table>
+
+                        <table border="0" cellpadding="0" cellspacing="0" role="presentation" width="100%">
+                            <tbody>
+                            <tr>
+                                <td style="padding: 20px 20px;" width="100%">
+                                    <div style="border-top: 1px solid #d9d9d9;"></div>
+                                </td>
+                            </tr>
+                            </tbody>
+                        </table>
+
+                        {{ custom_footer|raw }}
+                    </td>
+                </tr>
+                </tbody>
+            </table>
+        </td>
+    </tr>
+    </tbody>
+</table>
