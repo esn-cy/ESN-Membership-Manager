@@ -6,15 +6,12 @@ use Drupal\Core\Config\ConfigFactoryInterface;
 use Drupal\Core\Controller\ControllerBase;
 use Drupal\Core\Database\Connection;
 use Drupal\Core\Datetime\DrupalDateTime;
-use Drupal\Core\Entity\EntityStorageException;
 use Drupal\Core\Lock\LockBackendInterface;
 use Drupal\Core\Logger\LoggerChannelFactoryInterface;
 use Drupal\Core\Logger\LoggerChannelInterface;
 use Drupal\esn_membership_manager\Service\EmailManager;
 use Drupal\esn_membership_manager\Service\GoogleService;
 use Drupal\esn_membership_manager\Service\WeeztixApiService;
-use Drupal\webform\Entity\WebformSubmission;
-use Drupal\webform\WebformSubmissionInterface;
 use Exception;
 use Stripe\PaymentLink;
 use Stripe\Stripe;
@@ -103,115 +100,146 @@ class StripeWebhookController extends ControllerBase
 
         try {
             $event = Webhook::constructEvent($payload, $signatureHeader, $stripeWebhookSecret);
-
-            if ($event->type === 'checkout.session.completed') {
-                $session = $event->data->object;
-                $submissionID = $session->metadata->webform_submission_id ?? NULL;
-                $linkID = $session->payment_link ?? NULL;
-
-                if ($submissionID) {
-                    if (!$this->lock->acquire('process_submission_' . $submissionID)) {
-                        $this->logger->warning('Could not acquire lock for submission @id. Another process may be running.', ['@id' => $submissionID]);
-                        return new Response('Webhook handled with lock conflict', 200);
-                    }
-
-                    try {
-                        $submission = WebformSubmission::load($submissionID);
-                        if ($submission) {
-                            $submissionData = $submission->getData();
-                            if ($submissionData['approval_status'] == 'Paid' && !empty($submissionData['esncard_number'])) {
-                                $this->logger->warning(
-                                    'Submission @id was already paid. Duplicate payment event detected @linkID: @message',
-                                    [
-                                        '@id' => $submissionID,
-                                        '@linkID' => $linkID,
-                                    ]
-                                );
-                                return new Response('Webhook handled with warning', 200);
-                            }
-
-                            // Mark submission as Paid.
-                            $submission->setElementData('approval_status', 'Paid');
-                            $submission->setElementData('date_paid', (new DrupalDateTime())->format('Y-m-d H:i:s'));
-
-                            $esnCard = $this->assignESNcardNumber($submission);
-
-                            try {
-                                PaymentLink::update(
-                                    $linkID,
-                                    ['active' => false]
-                                );
-                            } catch (Exception $e) {
-                                $this->logger->error(
-                                    'Submission @id processed, but failed to deactivate Stripe Payment Link @linkID: @message',
-                                    [
-                                        '@id' => $submissionID,
-                                        '@linkID' => $linkID,
-                                        '@message' => $e->getMessage()
-                                    ]
-                                );
-                            }
-
-                            $this->logger->notice('Submission @id marked as Paid and assigned ESNcard number.', ['@id' => $submissionID]);
-
-                            if (!empty($moduleConfig->get('weeztix_client_id'))) {
-                                $this->weeztixService->addCoupon($esnCard, ['applies_to_count' => 1]);
-                            }
-
-                            if (!empty($moduleConfig->get('google_spreadsheet_id'))) {
-                                $this->googleService->appendRow(
-                                    [
-                                        'date' => str_replace('-', '/', date('d-m-y')),
-                                        'name' => $submissionData['name'] . ' ' . $submissionData['surname'],
-                                        'card_number' => $esnCard,
-                                        'pos' => 'ESN Membership Manager',
-                                        'host' => 'REPLACE MANUALLY',
-                                        'nationality' => $submissionData['country_origin'],
-                                        'mop' => 'Stripe',
-                                        'amount' => 16,
-                                    ]
-                                );
-                            }
-
-                            if (!empty($moduleConfig->get('google_issuer_id'))) {
-                                try {
-                                    $google_wallet_link = $this->googleService->getESNcardObject($submissionData);
-                                } catch (\Google\Service\Exception $e) {
-                                    $this->logger->warning('Google Wallet Error: @error.', ['@error' => $e->getErrors()]);
-                                } catch (Exception $e) {
-                                    $this->logger->warning('Google Wallet Error: @error.', ['@error' => $e->getMessage()]);
-                                }
-                            }
-
-                            $email_params = [
-                                'name' => $submissionData['name'],
-                                'esncard_number' => $submissionData['esncard_number'],
-                                'google_wallet_link' => $google_wallet_link ?? '',
-                            ];
-                            $this->emailManager->sendEmail($submissionData['email'], 'card_assignment', $email_params);
-                        } else {
-                            $this->logger->warning('Submission ID @id from Stripe webhook not found.', ['@id' => $submissionID]);
-                        }
-                    } finally {
-                        $this->lock->release('process_submission_' . $submissionID);
-                    }
-                } else {
-                    $this->logger->warning('No webform_submission_id metadata in Stripe session.');
-                }
-            }
-
-            return new Response('Webhook handled', 200);
         } catch (Exception $e) {
-            $this->logger->error('Stripe webhook error: @message', ['@message' => $e->getMessage()]);
-            return new Response('Webhook error', 400);
+            $this->logger->error('Unable to construct webhook event: @message', ['@message' => $e->getMessage()]);
+            return new Response('Webhook failed', 400);
         }
+
+        if ($event->type != 'checkout.session.completed') {
+            return new Response('Webhook ignored', 200);
+        }
+
+        $session = $event->data->object;
+        $applicationID = $session->metadata->application_id ?? NULL;
+        $linkID = $session->payment_link ?? NULL;
+
+        if (!$applicationID) {
+            $this->logger->warning('No application_id metadata in Stripe session.');
+            return new Response('Webhook ignored', 200);
+        }
+
+        if (!$this->lock->acquire('process_application_' . $applicationID)) {
+            $this->logger->warning('Could not acquire lock for application @id. Another process may be running.', ['@id' => $applicationID]);
+            return new Response('Webhook handled with lock conflict', 200);
+        }
+
+        try {
+            $application = $this->database->select('esn_membership_manager_applications', 'a')
+                ->fields('a')
+                ->condition('id', $applicationID)
+                ->execute()
+                ->fetchAssoc();
+        } catch (Exception $e) {
+            $this->logger->error('Failed to load application @id: @message', ['@id' => $applicationID, '@message' => $e->getMessage()]);
+            $this->lock->release('process_application_' . $applicationID);
+            return new Response('Webhook failed', 500);
+        }
+
+        if (!$application) {
+            $this->logger->warning('Application @id was not found.', ['@id' => $applicationID]);
+            $this->lock->release('process_application_' . $applicationID);
+            return new Response('Webhook failed', 400);
+        }
+
+        if ($application['approval_status'] == 'Paid' && !empty($application['esncard_number'])) {
+            $this->logger->warning(
+                'Application @id was already paid. Duplicate payment event detected @linkID: @message',
+                [
+                    '@id' => $applicationID,
+                    '@linkID' => $linkID,
+                ]
+            );
+            $this->lock->release('process_application_' . $applicationID);
+            return new Response('Webhook handled with warning', 200);
+        }
+
+        try {
+            $esnCard = $this->assignESNcardNumber($applicationID);
+        } catch (Exception $e) {
+            $this->logger->error('Failed to assign an ESNcard number to application @id: @message', ['@id' => $applicationID, '@message' => $e->getMessage()]);
+            $this->lock->release('process_application_' . $applicationID);
+            return new Response('Webhook failed', 500);
+        }
+
+        try {
+            $this->database->update('esn_membership_manager_applications')
+                ->fields([
+                    'approval_status' => 'Paid',
+                    'date_paid' => (new DrupalDateTime())->format('Y-m-d H:i:s'),
+                    'esncard_number' => $esnCard
+                ])
+                ->condition('id', $applicationID)
+                ->execute();
+        } catch (Exception $e) {
+            $this->logger->error('Failed to update application @id: @message', ['@id' => $applicationID, '@message' => $e->getMessage()]);
+            $this->lock->release('process_application_' . $applicationID);
+            return new Response('Webhook failed', 500);
+        }
+
+        try {
+            PaymentLink::update(
+                $linkID,
+                ['active' => false]
+            );
+        } catch (Exception $e) {
+            $this->logger->error(
+                'Application @id processed, but failed to deactivate Stripe Payment Link @linkID: @message',
+                [
+                    '@id' => $applicationID,
+                    '@linkID' => $linkID,
+                    '@message' => $e->getMessage()
+                ]
+            );
+        }
+
+        $this->logger->notice('Application @id marked as Paid and assigned ESNcard number.', ['@id' => $applicationID]);
+
+        if (!empty($moduleConfig->get('weeztix_client_id'))) {
+            $this->weeztixService->addCoupon($esnCard, ['applies_to_count' => 1]);
+        }
+
+        if (!empty($moduleConfig->get('google_spreadsheet_id'))) {
+            $this->googleService->appendRow(
+                [
+                    'date' => str_replace('-', '/', date('d-m-y')),
+                    'name' => $application['name'] . ' ' . $application['surname'],
+                    'card_number' => $esnCard,
+                    'pos' => 'ESN Membership Manager',
+                    'host' => $application['host_institution'],
+                    'nationality' => $application['nationality'],
+                    'mop' => 'Stripe',
+                    'amount' => 16,
+                ]
+            );
+        }
+
+        if (!empty($moduleConfig->get('google_issuer_id'))) {
+            try {
+                $googleWalletLink = $this->googleService->getESNcardObject($application);
+            } catch (\Google\Service\Exception $e) {
+                $this->logger->warning('Google Wallet Error: @error.', ['@error' => $e->getErrors()]);
+            } catch (Exception $e) {
+                $this->logger->warning('Google Wallet Error: @error.', ['@error' => $e->getMessage()]);
+            }
+        }
+
+        $emailParams = [
+            'name' => $application['name'],
+            'esncard_number' => $esnCard,
+            'google_wallet_link' => $googleWalletLink ?? '',
+        ];
+        $this->emailManager->sendEmail($application['email'], 'card_assignment', $emailParams);
+
+        $this->lock->release('process_application_' . $applicationID);
+        return new Response('Webhook handled', 200);
     }
+
 
     /**
      * Assigns the next available ESNcard number to a submission.
-     * @throws EntityStorageException
+     * @throws Exception
      */
-    private function assignESNcardNumber(WebformSubmissionInterface $submission): string
+    private function assignESNcardNumber($applicationID): string
     {
         $transaction = $this->database->startTransaction();
 
@@ -232,12 +260,9 @@ class StripeWebhookController extends ControllerBase
                     ->condition('number', $nextNumber)
                     ->execute();
 
-                $submission->setElementData('esncard_number', $nextNumber);
-                $submission->save();
-
-                $this->logger->notice('Assigned ESNcard number @num to submission @id.', [
+                $this->logger->notice('Assigned ESNcard number @num to application @id.', [
                     '@num' => $nextNumber,
-                    '@id' => $submission->id(),
+                    '@id' => $applicationID,
                 ]);
                 return $nextNumber;
             } else {
