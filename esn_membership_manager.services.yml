@@ -25,3 +25,8 @@ services:
       - '@logger.factory'
       - '@plugin.manager.mail'
       - '@renderer'
+
+  stream_wrapper.membership:
+    class: Drupal\esn_membership_manager\StreamWrapper\MembershipStreamWrapper
+    tags:
+      - { name: stream_wrapper, scheme: membership }
