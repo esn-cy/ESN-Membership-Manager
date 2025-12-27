@@ -108,14 +108,6 @@ class SettingsForm extends ConfigFormBase
             '#required' => TRUE,
         ];
 
-        $form['general']['webform_id'] = [
-            '#type' => 'textfield',
-            '#title' => $this->t('Webform ID'),
-            '#description' => $this->t('Enter the Webform ID where the applications are made.'),
-            '#default_value' => $config->get('webform_id'),
-            '#required' => TRUE,
-        ];
-
         $form['email'] = [
             '#type' => 'details',
             '#title' => $this->t('Email Settings'),
@@ -338,7 +330,6 @@ class SettingsForm extends ConfigFormBase
 
         $config->set('scheme_name', $form_state->getValue('scheme_name'))
             ->set('logo_url', $form_state->getValue('logo_url'))
-            ->set('webform_id', $form_state->getValue('webform_id'))
             ->set('email_from_address', $form_state->getValue('email_from_address'))
             ->set('email_from_name', $form_state->getValue('email_from_name'))
             ->set('email_footer', $form_state->getValue('email_footer'))

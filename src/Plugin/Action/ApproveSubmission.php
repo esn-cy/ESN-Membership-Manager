@@ -21,7 +21,7 @@ use Stripe\Stripe;
 use Symfony\Component\DependencyInjection\ContainerInterface;
 
 /**
- * Approves a webform submission and creates a Stripe payment link.
+ * Approves an application and creates a Stripe payment link.
  *
  * @Action(
  *   id = "esn_membership_manager_approve",

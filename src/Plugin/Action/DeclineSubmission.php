@@ -15,7 +15,7 @@ use Exception;
 use Symfony\Component\DependencyInjection\ContainerInterface;
 
 /**
- * Declines a webform submission.
+ * Declines an application.
  *
  * @Action(
  *   id = "esn_membership_manager_decline",

@@ -1,5 +1,30 @@
 <?php
 
+use Drupal\Core\File\FileSystemInterface;
+
+/**
+ * Implements hook_install().
+ */
+function esn_membership_manager_install(): void
+{
+    /** @var FileSystemInterface $file_system */
+    $file_system = Drupal::service('file_system');
+
+    $directory = DRUPAL_ROOT . '/../../private/esn_membership_manager_storage';
+
+    if (!$file_system->prepareDirectory($directory, FileSystemInterface::CREATE_DIRECTORY | FileSystemInterface::MODIFY_PERMISSIONS)) {
+        Drupal::logger('esn_membership_manager')->error('Failed to create or prepare directory: @dir', ['@dir' => $directory]);
+        return;
+    }
+
+    $htaccess_path = $directory . '/.htaccess';
+    if (!file_exists($htaccess_path)) {
+        $content = "Order deny,allow\nDeny from all\n";
+        $content .= "<IfModule mod_authz_core.c>\n  Require all denied\n</IfModule>\n";
+        file_put_contents($htaccess_path, $content);
+    }
+}
+
 /**
  * Implements hook_schema().
  */

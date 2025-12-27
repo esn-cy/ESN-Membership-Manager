@@ -4,5 +4,5 @@ description: 'Provides a framework to accept submissions for both Free Passes an
 core_version_requirement: ^9 || ^10
 package: Custom
 dependencies:
-  - webform:webform
+  - drupal:file
   - drupal:views_bulk_operations
