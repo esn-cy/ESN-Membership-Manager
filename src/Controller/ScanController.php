@@ -4,7 +4,6 @@ namespace Drupal\esn_membership_manager\Controller;
 
 use Drupal\Component\Plugin\Exception\InvalidPluginDefinitionException;
 use Drupal\Component\Plugin\Exception\PluginNotFoundException;
-use Drupal\Core\Config\ConfigFactoryInterface;
 use Drupal\Core\Controller\ControllerBase;
 use Drupal\Core\Database\Connection;
 use Drupal\Core\Datetime\DrupalDateTime;
@@ -12,7 +11,6 @@ use Drupal\Core\Entity\EntityTypeManagerInterface;
 use Drupal\Core\Logger\LoggerChannelFactoryInterface;
 use Drupal\Core\Logger\LoggerChannelInterface;
 use Drupal\file\FileInterface;
-use Drupal\webform\WebformSubmissionInterface;
 use Exception;
 use Symfony\Component\DependencyInjection\ContainerInterface;
 use Symfony\Component\HttpFoundation\JsonResponse;
@@ -20,26 +18,24 @@ use Symfony\Component\HttpFoundation\Request;
 
 class ScanController extends ControllerBase
 {
-    protected $configFactory;
     protected $entityTypeManager;
     protected Connection $database;
     protected LoggerChannelInterface $logger;
 
-    public function __construct(ConfigFactoryInterface $configFactory, EntityTypeManagerInterface $entity_type_manager, Connection $database, LoggerChannelFactoryInterface $logger_factory)
+    public function __construct(
+        EntityTypeManagerInterface    $entityTypeManager,
+        Connection                    $database,
+        LoggerChannelFactoryInterface $loggerFactory)
     {
-        $this->configFactory = $configFactory;
-        $this->entityTypeManager = $entity_type_manager;
+        $this->entityTypeManager = $entityTypeManager;
         $this->database = $database;
-        $this->logger = $logger_factory->get('esn_membership_manager');
+        $this->logger = $loggerFactory->get('esn_membership_manager');
     }
 
     public static function create(ContainerInterface $container): self
     {
-        /** @var ConfigFactoryInterface $configFactory */
-        $configFactory = $container->get('config.factory');
-
-        /** @var EntityTypeManagerInterface $entity_type_manager */
-        $entity_type_manager = $container->get('entity_type.manager');
+        /** @var EntityTypeManagerInterface $entityTypeManager */
+        $entityTypeManager = $container->get('entity_type.manager');
 
         /** @var Connection $database */
         $database = $container->get('database');
@@ -48,8 +44,7 @@ class ScanController extends ControllerBase
         $loggerFactory = $container->get('logger.factory');
 
         return new static(
-            $configFactory,
-            $entity_type_manager,
+            $entityTypeManager,
             $database,
             $loggerFactory
         );
@@ -57,98 +52,86 @@ class ScanController extends ControllerBase
 
     public function scanCard(Request $request): JsonResponse
     {
-        $moduleConfig = $this->configFactory->get('esn_membership_manager.settings');
-
         if ($request->isMethod('GET')) {
             return new JsonResponse(null, 200);
         }
 
         $body = json_decode($request->getContent(), TRUE) ?? [];
-        $card_number = $body['card'] ?? NULL;
+        $cardNumber = $body['card'] ?? NULL;
 
-        if (empty($card_number)) {
+        if (empty($cardNumber)) {
             return new JsonResponse(['status' => 'error', 'message' => 'No card number was provided.'], 400);
         }
 
-        $is_esncard = preg_match("/\d\d\d\d\d\d\d[A-Z][A-Z][A-Z][A-Z0-9]/", $card_number) == 1;
-        $is_esn_cyprus_pass = preg_match("/ESNCYTKNESNCYTKN\d*/", $card_number) == 1;
+        $isESNcard = preg_match("/^\d\d\d\d\d\d\d[A-Z][A-Z][A-Z][A-Z0-9]$/", $cardNumber) == 1;
+        $isPass = preg_match("/^[A-F0-9]{32}$/", $cardNumber) == 1;
 
-        if (!$is_esncard && !$is_esn_cyprus_pass) {
+        if (!$isESNcard && !$isPass) {
             return new JsonResponse(['status' => 'error', 'message' => 'An invalid card number was provided.'], 400);
         }
 
         try {
-            $storage = $this->entityTypeManager->getStorage('webform_submission');
-        } catch (InvalidPluginDefinitionException|PluginNotFoundException) {
-            return new JsonResponse(['status' => 'error', 'message' => 'Webform module was unavailable.'], 500);
-        }
+            $query = $this->database->select('esn_membership_manager_applications', 'a');
+            $query->fields('a');
 
-        try {
-            $query = $this->database->select('webform_submission', 'ws');
-            $query->join('webform_submission_data', 'wsd', 'ws.sid = wsd.sid');
-            $query->fields('ws', ['sid']);
-            $query->condition('ws.webform_id', $moduleConfig->get('webform_id'));
-
-            if ($is_esncard) {
-                $query->condition('wsd.name', 'esncard_number');
-            } else {
-                $query->condition('wsd.name', 'user_token');
+            if ($isESNcard) {
+                $query->condition('esncard_number', $cardNumber);
+            } elseif ($isPass) {
+                $query->condition('pass_token', $cardNumber);
             }
-            $query->condition('wsd.value', $card_number);
 
-            $query->range(0, 1);
-            $sid = $query->execute()->fetchField();
-        } catch (Exception) {
-            return new JsonResponse(['status' => 'error', 'message' => 'There was a problem getting the card.'], 500);
+            $application = $query->execute()->fetchAssoc();
+
+        } catch (Exception $e) {
+            $this->logger->error('Scan query failed: @message', ['@message' => $e->getMessage()]);
+            return new JsonResponse(['status' => 'error', 'message' => 'There was a problem getting the card/pass.'], 500);
         }
 
-        if (empty($sid) && $is_esncard) {
-            return new JsonResponse(['status' => 'error', 'message' => 'Card not found.'], 404);
+        if (!$application) {
+            return new JsonResponse(['status' => 'error', 'message' => 'Card/Pass not found.'], 404);
         }
 
-        if (empty($sid) && $is_esn_cyprus_pass) {
-            $sid = str_replace('ESNCYTKNESNCYTKN', '', $card_number);
-        }
+        $last_scan_date = $application['date_last_scanned'] ?? NULL;
 
-        /** @var WebformSubmissionInterface $submission */
-        $submission = $storage->load($sid);
-        $data = $submission->getData();
-
-        $last_scan_date = $data['last_scan_date'] ?? NULL;
-
-        $profile_image_url = NULL;
-        $file_id = $data['profile_image_esncard'] ?? NULL;
+        $profileImageURL = NULL;
+        $file_id = $application['face_photo_fid'] ?? NULL;
 
         if (!empty($file_id)) {
             try {
                 /** @var FileInterface $file */
                 $file = $this->entityTypeManager->getStorage('file')->load($file_id);
-                $profile_image_url = $file?->createFileUrl(FALSE);
+                $profileImageURL = $file?->createFileUrl(FALSE);
             } catch (InvalidPluginDefinitionException|PluginNotFoundException) {
                 $this->logger->warning('File ID @id was unable to be retrieved.', ['@id' => $file_id]);
             }
         }
 
         try {
-            if ($is_esncard) {
-                $submission->setElementData('approval_status', 'Delivered');
+            $updateFields = [];
+            if ($isESNcard) {
+                $updateFields['approval_status'] = 'Delivered';
             }
-            $submission->setElementData('pass_is_enabled', 2);
-            $submission->setElementData('last_scan_date', (new DrupalDateTime())->format('Y-m-d H:i:s'));
-            $submission->save();
-        } catch (Exception) {
+            $updateFields['date_last_scanned'] = (new DrupalDateTime())->format('Y-m-d H:i:s');
+
+            $this->database->update('esn_membership_manager_applications')
+                ->fields($updateFields)
+                ->condition('id', $application['id'])
+                ->execute();
+
+        } catch (Exception $e) {
+            $this->logger->error('Scan update failed: @message', ['@message' => $e->getMessage()]);
             return new JsonResponse(['status' => 'error', 'message' => 'Unable to update last scan date.'], 500);
         }
 
         return new JsonResponse([
-            'name' => $data['name'],
-            'surname' => $data['surname'],
-            'nationality' => $data['country_origin'], //TODO Change to Nationality field once available
-            'occupation' => $data['occupation'],
-            'datePaid' => !empty($data['date_paid']) ? (new DrupalDateTime($data['date_paid']))->format('Y-m-d') : null,
-            'dateApproved' => !empty($data['date_approved']) ? (new DrupalDateTime($data['date_approved']))->format('Y-m-d') : (new DrupalDateTime('@' . $submission->getCompletedTime()))->format('Y-m-d'),
+            'name' => $application['name'],
+            'surname' => $application['surname'],
+            'nationality' => $application['nationality'],
+            'mobilityStatus' => $application['mobility_status'],
+            'datePaid' => !empty($application['date_paid']) ? (new DrupalDateTime($application['date_paid']))->format('Y-m-d') : null,
+            'dateApproved' => !empty($application['date_approved']) ? (new DrupalDateTime($application['date_approved']))->format('Y-m-d') : null,
             'lastScanDate' => !empty($last_scan_date) ? (new DrupalDateTime($last_scan_date))->format('Y-m-d') : null,
-            'profileImageURL' => $profile_image_url,
+            'profileImageURL' => $profileImageURL,
         ], 200);
     }
 }

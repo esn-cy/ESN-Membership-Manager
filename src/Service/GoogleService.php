@@ -286,8 +286,8 @@ class GoogleService
             }
         }
 
-        $approvedDate = new DateTime(substr($data['approved_date'], 0, -7));
-        $expiryDate = (new DateTime(substr($data['approved_date'], 0, -7)))->add(new DateInterval("P1Y"));
+        $approvedDate = new DateTime(substr($data['date_approved'], 0, -7));
+        $expiryDate = (new DateTime(substr($data['date_approved'], 0, -7)))->add(new DateInterval("P1Y"));
 
 
         $object = new GenericObject([

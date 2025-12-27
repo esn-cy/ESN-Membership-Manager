@@ -1,12 +1,3 @@
-esn_membership_manager.validate_token:
-  path: '/api/validate-token/{user_token}'
-  defaults:
-    _controller: '\Drupal\esn_membership_manager\Controller\ValidationController::validateToken'
-    _title: 'Validate ESN Cyprus Pass token'
-  requirements:
-    _access: 'TRUE'
-  methods: [ GET ]
-
 esn_membership_manager.scan:
   path: '/api/esncard/scan'
   defaults:

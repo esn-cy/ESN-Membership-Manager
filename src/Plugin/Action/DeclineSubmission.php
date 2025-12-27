@@ -5,42 +5,52 @@ namespace Drupal\esn_membership_manager\Plugin\Action;
 use Drupal\Core\Access\AccessResult;
 use Drupal\Core\Access\AccessResultInterface;
 use Drupal\Core\Action\ActionBase;
-use Drupal\Core\Entity\EntityStorageException;
+use Drupal\Core\Database\Connection;
 use Drupal\Core\Logger\LoggerChannelFactoryInterface;
 use Drupal\Core\Logger\LoggerChannelInterface;
 use Drupal\Core\Plugin\ContainerFactoryPluginInterface;
 use Drupal\Core\Session\AccountInterface;
 use Drupal\esn_membership_manager\Service\EmailManager;
-use Drupal\webform\WebformSubmissionInterface;
+use Exception;
 use Symfony\Component\DependencyInjection\ContainerInterface;
 
 /**
- * Declines a webform submission.
+ * Declines an application.
  *
  * @Action(
  *   id = "esn_membership_manager_decline",
  *   label = @Translation("Decline Submissions"),
- *   type = "webform_submission",
+ *   type = "system",
  *   confirm = TRUE
  * )
  */
 class DeclineSubmission extends ActionBase implements ContainerFactoryPluginInterface
 {
+    protected Connection $database;
     protected EmailManager $emailManager;
     protected LoggerChannelInterface $logger;
 
-    public function __construct(array                         $configuration, $plugin_id, $plugin_definition,
-                                EmailManager                  $emailManager,
-                                LoggerChannelFactoryInterface $logger_factory
+    public function __construct(
+        array                         $configuration, $plugin_id, $plugin_definition,
+        Connection                    $database,
+        EmailManager                  $emailManager,
+        LoggerChannelFactoryInterface $loggerFactory
     )
     {
         parent::__construct($configuration, $plugin_id, $plugin_definition);
+        $this->database = $database;
         $this->emailManager = $emailManager;
-        $this->logger = $logger_factory->get('esn_membership_manager');
+        $this->logger = $loggerFactory->get('esn_membership_manager');
     }
 
-    public static function create(ContainerInterface $container, array $configuration, $plugin_id, $plugin_definition): self
+    public static function create(
+        ContainerInterface $container,
+        array              $configuration, $plugin_id, $plugin_definition
+    ): self
     {
+        /** @var Connection $database */
+        $database = $container->get('database');
+
         /** @var EmailManager $emailManager */
         $emailManager = $container->get('esn_membership_manager.email_manager');
 
@@ -51,6 +61,7 @@ class DeclineSubmission extends ActionBase implements ContainerFactoryPluginInte
             $configuration,
             $plugin_id,
             $plugin_definition,
+            $database,
             $emailManager,
             $loggerFactory
         );
@@ -59,22 +70,39 @@ class DeclineSubmission extends ActionBase implements ContainerFactoryPluginInte
     /**
      * {@inheritdoc}
      */
-    public function execute($entity = NULL): void
+    public function execute($id = NULL): void
     {
-        if (!($entity instanceof WebformSubmissionInterface)) {
+        if (empty($id)) {
             return;
         }
 
-        $data = $entity->getData();
+        try {
+            $email = $this->database->select('esn_membership_manager_applications', 'a')
+                ->fields('a', ['email'])
+                ->condition('id', $id)
+                ->execute()
+                ->fetchField();
+        } catch (Exception $e) {
+            $this->logger->error('Failed to load application email @id: @message', ['@id' => $id, '@message' => $e->getMessage()]);
+            return;
+        }
+
+        if (empty($email)) {
+            $this->logger->warning('No email found for declined application @id', ['@id' => $id]);
+            return;
+        }
 
         try {
-            $entity->setElementData('approval_status', 'Declined');
-            $entity->save();
-            $this->logger->notice('Declined submission @id', ['@id' => $entity->id()]);
-        } catch (EntityStorageException) {
-            $this->logger->notice('Unable to save declined submission @id', ['@id' => $entity->id()]);
+            $this->database->update('esn_membership_manager_applications')
+                ->fields(['approval_status' => 'Declined'])
+                ->condition('id', $id)
+                ->execute();
+            $this->logger->notice('Declined submission @id', ['@id' => $id]);
+        } catch (Exception $e) {
+            $this->logger->error('Unable to decline submission @id: @message', ['@id' => $id, '@message' => $e->getMessage()]);
+            return;
         }
-        $this->emailManager->sendEmail($data['email'], 'both_denial', []);
+        $this->emailManager->sendEmail($email, 'both_denial', []);
     }
 
     /**

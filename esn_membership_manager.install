@@ -1,5 +1,30 @@
 <?php
 
+use Drupal\Core\File\FileSystemInterface;
+
+/**
+ * Implements hook_install().
+ */
+function esn_membership_manager_install(): void
+{
+    /** @var FileSystemInterface $file_system */
+    $file_system = Drupal::service('file_system');
+
+    $directory = DRUPAL_ROOT . '/../../private/esn_membership_manager_storage';
+
+    if (!$file_system->prepareDirectory($directory, FileSystemInterface::CREATE_DIRECTORY | FileSystemInterface::MODIFY_PERMISSIONS)) {
+        Drupal::logger('esn_membership_manager')->error('Failed to create or prepare directory: @dir', ['@dir' => $directory]);
+        return;
+    }
+
+    $htaccess_path = $directory . '/.htaccess';
+    if (!file_exists($htaccess_path)) {
+        $content = "Order deny,allow\nDeny from all\n";
+        $content .= "<IfModule mod_authz_core.c>\n  Require all denied\n</IfModule>\n";
+        file_put_contents($htaccess_path, $content);
+    }
+}
+
 /**
  * Implements hook_schema().
  */
@@ -31,6 +56,141 @@ function esn_membership_manager_schema(): array
         'primary key' => ['id'],
         'unique keys' => [
             'number' => ['number'],
+        ],
+    ];
+
+    $schema['esn_membership_manager_applications'] = [
+        'description' => 'Stores ESN Pass and ESNcard applications.',
+        'fields' => [
+            'id' => [
+                'description' => 'Primary Key: Unique submission ID.',
+                'type' => 'serial',
+                'unsigned' => TRUE,
+                'not null' => TRUE,
+            ],
+            'name' => [
+                'description' => 'First Name.',
+                'type' => 'varchar',
+                'length' => 255,
+                'not null' => TRUE,
+            ],
+            'surname' => [
+                'description' => 'Surname.',
+                'type' => 'varchar',
+                'length' => 255,
+                'not null' => TRUE,
+            ],
+            'email' => [
+                'description' => 'User Email.',
+                'type' => 'varchar',
+                'length' => 255,
+                'not null' => TRUE,
+            ],
+            'nationality' => [
+                'description' => 'Nationality.',
+                'type' => 'varchar',
+                'length' => 128,
+                'not null' => TRUE,
+            ],
+            'dob' => [
+                'description' => 'Date of Birth.',
+                'type' => 'varchar',
+                'length' => 20,
+                'not null' => TRUE,
+            ],
+            'mobility_status' => [
+                'description' => 'The selected mobility status.',
+                'type' => 'varchar',
+                'length' => 128,
+                'not null' => TRUE,
+            ],
+            'host_institution' => [
+                'description' => 'Host University or Organization.',
+                'type' => 'varchar',
+                'length' => 255,
+                'not null' => TRUE,
+            ],
+            'proof_fid' => [
+                'description' => 'File ID for Proof of Status.',
+                'type' => 'int',
+                'unsigned' => TRUE,
+            ],
+            'id_document_fid' => [
+                'description' => 'File ID for ID Document Scan.',
+                'type' => 'int',
+                'unsigned' => TRUE,
+            ],
+            'face_photo_fid' => [
+                'description' => 'File ID for Passport Style Photo.',
+                'type' => 'int',
+                'unsigned' => TRUE,
+            ],
+            'pass' => [
+                'description' => 'Was ESN Pass selected.',
+                'type' => 'int',
+                'size' => 'tiny',
+                'not null' => TRUE,
+                'default' => 0,
+            ],
+            'esncard' => [
+                'description' => 'Was ESNcard selected.',
+                'type' => 'int',
+                'size' => 'tiny',
+                'not null' => TRUE,
+                'default' => 0,
+            ],
+            'pass_token' => [
+                'description' => 'Unique user token for QR code.',
+                'type' => 'varchar',
+                'length' => 64,
+            ],
+            'esncard_number' => [
+                'description' => 'ESNcard number.',
+                'type' => 'varchar',
+                'length' => 64,
+            ],
+            'payment_link' => [
+                'description' => 'Stripe Payment link.',
+                'type' => 'varchar',
+                'length' => 255,
+            ],
+            'approval_status' => [
+                'description' => 'Current status (Pending, Paid, etc).',
+                'type' => 'varchar',
+                'length' => 32,
+                'default' => 'Pending',
+                'not null' => TRUE,
+            ],
+            'date_created' => [
+                'description' => 'Timestamp when the submission was created.',
+                'type' => 'varchar',
+                'length' => 64,
+                'not null' => TRUE,
+            ],
+            'date_approved' => [
+                'description' => 'Timestamp when the submission was approved.',
+                'type' => 'varchar',
+                'length' => 64,
+            ],
+            'date_paid' => [
+                'description' => 'Timestamp when payment was submitted.',
+                'type' => 'varchar',
+                'length' => 64,
+            ],
+            'date_last_scanned' => [
+                'description' => 'Timestamp when the last scan was performed.',
+                'type' => 'varchar',
+                'length' => 64,
+            ],
+        ],
+        'primary key' => ['id'],
+        'unique keys' => [
+            'pass_token' => ['pass_token'],
+            'esncard_number' => ['esncard_number'],
+        ],
+        'indexes' => [
+            'email' => ['email'],
+            'approval_status' => ['approval_status']
         ],
     ];
 
