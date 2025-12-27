@@ -3,9 +3,8 @@ status: true
 dependencies:
   module:
     - esn_membership_manager
-    - webform
 id: esn_membership_manager_approve
 label: "Approve Submissions"
-type: webform_submission
+type: system
 plugin: esn_membership_manager_approve
 configuration: { }
