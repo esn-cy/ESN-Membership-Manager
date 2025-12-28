@@ -1,6 +1,6 @@
 view submissions:
-  title: "View ESNcard Submissions"
-  description: "Allows users to view the ESNcard submissions"
+  title: "View Submissions"
+  description: "Allows users to view the submissions"
   restrict access: false
 
 approve submission:

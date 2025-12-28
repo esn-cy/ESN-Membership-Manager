@@ -66,3 +66,19 @@ esn_membership_manager.weeztix_oauth_callback:
     _title: 'Weeztix Authentication'
   requirements:
     _permission: 'manage module settings'
+
+esn_membership_manager.file_download:
+  path: '/memberships/files/{application_id}/{filename}'
+  defaults:
+    _controller: '\Drupal\esn_membership_manager\Controller\FileAccessController::download'
+    _title: 'Download File'
+  requirements:
+    _access: 'TRUE'
+    application_id: \d+
+    filename: .+
+  options:
+    parameters:
+      application_id:
+        type: int
+      filename:
+        type: string

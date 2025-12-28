@@ -36,10 +36,16 @@ class MembershipStreamWrapper extends PrivateStream
     public function getExternalUrl(): GeneratedUrl|string
     {
         $path = str_replace('\\', '/', $this->getTarget());
-        return Url::fromRoute('system.files', ['scheme' => 'membership'], [
-            'query' => ['file' => $path],
-            'absolute' => TRUE,
-        ])->toString();
+        $parts = explode('/', $path, 2);
+
+        if (count($parts) < 2) {
+            return Url::fromRoute('<front>', [], ['absolute' => TRUE])->toString();
+        }
+
+        return Url::fromRoute('esn_membership_manager.file_download', [
+            'application_id' => $parts[0],
+            'filename' => $parts[1]
+        ], ['absolute' => TRUE])->toString();
     }
 
     /**
