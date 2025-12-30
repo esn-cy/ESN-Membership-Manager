@@ -74,11 +74,11 @@ esn_membership_manager.file_download:
     _title: 'Download File'
   requirements:
     _access: 'TRUE'
-    application_id: \d+
+    application_id: \d+|temp_uploads
     filename: .+
   options:
     parameters:
       application_id:
-        type: int
+        type: string
       filename:
         type: string

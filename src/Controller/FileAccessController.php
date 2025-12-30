@@ -46,14 +46,14 @@ class FileAccessController extends ControllerBase
     /**
      * Downloads a file from the membership scheme.
      *
-     * @param int $application_id
+     * @param string $application_id
      *   The application ID.
      * @param string $filename
      *   The filename.
      *
      * @return Response
      */
-    public function download(int $application_id, string $filename): Response
+    public function download(string $application_id, string $filename): Response
     {
         $uri = 'membership://' . $application_id . '/' . $filename;
 
