@@ -33,6 +33,14 @@ esn_membership_manager.stripe_webhook:
     _access: 'TRUE'
   methods: [ POST ]
 
+esn_membership_manager.apply:
+  path: '/memberships/apply'
+  defaults:
+    _form: '\Drupal\esn_membership_manager\Form\ApplicationForm'
+    _title: 'ESN Cyprus Registration'
+  requirements:
+    _access: 'TRUE'
+
 esn_membership_manager.submissions:
   path: '/memberships/submissions'
   defaults:

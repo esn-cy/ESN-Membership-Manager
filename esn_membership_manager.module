@@ -203,3 +203,21 @@ function esn_membership_manager_file_download($uri): array|int|null
     }
     return NULL;
 }
+
+/**
+ * Implements hook_preprocess_page().
+ */
+function esn_membership_preprocess_page(&$variables): void
+{
+    $route_name = Drupal::routeMatch()->getRouteName();
+
+    $routes_to_hide = [
+        'esn_membership_manager.apply',
+    ];
+
+    if (in_array($route_name, $routes_to_hide)) {
+        if (isset($variables['page']['breadcrumb'])) {
+            unset($variables['page']['breadcrumb']);
+        }
+    }
+}
