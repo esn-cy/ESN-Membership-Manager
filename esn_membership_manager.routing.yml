@@ -7,14 +7,6 @@ esn_membership_manager.scan:
     _access: 'TRUE'
   methods: [ GET, POST ]
 
-esn_membership_manager.scan_page:
-  path: '/memberships/scan'
-  defaults:
-    _controller: '\Drupal\esn_membership_manager\Page\ScanPage::scanPage'
-    _title: 'Scan Free Passes and ESNcards'
-  requirements:
-    _permission: 'scan cards'
-
 esn_membership_manager.add:
   path: '/api/esncard/add'
   defaults:
@@ -40,6 +32,30 @@ esn_membership_manager.stripe_webhook:
   requirements:
     _access: 'TRUE'
   methods: [ POST ]
+
+esn_membership_manager.apply:
+  path: '/memberships/apply'
+  defaults:
+    _form: '\Drupal\esn_membership_manager\Form\ApplicationForm'
+    _title: 'ESN Cyprus Registration'
+  requirements:
+    _access: 'TRUE'
+
+esn_membership_manager.submissions:
+  path: '/memberships/submissions'
+  defaults:
+    _form: '\Drupal\esn_membership_manager\Form\SubmissionsForm'
+    _title: 'Application Submissions'
+  requirements:
+    _permission: 'view submissions'
+
+esn_membership_manager.scan_page:
+  path: '/memberships/scan'
+  defaults:
+    _controller: '\Drupal\esn_membership_manager\Page\ScanPage::scanPage'
+    _title: 'Scan Free Passes and ESNcards'
+  requirements:
+    _permission: 'scan cards'
 
 esn_membership_manager.manage_esncard_numbers:
   path: '/memberships/manage-esncard-numbers'
@@ -74,11 +90,32 @@ esn_membership_manager.file_download:
     _title: 'Download File'
   requirements:
     _access: 'TRUE'
-    application_id: \d+
+    application_id: \d+|temp_uploads
     filename: .+
   options:
     parameters:
       application_id:
-        type: int
+        type: string
       filename:
         type: string
+
+esn_membership_manager.file_preview:
+  path: '/memberships/files/{file}/preview'
+  defaults:
+    _controller: '\Drupal\esn_membership_manager\Controller\SubmissionController::preview'
+    _title: 'File Preview'
+  requirements:
+    _permission: 'view submissions'
+  options:
+    parameters:
+      file:
+        type: entity:file
+
+esn_membership_manager.submission_view:
+  path: '/memberships/submissions/{id}/view'
+  defaults:
+    _controller: '\Drupal\esn_membership_manager\Controller\SubmissionController::viewSubmission'
+    _title: 'View Submission'
+  requirements:
+    _permission: 'view submissions'
+  methods: [ GET, POST ]

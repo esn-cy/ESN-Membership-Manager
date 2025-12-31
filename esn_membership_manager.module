@@ -4,46 +4,6 @@ use Drupal\Core\Render\Markup;
 use Drupal\Core\StreamWrapper\StreamWrapperManager;
 
 /**
- * Implements hook_preprocess_menu().
- *
- * This hook is used to remove parent menu items that have no visible children
- * after access checks have been performed.
- */
-function esn_membership_manager_preprocess_menu(&$variables): void
-{
-    if (isset($variables['menu_name']) && $variables['menu_name'] == 'main') {
-        if (isset($variables['items'])) {
-            _esn_membership_manager_menu_hide_empty_parents($variables['items']);
-        }
-    }
-}
-
-/**
- * A recursive helper function to traverse the menu tree.
- *
- * @param array $items
- * The menu items array, passed by reference.
- */
-function _esn_membership_manager_menu_hide_empty_parents(array &$items): void
-{
-    foreach ($items as $key => &$item) {
-        if (!empty($item['below'])) {
-            _esn_membership_manager_menu_hide_empty_parents($item['below']);
-        }
-
-        $is_non_linking_parent = FALSE;
-        if ($item['url']->isRouted()) {
-            $routeName = $item['url']->getRouteName();
-            $is_non_linking_parent = $routeName === '<nolink>' || $routeName === '<none>';
-        }
-
-        if ($is_non_linking_parent && empty($item['below'])) {
-            unset($items[$key]);
-        }
-    }
-}
-
-/**
  * Implements hook_theme().
  * Registers the Twig email templates.
  */
@@ -202,4 +162,22 @@ function esn_membership_manager_file_download($uri): array|int|null
         return -1;
     }
     return NULL;
+}
+
+/**
+ * Implements hook_preprocess_page().
+ */
+function esn_membership_preprocess_page(&$variables): void
+{
+    $route_name = Drupal::routeMatch()->getRouteName();
+
+    $routes_to_hide = [
+        'esn_membership_manager.apply',
+    ];
+
+    if (in_array($route_name, $routes_to_hide)) {
+        if (isset($variables['page']['breadcrumb'])) {
+            unset($variables['page']['breadcrumb']);
+        }
+    }
 }

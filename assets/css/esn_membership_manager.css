@@ -1,0 +1,88 @@
+.esn-membership-manager-form {
+    max-width: 800px;
+    margin: 0 auto;
+}
+
+.esn-membership-manager-form fieldset {
+    border: 1px solid #e6e6e6;
+    border-radius: 8px;
+    background-color: #fafafa;
+    padding: 2rem;
+    margin-bottom: 2rem;
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.02);
+}
+
+.esn-membership-manager-form fieldset legend {
+    font-family: sans-serif;
+    font-weight: 700;
+    font-size: 1.2rem;
+    color: #2e3192;
+    padding: 10px 0;
+    margin-bottom: 1rem;
+}
+
+.esn-membership-manager-form .form-item {
+    margin-bottom: 0.5rem;
+}
+
+.esn-membership-manager-form h2 {
+    margin-bottom: 1.5rem;
+    color: #2e3192;
+}
+
+.esn-membership-manager-form input[type="text"],
+.esn-membership-manager-form input[type="email"],
+.esn-membership-manager-form select,
+.esn-membership-manager-form input[type="date"] {
+    border: 1px solid #ccc;
+    border-radius: 4px;
+    padding: 10px;
+    width: 100%;
+    box-sizing: border-box;
+    transition: border-color 0.3s ease;
+}
+
+.esn-membership-manager-form input:focus,
+.esn-membership-manager-form select:focus {
+    border-color: #2e3192;
+    outline: none;
+}
+
+.esn-membership-manager-form .form-managed-file .form-item {
+    margin-bottom: 0.5rem;
+}
+
+.esn-membership-manager-form .form-actions {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    margin: 2rem 0 0;
+}
+
+.esn-membership-manager-form .form-submit {
+    background-color: #2e3192;
+    border-color: #1b1d5a;
+}
+
+.esn-membership-manager-form .form-submit:hover {
+    background-color: #1b1d5a;
+}
+
+.esn-membership-manager-form .powered-by-text {
+    display: inline-block;
+    width: 100%;
+    vertical-align: middle;
+    text-align: center;
+    font-size: 0.85rem;
+    margin-top: 1.5rem;
+}
+
+.esn-membership-manager-form .powered-by-text a {
+    color: #888888;
+    text-decoration: none;
+}
+
+.esn-membership-manager-form .powered-by-text svg {
+    height: 16px;
+    vertical-align: sub;
+}

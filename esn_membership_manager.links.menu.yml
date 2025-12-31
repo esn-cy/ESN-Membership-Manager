@@ -3,14 +3,31 @@ esn_membership_manager.category:
   description: "A category for all links from the ESN Memberships Manager Module."
   route_name: "<nolink>"
   menu_name: main
+  expanded: TRUE
   weight: -50
+
+esn_membership_manager.apply:
+  title: "Application Form"
+  description: "Apply for an ESNcard"
+  parent: esn_membership_manager.category
+  route_name: esn_membership_manager.apply
+  weight: 1
+
+esn_membership_manager.submissions:
+  title: "Submissions"
+  description: "View all applications"
+  parent: esn_membership_manager.category
+  route_name: esn_membership_manager.submissions
+  weight: 2
+  options:
+    _permission: "view submissions"
 
 esn_membership_manager.scan:
   title: "Scan ESNcards / Passes"
   description: "Scan ESNcards and Free Passes and get validity information"
   parent: esn_membership_manager.category
   route_name: esn_membership_manager.scan_page
-  weight: 1
+  weight: 3
   options:
     _permission: "scan cards"
 
@@ -19,7 +36,7 @@ esn_membership_manager.manage_esncard_numbers:
   description: "Manage available ESNcard numbers for distribution"
   parent: esn_membership_manager.category
   route_name: esn_membership_manager.manage_esncard_numbers
-  weight: 3
+  weight: 4
   options:
     _permission: "manage esncard numbers"
 
