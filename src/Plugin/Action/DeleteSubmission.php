@@ -145,7 +145,7 @@ class DeleteSubmission extends ActionBase implements ContainerFactoryPluginInter
      */
     public function access($object, AccountInterface $account = NULL, $return_as_object = FALSE): bool|AccessResultInterface
     {
-        $access = AccessResult::allowedIfHasPermission($account, 'decline submission');
+        $access = AccessResult::allowedIfHasPermission($account, 'delete submission');
         return $return_as_object ? $access : $access->isAllowed();
     }
 }

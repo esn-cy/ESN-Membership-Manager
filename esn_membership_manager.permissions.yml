@@ -13,9 +13,9 @@ decline submission:
   description: "Allows users to decline submissions"
   restrict access: false
 
-view membership menu:
-  title: "View Membership Menu"
-  description: "Allows users to view the internal membership menus"
+delete submission:
+  title: "Delete Submission"
+  description: "Allows users to delete submissions"
   restrict access: false
 
 scan cards:
