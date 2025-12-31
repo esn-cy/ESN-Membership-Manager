@@ -1,0 +1,10 @@
+langcode: en
+status: true
+dependencies:
+  module:
+    - esn_membership_manager
+id: esn_membership_manager_delete
+label: "Delete Submissions"
+type: system
+plugin: esn_membership_manager_delete
+configuration: { }
