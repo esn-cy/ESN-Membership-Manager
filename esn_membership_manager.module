@@ -185,3 +185,147 @@ function esn_membership_preprocess_page(&$variables): void
         }
     }
 }
+
+/**
+ * Implements hook_cron().
+ *
+ * Handles GDPR Retention policies:
+ * 1. Proofs & ID Scans: Deleted after 2 weeks (14 days).
+ * 2. PII & Face Photos: Deleted after 1 year (365 days).
+ */
+function esn_membership_manager_cron(): void
+{
+    $database = Drupal::database();
+    $logger = Drupal::service('logger.factory')->get('esn_membership_manager');
+
+    $now = new DrupalDateTime();
+    $twoWeeksAgo = $now->sub(new DateInterval('P14D'));
+    $oneYearAgo = $now->sub(new DateInterval('P1Y'));
+    $format = 'Y-m-d H:i:s';
+
+    try {
+        $fileStorage = Drupal::entityTypeManager()->getStorage('file');
+    } catch (InvalidPluginDefinitionException|PluginNotFoundException $e) {
+        $logger->error('Cron Error: File storage could not be loaded. @message', ['@message' => $e->getMessage()]);
+        return;
+    }
+
+    // 1. Proofs & ID Scans: Deleted after 2 weeks
+    // Based on approved date
+    $query2W = $database->select('esn_membership_manager_applications', 'a')
+        ->fields('a', ['id', 'proof_fid', 'id_document_fid'])
+        ->condition('date_approved', $twoWeeksAgo->format($format), '<');
+
+    // Only process if there are files to delete
+    $filesExistCondition = $query2W->orConditionGroup()
+        ->isNotNull('proof_fid')
+        ->isNotNull('id_document_fid');
+    $query2W->condition($filesExistCondition);
+
+    // 2. PII & Face Photos: Deleted after 1 year relative to status
+    $query1Y = $database->select('esn_membership_manager_applications', 'a')
+        ->fields('a', ['id', 'face_photo_fid']);
+
+    // Create the conditional retention logic group for 1 year
+    $retentionCondition = $query1Y->orConditionGroup();
+
+    // Condition A: ESNcard wanted (1) AND paid more than 1 year ago
+    $conditionPaid1Y = $query1Y->andConditionGroup()
+        ->condition('esncard', 1)
+        ->condition('date_paid', $oneYearAgo->format($format), '<');
+
+    // Condition B: ESNcard NOT wanted (0) AND approved more than 1 year ago
+    $conditionApproved1Y = $query1Y->andConditionGroup()
+        ->condition('esncard', 0)
+        ->condition('date_approved', $oneYearAgo->format($format), '<');
+
+    $retentionCondition->condition($conditionPaid1Y);
+    $retentionCondition->condition($conditionApproved1Y);
+
+    $query1Y->condition($retentionCondition);
+
+    try {
+        $results2W = $query2W->execute()->fetchAll();
+        $results1Y = $query1Y->execute()->fetchAll();
+    } catch (Exception $e) {
+        $logger->error('Database Query Error: There was an issue fetching the applications. @message', ['@message' => $e->getMessage()]);
+        return;
+    }
+
+    // Process 2-week deletions
+    foreach ($results2W as $row) {
+        $fidsToDelete = [];
+        if ($row->proof_fid) $fidsToDelete['proof_fid'] = $row->proof_fid;
+        if ($row->id_document_fid) $fidsToDelete['id_document_fid'] = $row->id_document_fid;
+
+        if (!empty($fidsToDelete)) {
+            foreach ($fidsToDelete as $fieldName => $fid) {
+                // Delete the file entity
+                $file = $fileStorage->load($fid);
+                if ($file) {
+                    try {
+                        $file->delete();
+                    } catch (EntityStorageException $e) {
+                        $logger->warning('File Warning: Unable to delete file: @file. @message', [
+                            '@file' => $fid,
+                            '@message' => $e->getMessage()
+                        ]);
+                    }
+                }
+
+                try {
+                    $database->update('esn_membership_manager_applications')
+                        ->fields([
+                            $fieldName => NULL,
+                        ])
+                        ->condition('id', $row->id)
+                        ->execute();
+                } catch (Exception $e) {
+                    $logger->warning('Database Warning: Unable to nullify field @field for application @id. Message: @message', [
+                        '@field' => $fieldName,
+                        '@id' => $row->id,
+                        '@message' => $e->getMessage()
+                    ]);
+                }
+            }
+        }
+    }
+
+    // Process 1-year deletions
+    foreach ($results1Y as $row) {
+        // Delete face photo if exists
+        if ($row->face_photo_fid) {
+            $file = $fileStorage->load($row->face_photo_fid);
+            if ($file) {
+                try {
+                    $file->delete();
+                } catch (EntityStorageException $e) {
+                    $logger->warning('File Warning: Unable to delete file: @fid. Message: @message', [
+                        '@fid' => $row->face_photo_fid,
+                        '@message' => $e->getMessage()
+                    ]);
+                }
+            }
+        }
+
+        // Anonymize the record
+        try {
+            $database->update('esn_membership_manager_applications')
+                ->fields([
+                    'name' => 'Anonymized',
+                    'surname' => 'Anonymized',
+                    'email' => 'Anonymized',
+                    'dob' => '1970-01-01',
+                    'face_photo_fid' => NULL,
+                    'payment_link' => NULL,
+                ])
+                ->condition('id', $row->id)
+                ->execute();
+        } catch (Exception $e) {
+            $logger->warning('Database Warning: Unable to delete application ID: @id. Message: @message', [
+                '@id' => $row->id,
+                '@message' => $e->getMessage()
+            ]);
+        }
+    }
+}
