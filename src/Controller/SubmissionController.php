@@ -164,7 +164,7 @@ class SubmissionController extends ControllerBase implements ContainerInjectionI
             if (!$submission['esncard'] && in_array($key, ['id_document_fid', 'face_photo_fid', 'esncard_number', 'payment_link', 'date_paid']))
                 continue;
 
-            if ($submission['pass'] && $key == "pass_token")
+            if (!$submission['pass'] && $key == "pass_token")
                 continue;
 
             if (in_array($key, ['pass', 'esncard'])) continue;

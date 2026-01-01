@@ -71,48 +71,59 @@ class SettingsForm extends ConfigFormBase
     public function buildForm(array $form, FormStateInterface $form_state): array
     {
         $config = $this->config('esn_membership_manager.settings');
-        $access_token = $this->state->get('esn_membership_manager.weeztix_access_token');
 
-        if ($access_token) {
-            $form['weeztix_status_message'] = [
-                '#type' => 'markup',
-                '#markup' => '<div class="messages messages--status">' . $this->t('Connected to Weeztix API.') . '</div>',
-            ];
-        } else {
-            $form['weeztix_status_message'] = [
-                '#type' => 'markup',
-                '#markup' => '<div class="messages messages--warning">' . $this->t('Not connected to Weeztix. Please save credentials and click "Authorize" below.') . '</div>',
-            ];
-        }
+        $form['switches'] = [
+            '#type' => 'details',
+            '#title' => $this->t('Enable / Disable Features'),
+            '#open' => TRUE
+        ];
+
+        $form['switches']['switch_weeztix'] = [
+            '#type' => 'checkbox',
+            '#title' => $this->t('Enable Weeztix Integration'),
+            '#default_value' => $config->get('switch_weeztix') ?? FALSE,
+        ];
+
+        $form['switches']['switch_google_sheets'] = [
+            '#type' => 'checkbox',
+            '#title' => $this->t('Enable Google Sheets Integration'),
+            '#default_value' => $config->get('switch_google_sheets') ?? FALSE,
+        ];
+
+        $form['switches']['switch_google_wallet'] = [
+            '#type' => 'checkbox',
+            '#title' => $this->t('Enable Google Wallet Integration'),
+            '#default_value' => $config->get('switch_google_wallet') ?? FALSE,
+        ];
 
         $form['general'] = [
             '#type' => 'details',
             '#title' => $this->t('General Settings'),
-            '#open' => TRUE,
             '#description' => $this->t('Configuration for the ESN Membership Manager module.'),
+            '#open' => TRUE
         ];
 
         $form['general']['scheme_name'] = [
             '#type' => 'textfield',
             '#title' => $this->t('Free Pass Scheme Name'),
             '#description' => $this->t('Enter the Webform ID where the applications are made.'),
-            '#default_value' => $config->get('scheme_name') ?: 'ESN Pass',
-            '#required' => TRUE,
+            '#default_value' => $config->get('scheme_name') ?? 'ESN Pass',
+            '#required' => TRUE
         ];
 
         $form['general']['logo_url'] = [
             '#type' => 'textfield',
             '#title' => $this->t('Logo URL'),
             '#description' => $this->t('Enter the url of the section logo.'),
-            '#default_value' => $config->get('logo_url') ?: 'https://esn.org/sites/default/files/ESN_full-logo-Satellite.png',
-            '#required' => TRUE,
+            '#default_value' => $config->get('logo_url') ?? 'https://esn.org/sites/default/files/ESN_full-logo-Satellite.png',
+            '#required' => TRUE
         ];
 
         $form['email'] = [
             '#type' => 'details',
             '#title' => $this->t('Email Settings'),
-            '#open' => TRUE,
             '#description' => $this->t('Configuration for the parameters needed for sending emails.'),
+            '#open' => TRUE
         ];
 
         $form['email']['email_from_address'] = [
@@ -120,7 +131,7 @@ class SettingsForm extends ConfigFormBase
             '#title' => $this->t('Sender Email Address'),
             '#description' => $this->t('Enter the email address from where the emails will be sent.'),
             '#default_value' => $config->get('email_from_address'),
-            '#required' => TRUE,
+            '#required' => TRUE
         ];
 
         $form['email']['email_from_name'] = [
@@ -128,7 +139,7 @@ class SettingsForm extends ConfigFormBase
             '#title' => $this->t('Sender Email Name'),
             '#description' => $this->t('Enter the user-friendly name from where the emails will be sent.'),
             '#default_value' => $config->get('email_from_name'),
-            '#required' => TRUE,
+            '#required' => TRUE
         ];
 
         $form['email']['email_footer'] = [
@@ -136,14 +147,14 @@ class SettingsForm extends ConfigFormBase
             '#title' => $this->t('Email Footer'),
             '#description' => $this->t('Enter the HTML for the footer of the emails to be sent.'),
             '#default_value' => $config->get('email_footer'),
-            '#required' => FALSE,
+            '#required' => FALSE
         ];
 
         $form['stripe'] = [
             '#type' => 'details',
             '#title' => $this->t('Stripe Settings'),
-            '#open' => TRUE,
             '#description' => $this->t('Configuration for the Stripe parameters needed for payment processing.'),
+            '#open' => TRUE
         ];
 
         $form['stripe']['stripe_secret_key'] = [
@@ -151,7 +162,7 @@ class SettingsForm extends ConfigFormBase
             '#title' => $this->t('Stripe Secret Key'),
             '#description' => $this->t('Enter the Stripe Secret Key.'),
             '#default_value' => $config->get('stripe_secret_key'),
-            '#required' => TRUE,
+            '#required' => TRUE
         ];
 
         $form['stripe']['stripe_webhook_secret'] = [
@@ -159,7 +170,7 @@ class SettingsForm extends ConfigFormBase
             '#title' => $this->t('Stripe Webhook Secret'),
             '#description' => $this->t('Enter the Stripe Webhook Secret.'),
             '#default_value' => $config->get('stripe_webhook_secret'),
-            '#required' => TRUE,
+            '#required' => TRUE
         ];
 
         $form['stripe']['stripe_price_id_esncard'] = [
@@ -167,7 +178,7 @@ class SettingsForm extends ConfigFormBase
             '#title' => $this->t('Stripe Price ID for ESNcard'),
             '#description' => $this->t('Enter the Stripe Price ID for the main ESNcard product.'),
             '#default_value' => $config->get('stripe_price_id_esncard'),
-            '#required' => TRUE,
+            '#required' => TRUE
         ];
 
         $form['stripe']['stripe_price_id_processing'] = [
@@ -175,39 +186,56 @@ class SettingsForm extends ConfigFormBase
             '#title' => $this->t('Stripe Price ID for Processing Fee'),
             '#description' => $this->t('Enter the Stripe Price ID for the processing fee product.'),
             '#default_value' => $config->get('stripe_price_id_processing'),
-            '#required' => TRUE,
+            '#required' => TRUE
         ];
 
         $form['weeztix'] = [
             '#type' => 'details',
             '#title' => $this->t('Weeztix Settings'),
-            '#open' => TRUE,
             '#description' => $this->t('Configuration for the Weeztix Service.'),
+            '#open' => $config->get('switch_weeztix') ?? FALSE
         ];
+
+        $access_token = $this->state->get('esn_membership_manager.weeztix_access_token');
+
+        if ($access_token) {
+            $form['weeztix']['weeztix_status_message'] = [
+                '#type' => 'markup',
+                '#markup' => '<div class="alert alert-success">' . $this->t('Connected to Weeztix API.') . '</div>',
+            ];
+        } else {
+            $form['weeztix']['weeztix_status_message'] = [
+                '#type' => 'markup',
+                '#markup' => '<div class="alert alert-warning">' . $this->t('Not connected to Weeztix. Please save credentials and click "Authorize" below.') . '</div>',
+            ];
+        }
 
         $form['weeztix']['weeztix_client_id'] = [
             '#type' => 'textfield',
             '#title' => $this->t('Client ID'),
             '#default_value' => $config->get('weeztix_client_id'),
-            '#required' => TRUE,
+            '#disabled' => !$config->get('switch_weeztix') ?? TRUE,
+            '#required' => $config->get('switch_weeztix') ?? FALSE
         ];
 
         $form['weeztix']['weeztix_client_secret'] = [
             '#type' => 'textfield',
             '#title' => $this->t('Client Secret'),
             '#default_value' => $config->get('weeztix_client_secret'),
-            '#required' => TRUE
+            '#disabled' => !$config->get('switch_weeztix') ?? TRUE,
+            '#required' => $config->get('switch_weeztix') ?? FALSE
         ];
 
         $form['weeztix']['weeztix_coupon_list_id'] = [
             '#type' => 'textfield',
             '#title' => $this->t('Coupon List ID / Campaign ID'),
-            '#default_value' => $config->get('weeztix_coupon_list_id'),
             '#description' => $this->t('The ID of the list where coupons should be added.'),
-            '#required' => TRUE,
+            '#default_value' => $config->get('weeztix_coupon_list_id'),
+            '#disabled' => !$config->get('switch_weeztix') ?? TRUE,
+            '#required' => $config->get('switch_weeztix') ?? FALSE
         ];
 
-        if (!empty($config->get('weeztix_client_id'))) {
+        if ($config->get('switch_weeztix') ?? FALSE) {
             $redirect_uri = Url::fromRoute('esn_membership_manager.weeztix_oauth_callback', [], ['absolute' => TRUE])->toString();
 
             $state = Crypt::randomBytesBase64(64);
@@ -233,21 +261,21 @@ class SettingsForm extends ConfigFormBase
         $form['google'] = [
             '#type' => 'details',
             '#title' => $this->t('Google Settings'),
-            '#open' => TRUE,
             '#description' => $this->t('Configuration for the Google Service.'),
+            '#open' => ($config->get('switch_google_sheets') ?? FALSE) || ($config->get('switch_google_wallet') ?? FALSE)
         ];
 
         $email = $config->get('google_client_email');
 
         if ($email) {
             $form['google']['current_status'] = [
-                '#markup' => '<div class="messages messages--status">' .
+                '#markup' => '<div class="alert alert-success">' .
                     $this->t('Currently connected as: <strong>@email</strong>', ['@email' => $email]) .
                     '</div>',
             ];
         } else {
             $form['google']['current_status'] = [
-                '#markup' => '<div class="messages messages--warning">' .
+                '#markup' => '<div class="alert alert-warning>' .
                     $this->t('No Service Account credentials configured.') .
                     '</div>',
             ];
@@ -260,31 +288,35 @@ class SettingsForm extends ConfigFormBase
             '#attributes' => [
                 'accept' => '.json',
             ],
-            '#required' => empty($email),
+            '#disabled' => (!$config->get('switch_google_sheets') ?? TRUE) && (!$config->get('switch_google_wallet') ?? TRUE),
+            '#required' => empty($email) && (($config->get('switch_google_sheets') ?? FALSE) || ($config->get('switch_google_wallet') ?? FALSE))
         ];
 
         $form['google']['google_spreadsheet_id'] = [
             '#type' => 'textfield',
             '#title' => $this->t('Spreadsheet ID'),
-            '#default_value' => $config->get('google_spreadsheet_id'),
             '#description' => $this->t('The long ID string from the Google Sheet URL.'),
-            '#required' => TRUE,
+            '#default_value' => $config->get('google_spreadsheet_id'),
+            '#disabled' => !$config->get('switch_google_sheets') ?? TRUE,
+            '#required' => $config->get('switch_google_sheets') ?? FALSE
         ];
 
         $form['google']['google_sheet_name'] = [
             '#type' => 'textfield',
             '#title' => $this->t('Sheet Name'),
-            '#default_value' => $config->get('google_sheet_name') ?: 'Data',
             '#description' => $this->t('The name of the specific tab (e.g., "Data").'),
-            '#required' => TRUE,
+            '#default_value' => $config->get('google_sheet_name') ?? 'Data',
+            '#disabled' => !$config->get('switch_google_sheets') ?? TRUE,
+            '#required' => $config->get('switch_google_sheets') ?? FALSE
         ];
 
         $form['google']['google_issuer_id'] = [
             '#type' => 'textfield',
             '#title' => $this->t('Issuer ID'),
-            '#default_value' => $config->get('google_issuer_id'),
             '#description' => $this->t('The Issuer ID from the Google Wallet Console.'),
-            '#required' => TRUE,
+            '#default_value' => $config->get('google_issuer_id'),
+            '#disabled' => !$config->get('switch_google_wallet') ?? TRUE,
+            '#required' => $config->get('switch_google_wallet') ?? FALSE
         ];
 
         return parent::buildForm($form, $form_state);
@@ -328,7 +360,10 @@ class SettingsForm extends ConfigFormBase
     {
         $config = $this->config('esn_membership_manager.settings');
 
-        $config->set('scheme_name', $form_state->getValue('scheme_name'))
+        $config
+            ->set('switch_weeztix', $form_state->getValue('switch_weeztix'))
+            ->set('switch_google_sheets', $form_state->getValue('switch_google_sheets'))
+            ->set('switch_google_wallet', $form_state->getValue('switch_google_wallet'))
             ->set('logo_url', $form_state->getValue('logo_url'))
             ->set('email_from_address', $form_state->getValue('email_from_address'))
             ->set('email_from_name', $form_state->getValue('email_from_name'))

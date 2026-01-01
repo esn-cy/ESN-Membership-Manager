@@ -194,11 +194,11 @@ class StripeWebhookController extends ControllerBase
 
         $this->logger->notice('Application @id marked as Paid and assigned ESNcard number.', ['@id' => $applicationID]);
 
-        if (!empty($moduleConfig->get('weeztix_client_id'))) {
+        if ($moduleConfig->get('switch_weeztix') ?? FALSE) {
             $this->weeztixService->addCoupon($esnCard, ['applies_to_count' => 1]);
         }
 
-        if (!empty($moduleConfig->get('google_spreadsheet_id'))) {
+        if ($moduleConfig->get('switch_google_sheets') ?? FALSE) {
             $this->googleService->appendRow(
                 [
                     'date' => str_replace('-', '/', date('d-m-y')),
@@ -213,7 +213,7 @@ class StripeWebhookController extends ControllerBase
             );
         }
 
-        if (!empty($moduleConfig->get('google_issuer_id'))) {
+        if ($moduleConfig->get('switch_google_wallet') ?? FALSE) {
             try {
                 $googleWalletLink = $this->googleService->getESNcardObject($application);
             } catch (\Google\Service\Exception $e) {

@@ -100,9 +100,8 @@ class GoogleService
 
         $config = $this->configFactory->get('esn_membership_manager.settings');
         $issuerID = $config->get('google_issuer_id');
-        if (empty($issuerID))
-            throw new Exception('Google Wallet not configured.');
         $classID = "{$issuerID}.esn_membership_manager_pass";
+
         try {
             $this->walletService->genericclass->get($classID);
             $this->passClassID = $classID;

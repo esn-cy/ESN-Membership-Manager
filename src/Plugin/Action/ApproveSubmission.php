@@ -125,7 +125,7 @@ class ApproveSubmission extends ActionBase implements ContainerFactoryPluginInte
                     ->condition('id', $id)
                     ->execute();
 
-                if (!empty($moduleConfig->get('google_issuer_id'))) {
+                if ($moduleConfig->get('switch_google_wallet') ?? FALSE) {
                     try {
                         $googleWalletLink = $this->googleService->getFreePassObject($data);
                     } catch (\Google\Service\Exception $e) {
@@ -205,7 +205,7 @@ class ApproveSubmission extends ActionBase implements ContainerFactoryPluginInte
             ];
 
             if (!empty($data['pass'])) {
-                if (!empty($moduleConfig->get('google_issuer_id'))) {
+                if ($moduleConfig->get('switch_google_wallet') ?? FALSE) {
                     try {
                         $emailParams['google_wallet_link'] = $this->googleService->getFreePassObject($data);
                     } catch (\Google\Service\Exception $e) {
