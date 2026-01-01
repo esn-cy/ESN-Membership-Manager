@@ -1,10 +1,10 @@
 {
   "require": {
-    "stripe/stripe-php": "^17.6",
+    "stripe/stripe-php": "^19.1",
     "drupal/core": "^10",
-    "google/auth": "^1.48",
+    "google/auth": "^1.49",
     "google/apiclient": "^2.18",
-    "google/apiclient-services": "^0.413.0"
+    "google/apiclient-services": "^0.426"
   },
   "config": {
     "allow-plugins": {
