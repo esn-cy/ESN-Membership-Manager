@@ -361,7 +361,7 @@ class ApplicationForm extends FormBase
 
         try {
             $path = $this->moduleHandler->getModule('esn_membership_manager')->getPath() . '/assets/data/nationalities.csv';
-        } catch (Exception $e) {
+        } catch (Exception) {
             $this->nationalities = [];
             return [];
         }
@@ -458,7 +458,6 @@ class ApplicationForm extends FormBase
         }
 
         if ($hasPass) {
-            $fields['pass_token'] = strtoupper(md5(uniqid(rand(), true)));
             $fields['pass'] = TRUE;
         }
 

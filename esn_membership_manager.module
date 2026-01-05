@@ -187,6 +187,29 @@ function esn_membership_preprocess_page(&$variables): void
 }
 
 /**
+ * Implements hook_preprocess_menu().
+ *
+ * Flattens the menu structure for users who can only see the Apply link.
+ */
+function esn_membership_manager_preprocess_menu(&$variables): void
+{
+    if (isset($variables['items']['esn_membership_manager.category'])) {
+        $category = $variables['items']['esn_membership_manager.category'];
+
+        if (empty($category['below'])) {
+            return;
+        }
+        if (count($category['below']) === 1 && isset($category['below']['esn_membership_manager.apply'])) {
+            $variables['items']['esn_membership_manager.apply'] = $category['below']['esn_membership_manager.apply'];
+            $variables['items']['esn_membership_manager.apply']['title'] = t('Membership Form');
+            $variables['items']['esn_membership_manager.apply']['weight'] = -50;
+            unset($variables['items']['esn_membership_manager.category']);
+            uasort($variables['items'], ['\Drupal\Component\Utility\SortArray', 'sortByWeightElement']);
+        }
+    }
+}
+
+/**
  * Implements hook_cron().
  *
  * Handles GDPR Retention policies:

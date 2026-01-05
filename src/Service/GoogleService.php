@@ -100,7 +100,7 @@ class GoogleService
 
         $config = $this->configFactory->get('esn_membership_manager.settings');
         $issuerID = $config->get('google_issuer_id');
-        $classID = "{$issuerID}.esn_membership_manager_pass";
+        $classID = "$issuerID.esn_membership_manager_pass";
 
         try {
             $this->walletService->genericclass->get($classID);
@@ -177,8 +177,8 @@ class GoogleService
             }
         }
 
-        $paidDate = new DateTime(substr($data['paid_date'], 0, -7));
-        $expiryDate = (new DateTime(substr($data['paid_date'], 0, -7)))->add(new DateInterval("P1Y"));
+        $paidDate = new DateTime(substr($data['date_paid'], 0, -7));
+        $expiryDate = (new DateTime(substr($data['date_paid'], 0, -7)))->add(new DateInterval("P1Y"));
 
         $object = new GenericObject([
             'genericType' => 'GENERIC_OTHER',
@@ -287,7 +287,6 @@ class GoogleService
 
         $approvedDate = new DateTime(substr($data['date_approved'], 0, -7));
         $expiryDate = (new DateTime(substr($data['date_approved'], 0, -7)))->add(new DateInterval("P1Y"));
-
 
         $object = new GenericObject([
             'genericType' => 'GENERIC_OTHER',

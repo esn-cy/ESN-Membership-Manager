@@ -191,8 +191,13 @@ class SubmissionController extends ControllerBase implements ContainerInjectionI
                     $display_value = $this->generateFileLink($value);
             }
 
-            if ($key == 'payment_link')
-                $display_value = Link::fromTextAndUrl($value, Url::fromUri($value, ['attributes' => ['target' => '_blank']]))->toRenderable();
+            if ($key == 'payment_link') {
+                if (!empty($value)) {
+                    $display_value = Link::fromTextAndUrl($value, Url::fromUri($value, ['attributes' => ['target' => '_blank']]))->toRenderable();
+                } else {
+                    $display_value = '';
+                }
+            }
 
             $rows[] = [
                 [

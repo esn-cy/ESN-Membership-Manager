@@ -77,11 +77,11 @@ class DeclineSubmission extends ActionBase implements ContainerFactoryPluginInte
         }
 
         try {
-            $email = $this->database->select('esn_membership_manager_applications', 'a')
-                ->fields('a', ['email'])
+            $data = $this->database->select('esn_membership_manager_applications', 'a')
+                ->fields('a')
                 ->condition('id', $id)
                 ->execute()
-                ->fetchField();
+                ->fetchAssoc();
         } catch (Exception $e) {
             $this->logger->error('Failed to load application email @id: @message', ['@id' => $id, '@message' => $e->getMessage()]);
             return;
@@ -102,7 +102,7 @@ class DeclineSubmission extends ActionBase implements ContainerFactoryPluginInte
             $this->logger->error('Unable to decline submission @id: @message', ['@id' => $id, '@message' => $e->getMessage()]);
             return;
         }
-        $this->emailManager->sendEmail($email, 'both_denial', []);
+        $this->emailManager->sendEmail($data['email'], 'both_denial', ['name' => $data['name']]);
     }
 
     /**

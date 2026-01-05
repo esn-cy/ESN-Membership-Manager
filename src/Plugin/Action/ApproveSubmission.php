@@ -116,14 +116,20 @@ class ApproveSubmission extends ActionBase implements ContainerFactoryPluginInte
         $now = (new DrupalDateTime())->format('Y-m-d H:i:s');
 
         if (empty($data['esncard'])) {
+            $token = strtoupper(md5(uniqid(rand(), true)));
+
             try {
                 $this->database->update('esn_membership_manager_applications')
                     ->fields([
+                        'pass_token' => $token,
                         'approval_status' => 'Approved',
                         'date_approved' => $now,
                     ])
                     ->condition('id', $id)
                     ->execute();
+
+                $data['approval_status'] = 'Approved';
+                $data['date_approved'] = $now;
 
                 if ($moduleConfig->get('switch_google_wallet') ?? FALSE) {
                     try {
@@ -188,14 +194,22 @@ class ApproveSubmission extends ActionBase implements ContainerFactoryPluginInte
         }
 
         try {
+            if ($data['pass'])
+                $token = strtoupper(md5(uniqid(rand(), true)));
+
             $this->database->update('esn_membership_manager_applications')
                 ->fields([
+                    'pass_token' => $token ?? NULL,
                     'approval_status' => 'Approved',
                     'date_approved' => $now,
                     'payment_link' => $paymentLink
                 ])
                 ->condition('id', $id)
                 ->execute();
+
+            $data['approval_status'] = 'Approved';
+            $data['date_approved'] = $now;
+            $data['payment_link'] = $paymentLink;
 
             $emailParams = [
                 'name' => $data['name'],

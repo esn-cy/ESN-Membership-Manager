@@ -166,8 +166,8 @@
                     <span class="info-value" id="nationality"></span>
                 </div>
                 <div class="info-row">
-                    <span class="info-label">Occupation:</span>
-                    <span class="info-value" id="occupation"></span>
+                    <span class="info-label">Mobility Status:</span>
+                    <span class="info-value" id="mobilityStatus"></span>
                 </div>
                 <div class="info-row">
                     <span class="info-label">Status:</span>
@@ -192,8 +192,8 @@
     const scanner = new Html5Qrcode("reader", {formatsToSupport: [Html5QrcodeSupportedFormats.QR_CODE, Html5QrcodeSupportedFormats.CODE_128]});
     let processing = false;
 
-    const ESNCardNumberRegex = /\d\d\d\d\d\d\d[A-Z][A-Z][A-Z][A-Z0-9]/
-    const FreePassRegex = /ESNCYTKNESNCYTKN\d*/
+    const ESNCardNumberRegex = /^\d\d\d\d\d\d\d[A-Z][A-Z][A-Z][A-Z0-9]$/
+    const FreePassRegex = /^[A-F0-9]{32}$/
 
     const breaks = Array.from(document.getElementById("qrModal").getElementsByTagName("br"));
     for (let i = 0; i < breaks.length; i++) {
@@ -214,7 +214,7 @@
             let now = Date.now();
             document.getElementById("name").innerText = result.name;
             document.getElementById("nationality").innerText = result.nationality;
-            document.getElementById("occupation").innerText = result.occupation;
+            document.getElementById("mobilityStatus").innerText = result.mobilityStatus;
             document.getElementById("lastScan").innerText = result.lastScan.toISOString().slice(0, 10);
             if (result.lastScan !== "Never Scanned") {
                 if (result.lastScan.getTime() + 8.64e+7 > now) {
@@ -313,7 +313,7 @@
                     status: "Success",
                     name: `${json.name} ${json.surname}`,
                     nationality: json.nationality,
-                    occupation: json.occupation,
+                    mobilityStatus: json.mobilityStatus,
                     expires: expiryDate ? expiryDate : "UNKNOWN",
                     lastScan: json.lastScanDate ? new Date(Date.parse(json.lastScanDate)) : "Never Scanned",
                     imageURL: json.profileImageURL,
