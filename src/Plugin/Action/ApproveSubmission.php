@@ -89,6 +89,7 @@ class ApproveSubmission extends ActionBase implements ContainerFactoryPluginInte
 
     /**
      * {@inheritdoc}
+     * @throws Exception
      */
     public function execute($id = null): void
     {
@@ -97,25 +98,26 @@ class ApproveSubmission extends ActionBase implements ContainerFactoryPluginInte
         }
 
         try {
-            $data = $this->database->select('esn_membership_manager_applications', 'a')
+            $application = $this->database->select('esn_membership_manager_applications', 'a')
                 ->fields('a')
                 ->condition('id', $id)
                 ->execute()
                 ->fetchAssoc();
         } catch (Exception $e) {
             $this->logger->error('Failed to load application @id: @message', ['@id' => $id, '@message' => $e->getMessage()]);
-            return;
+            throw new Exception('Failed to load application');
         }
 
-        if (!$data) {
-            return;
+        if (empty($application)) {
+            $this->logger->warning('Application @id was not found', ['@id' => $id]);
+            throw new Exception('Application not found');
         }
 
         $moduleConfig = $this->configFactory->get('esn_membership_manager.settings');
 
         $now = (new DrupalDateTime())->format('Y-m-d H:i:s');
 
-        if (empty($data['esncard'])) {
+        if (empty($application['esncard'])) {
             $token = strtoupper(md5(uniqid(rand(), true)));
 
             try {
@@ -128,12 +130,13 @@ class ApproveSubmission extends ActionBase implements ContainerFactoryPluginInte
                     ->condition('id', $id)
                     ->execute();
 
-                $data['approval_status'] = 'Approved';
-                $data['date_approved'] = $now;
+                $application['pass_token'] = $token;
+                $application['approval_status'] = 'Approved';
+                $application['date_approved'] = $now;
 
                 if ($moduleConfig->get('switch_google_wallet') ?? FALSE) {
                     try {
-                        $googleWalletLink = $this->googleService->getFreePassObject($data);
+                        $googleWalletLink = $this->googleService->getFreePassObject($application);
                     } catch (\Google\Service\Exception $e) {
                         $this->logger->warning('Google Wallet Error: @error.', ['@error' => $e->getErrors()]);
                     } catch (Exception $e) {
@@ -142,17 +145,17 @@ class ApproveSubmission extends ActionBase implements ContainerFactoryPluginInte
                 }
 
                 $emailParams = [
-                    'name' => $data['name'],
-                    'token' => $data['pass_token'],
+                    'name' => $application['name'],
+                    'token' => $application['pass_token'],
                     'google_wallet_link' => $googleWalletLink ?? '',
                 ];
-                $this->emailManager->sendEmail($data['email'], 'pass_approval', $emailParams);
+                $this->emailManager->sendEmail($application['email'], 'pass_approval', $emailParams);
 
                 $this->logger->notice('Approved submission @id (no ESNcard requested).', ['@id' => $id]);
                 return;
             } catch (Exception $e) {
                 $this->logger->error('Updating Application @id failed: @message', ['@id' => $id, '@message' => $e->getMessage()]);
-                return;
+                throw new Exception('Failed to update application');
             }
         }
 
@@ -163,7 +166,7 @@ class ApproveSubmission extends ActionBase implements ContainerFactoryPluginInte
             $count = $query->execute()->fetchField();
         } catch (Exception $e) {
             $this->logger->error('Querying number of available ESNcards failed: @message.', ['@message' => $e->getMessage()]);
-            return;
+            throw new Exception('Failed to check ESNcard availability');
         }
 
         if ($count == 0) {
@@ -171,13 +174,13 @@ class ApproveSubmission extends ActionBase implements ContainerFactoryPluginInte
                 'Submission @id requested ESNcard but none are available.',
                 ['@id' => $id]
             );
-            return;
+            throw new Exception('No available ESNcards');
         }
 
         $stripeSecretKey = $moduleConfig->get('stripe_secret_key');
         if (empty($stripeSecretKey)) {
             $this->logger->error('Stripe Secret Key not set in the module configuration.');
-            return;
+            throw new Exception('Stripe Secret Key not set');
         }
         Stripe::setApiKey($stripeSecretKey);
 
@@ -185,16 +188,16 @@ class ApproveSubmission extends ActionBase implements ContainerFactoryPluginInte
             $paymentLink = $this->createStripePaymentLink($id);
         } catch (ApiErrorException $e) {
             $this->logger->error('Stripe API error for submission @id: @message', ['@id' => $id, '@message' => $e->getMessage()]);
-            return;
+            throw new Exception('Stripe API Error');
         }
 
         if (!$paymentLink) {
             $this->logger->error('Failed to create payment link for submission @id.', ['@id' => $id]);
-            return;
+            throw new Exception('Failed to create payment link');
         }
 
         try {
-            if ($data['pass'])
+            if ($application['pass'])
                 $token = strtoupper(md5(uniqid(rand(), true)));
 
             $this->database->update('esn_membership_manager_applications')
@@ -202,35 +205,37 @@ class ApproveSubmission extends ActionBase implements ContainerFactoryPluginInte
                     'pass_token' => $token ?? NULL,
                     'approval_status' => 'Approved',
                     'date_approved' => $now,
-                    'payment_link' => $paymentLink
+                    'payment_link' => $paymentLink->url,
+                    'payment_link_id' => $paymentLink->id,
                 ])
                 ->condition('id', $id)
                 ->execute();
 
-            $data['approval_status'] = 'Approved';
-            $data['date_approved'] = $now;
-            $data['payment_link'] = $paymentLink;
+            $application['pass_token'] = $token ?? NULL;
+            $application['approval_status'] = 'Approved';
+            $application['date_approved'] = $now;
+            $application['payment_link'] = $paymentLink->url;
 
             $emailParams = [
-                'name' => $data['name'],
-                'token' => $data['pass_token'],
+                'name' => $application['name'],
+                'token' => $application['pass_token'],
                 'payment_link' => $paymentLink,
                 'google_wallet_link' => ''
             ];
 
-            if (!empty($data['pass'])) {
+            if (!empty($application['pass'])) {
                 if ($moduleConfig->get('switch_google_wallet') ?? FALSE) {
                     try {
-                        $emailParams['google_wallet_link'] = $this->googleService->getFreePassObject($data);
+                        $emailParams['google_wallet_link'] = $this->googleService->getFreePassObject($application);
                     } catch (\Google\Service\Exception $e) {
                         $this->logger->warning('Google Wallet Error: @error.', ['@error' => $e->getErrors()]);
                     } catch (Exception $e) {
                         $this->logger->warning('Google Wallet Error: @error.', ['@error' => $e->getMessage()]);
                     }
                 }
-                $this->emailManager->sendEmail($data['email'], 'both_approval', $emailParams);
+                $this->emailManager->sendEmail($application['email'], 'both_approval', $emailParams);
             } else {
-                $this->emailManager->sendEmail($data['email'], 'card_approval', $emailParams);
+                $this->emailManager->sendEmail($application['email'], 'card_approval', $emailParams);
             }
 
             $this->logger->notice('Approved submission @id and created payment link.', ['@id' => $id]);
@@ -239,6 +244,7 @@ class ApproveSubmission extends ActionBase implements ContainerFactoryPluginInte
                 '@id' => $id,
                 '@message' => $e->getMessage()
             ]);
+            throw new Exception('Failed to complete approval process');
         }
     }
 
@@ -248,11 +254,11 @@ class ApproveSubmission extends ActionBase implements ContainerFactoryPluginInte
      * @param int $id
      *   The application ID.
      *
-     * @return string|null
+     * @return PaymentLink|null
      *   The payment link URL or null on failure.
      * @throws ApiErrorException
      */
-    protected function createStripePaymentLink(int $id): ?string
+    protected function createStripePaymentLink(int $id): ?PaymentLink
     {
         $moduleConfig = $this->configFactory->get('esn_membership_manager.settings');
         $esnCardPriceID = $moduleConfig->get('stripe_price_id_esncard');
@@ -271,7 +277,7 @@ class ApproveSubmission extends ActionBase implements ContainerFactoryPluginInte
             'metadata' => ['application_id' => (string)$id]
         ]);
 
-        return $paymentLink->url ?? null;
+        return $paymentLink ?? null;
     }
 
     /**

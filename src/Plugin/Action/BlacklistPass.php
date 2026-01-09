@@ -6,45 +6,40 @@ use Drupal\Core\Access\AccessResult;
 use Drupal\Core\Access\AccessResultInterface;
 use Drupal\Core\Action\ActionBase;
 use Drupal\Core\Database\Connection;
-use Drupal\Core\Entity\EntityTypeManagerInterface;
-use Drupal\Core\File\FileSystemInterface;
 use Drupal\Core\Logger\LoggerChannelFactoryInterface;
 use Drupal\Core\Logger\LoggerChannelInterface;
 use Drupal\Core\Plugin\ContainerFactoryPluginInterface;
 use Drupal\Core\Session\AccountInterface;
-use Drupal\file\FileInterface;
+use Drupal\esn_membership_manager\Service\EmailManager;
 use Exception;
 use Symfony\Component\DependencyInjection\ContainerInterface;
 
 /**
- * Declines an application.
+ * Blacklists a Free Pass (not available for ESNcards).
  *
  * @Action(
- *   id = "esn_membership_manager_delete",
- *   label = @Translation("Delete Submissions"),
+ *   id = "esn_membership_manager_blacklist",
+ *   label = @Translation("Blacklist Pass"),
  *   type = "system",
  *   confirm = TRUE
  * )
  */
-class DeleteSubmission extends ActionBase implements ContainerFactoryPluginInterface
+class BlacklistPass extends ActionBase implements ContainerFactoryPluginInterface
 {
     protected Connection $database;
-    protected EntityTypeManagerInterface $entityTypeManager;
-    protected FileSystemInterface $fileSystem;
+    protected EmailManager $emailManager;
     protected LoggerChannelInterface $logger;
 
     public function __construct(
         array                         $configuration, $plugin_id, $plugin_definition,
         Connection                    $database,
-        EntityTypeManagerInterface    $entityTypeManager,
-        FileSystemInterface           $fileSystem,
+        EmailManager                  $emailManager,
         LoggerChannelFactoryInterface $loggerFactory
     )
     {
         parent::__construct($configuration, $plugin_id, $plugin_definition);
         $this->database = $database;
-        $this->entityTypeManager = $entityTypeManager;
-        $this->fileSystem = $fileSystem;
+        $this->emailManager = $emailManager;
         $this->logger = $loggerFactory->get('esn_membership_manager');
     }
 
@@ -56,11 +51,8 @@ class DeleteSubmission extends ActionBase implements ContainerFactoryPluginInter
         /** @var Connection $database */
         $database = $container->get('database');
 
-        /** @var EntityTypeManagerInterface $entityTypeManager */
-        $entityTypeManager = $container->get('entity_type.manager');
-
-        /** @var FileSystemInterface $fileSystem */
-        $fileSystem = $container->get('file_system');
+        /** @var EmailManager $emailManager */
+        $emailManager = $container->get('esn_membership_manager.email_manager');
 
         /** @var LoggerChannelFactoryInterface $loggerFactory */
         $loggerFactory = $container->get('logger.factory');
@@ -70,8 +62,7 @@ class DeleteSubmission extends ActionBase implements ContainerFactoryPluginInter
             $plugin_id,
             $plugin_definition,
             $database,
-            $entityTypeManager,
-            $fileSystem,
+            $emailManager,
             $loggerFactory
         );
     }
@@ -102,43 +93,25 @@ class DeleteSubmission extends ActionBase implements ContainerFactoryPluginInter
             throw new Exception('Application not found');
         }
 
+        if ($application['esncard']) {
+            $this->logger->warning('Application @id cannot be blacklisted.', ['@id' => $id]);
+            throw new Exception('This status cannot be applied');
+        }
+
         try {
-            $this->deleteFile($application['proof_fid']);
-            $this->deleteFile($application['id_document_fid']);
-            $this->deleteFile($application['face_photo_fid']);
-
-            $directory = 'membership://' . $id;
-            $this->fileSystem->deleteRecursive($directory);
-
-            $this->database->delete('esn_membership_manager_applications')
+            $this->database->update('esn_membership_manager_applications')
+                ->fields([
+                    'approval_status' => 'Blacklisted',
+                ])
                 ->condition('id', $id)
                 ->execute();
 
-            $this->logger->notice('Deleted submission @id', ['@id' => $id]);
-        } catch (Exception $e) {
-            $this->logger->error('Unable to delete submission @id: @message', ['@id' => $id, '@message' => $e->getMessage()]);
-            throw new Exception('Failed to complete deletion process');
-        }
-    }
+            $this->emailManager->sendEmail($application['email'], 'pass_blacklist', ['name' => $application['name']]);
 
-    /**
-     * Helper to delete a file.
-     */
-    protected function deleteFile($fid): void
-    {
-        if (empty($fid)) {
-            return;
-        }
-
-        try {
-            /** @var FileInterface $file */
-            $file = $this->entityTypeManager->getStorage('file')->load($fid);
-            $file?->delete();
+            $this->logger->notice('Blacklisted submission @id', ['@id' => $id]);
         } catch (Exception $e) {
-            $this->logger->error('Error deleting file @fid: @message', [
-                '@fid' => $fid,
-                '@message' => $e->getMessage()
-            ]);
+            $this->logger->error('Unable to blacklist submission @id: @message', ['@id' => $id, '@message' => $e->getMessage()]);
+            throw new Exception('Failed to complete blacklisting process');
         }
     }
 
@@ -147,7 +120,7 @@ class DeleteSubmission extends ActionBase implements ContainerFactoryPluginInter
      */
     public function access($object, AccountInterface $account = NULL, $return_as_object = FALSE): bool|AccessResultInterface
     {
-        $access = AccessResult::allowedIfHasPermission($account, 'delete submission');
+        $access = AccessResult::allowedIfHasPermission($account, 'blacklist pass');
         return $return_as_object ? $access : $access->isAllowed();
     }
 }

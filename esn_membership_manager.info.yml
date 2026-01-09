@@ -6,3 +6,6 @@ package: Custom
 dependencies:
   - drupal:file
   - drupal:views_bulk_operations
+configure: esn_membership_manager.settings
+
+php: 8.2

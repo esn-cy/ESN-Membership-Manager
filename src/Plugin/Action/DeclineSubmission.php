@@ -69,6 +69,7 @@ class DeclineSubmission extends ActionBase implements ContainerFactoryPluginInte
 
     /**
      * {@inheritdoc}
+     * @throws Exception
      */
     public function execute($id = NULL): void
     {
@@ -84,12 +85,12 @@ class DeclineSubmission extends ActionBase implements ContainerFactoryPluginInte
                 ->fetchAssoc();
         } catch (Exception $e) {
             $this->logger->error('Failed to load application email @id: @message', ['@id' => $id, '@message' => $e->getMessage()]);
-            return;
+            throw new Exception('Failed to load application');
         }
 
         if (empty($email)) {
-            $this->logger->warning('No email found for declined application @id', ['@id' => $id]);
-            return;
+            $this->logger->warning('Application @id was not found', ['@id' => $id]);
+            throw new Exception('Application not found');
         }
 
         try {
@@ -97,12 +98,14 @@ class DeclineSubmission extends ActionBase implements ContainerFactoryPluginInte
                 ->fields(['approval_status' => 'Declined'])
                 ->condition('id', $id)
                 ->execute();
+
+            $this->emailManager->sendEmail($data['email'], 'both_denial', ['name' => $data['name']]);
+
             $this->logger->notice('Declined submission @id', ['@id' => $id]);
         } catch (Exception $e) {
             $this->logger->error('Unable to decline submission @id: @message', ['@id' => $id, '@message' => $e->getMessage()]);
-            return;
+            throw new Exception('Failed to complete declining process');
         }
-        $this->emailManager->sendEmail($data['email'], 'both_denial', ['name' => $data['name']]);
     }
 
     /**

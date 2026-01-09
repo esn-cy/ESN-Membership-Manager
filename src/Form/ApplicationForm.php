@@ -56,6 +56,44 @@ class ApplicationForm extends FormBase
         $this->logger = $logger_factory->get('esn_membership_manager');
     }
 
+    public static function create(ContainerInterface $container): self
+    {
+        /** @var ConfigFactoryInterface $configFactory */
+        $configFactory = $container->get('config.factory');
+
+        /** @var Connection $database */
+        $database = $container->get('database');
+
+        /** @var EmailManager $emailManager */
+        $emailManager = $container->get('esn_membership_manager.email_manager');
+
+        /** @var EntityTypeManagerInterface $entityTypeManager */
+        $entityTypeManager = $container->get('entity_type.manager');
+
+        /** @var ModuleHandlerInterface $moduleHandler */
+        $moduleHandler = $container->get('module_handler');
+
+        /** @var FileSystemInterface $fileSystem */
+        $fileSystem = $container->get('file_system');
+
+        /** @var FileRepositoryInterface $fileRepository */
+        $fileRepository = $container->get('file.repository');
+
+        /** @var LoggerChannelFactoryInterface $loggerFactory */
+        $loggerFactory = $container->get('logger.factory');
+
+        return new static(
+            $configFactory,
+            $database,
+            $emailManager,
+            $entityTypeManager,
+            $moduleHandler,
+            $fileSystem,
+            $fileRepository,
+            $loggerFactory
+        );
+    }
+
     /**
      * {@inheritdoc}
      */
@@ -211,6 +249,7 @@ class ApplicationForm extends FormBase
         if ($showDynamicFields) {
             $form['mobility_details']['dynamic_container']['host'] = [
                 '#type' => 'textfield',
+                '#description' => 'You need to enter institution that\'s hosting you here, not the one from your country of origin.',
                 '#title' => $organizationLabel,
                 '#required' => TRUE,
             ];
@@ -232,7 +271,6 @@ class ApplicationForm extends FormBase
             ];
         }
 
-        // 4. ESNcard Choice Section
         $form['services'] = [
             '#type' => 'fieldset',
             '#title' => $this->t('Services'),
@@ -315,44 +353,6 @@ class ApplicationForm extends FormBase
         return $form;
     }
 
-    public static function create(ContainerInterface $container): self
-    {
-        /** @var ConfigFactoryInterface $configFactory */
-        $configFactory = $container->get('config.factory');
-
-        /** @var Connection $database */
-        $database = $container->get('database');
-
-        /** @var EmailManager $emailManager */
-        $emailManager = $container->get('esn_membership_manager.email_manager');
-
-        /** @var EntityTypeManagerInterface $entityTypeManager */
-        $entityTypeManager = $container->get('entity_type.manager');
-
-        /** @var ModuleHandlerInterface $moduleHandler */
-        $moduleHandler = $container->get('module_handler');
-
-        /** @var FileSystemInterface $fileSystem */
-        $fileSystem = $container->get('file_system');
-
-        /** @var FileRepositoryInterface $fileRepository */
-        $fileRepository = $container->get('file.repository');
-
-        /** @var LoggerChannelFactoryInterface $loggerFactory */
-        $loggerFactory = $container->get('logger.factory');
-
-        return new static(
-            $configFactory,
-            $database,
-            $emailManager,
-            $entityTypeManager,
-            $moduleHandler,
-            $fileSystem,
-            $fileRepository,
-            $loggerFactory
-        );
-    }
-
     protected function getNationalities(): array
     {
         if (!empty($this->nationalities)) {
@@ -381,6 +381,27 @@ class ApplicationForm extends FormBase
 
         $this->nationalities = $nationalities;
         return $nationalities;
+    }
+
+    /**
+     * {@inheritdoc}
+     */
+    public function validateForm(array &$form, FormStateInterface $form_state): void
+    {
+        parent::validateForm($form, $form_state);
+
+        $values = $form_state->getValues();
+        $choices = array_filter($values['choices'] ?? []);
+        $hasESNcard = in_array('esncard', $choices);
+
+        if ($hasESNcard) {
+            if (empty($values['id_document'])) {
+                $form_state->setError($form['esncard_requirements']['id_document'], $this->t('A copy of your ID or Passport is required for verification.'));
+            }
+            if (empty($values['face_photo'])) {
+                $form_state->setError($form['esncard_requirements']['face_photo'], $this->t('A passport style photo is required for the ESNcard.'));
+            }
+        }
     }
 
     /**

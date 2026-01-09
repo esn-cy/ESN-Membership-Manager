@@ -154,6 +154,11 @@ function esn_membership_manager_schema(): array
                 'type' => 'varchar',
                 'length' => 255,
             ],
+            'payment_link_id' => [
+                'description' => 'Stripe Payment link ID.',
+                'type' => 'varchar',
+                'length' => 255,
+            ],
             'approval_status' => [
                 'description' => 'Current status (Pending, Paid, etc).',
                 'type' => 'varchar',

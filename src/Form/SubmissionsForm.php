@@ -48,6 +48,36 @@ class SubmissionsForm extends FormBase
         $this->logger = $loggerFactory->get('esn_membership_manager');
     }
 
+    public static function create(ContainerInterface $container): self
+    {
+        /** @var ConfigFactoryInterface $configFactory */
+        $configFactory = $container->get('config.factory');
+
+        /** @var EntityTypeManagerInterface $entityTypeManager */
+        $entityTypeManager = $container->get('entity_type.manager');
+
+        /** @var Connection $database */
+        $database = $container->get('database');
+
+        /** @var RequestStack $requestStack */
+        $requestStack = $container->get('request_stack');
+
+        /** @var ActionManager $actionManager */
+        $actionManager = $container->get('plugin.manager.action');
+
+        /** @var LoggerChannelFactoryInterface $loggerFactory */
+        $loggerFactory = $container->get('logger.factory');
+
+        return new static(
+            $configFactory,
+            $entityTypeManager,
+            $database,
+            $requestStack,
+            $actionManager,
+            $loggerFactory
+        );
+    }
+
     /**
      * {@inheritdoc}
      */
@@ -147,13 +177,25 @@ class SubmissionsForm extends FormBase
             'esn_membership_manager_approve',
             'esn_membership_manager_decline',
             'esn_membership_manager_delete',
+            'esn_membership_manager_mark_paid',
+            'esn_membership_manager_issue',
+            'esn_membership_manager_deliver',
+            'esn_membership_manager_blacklist'
         ];
 
         $options = ['' => $this->t('- Select an action -')];
         foreach ($action_plugin_ids as $id) {
             if ($this->actionManager->hasDefinition($id)) {
-                $definition = $this->actionManager->getDefinition($id);
-                $options[$id] = $definition['label'];
+                try {
+                    /** @var ActionBase $action */
+                    $action = $this->actionManager->createInstance($id);
+                    if ($action->access(NULL, $this->currentUser())) {
+                        $definition = $this->actionManager->getDefinition($id);
+                        $options[$id] = $definition['label'];
+                    }
+                } catch (Exception $e) {
+                    $this->logger->warning('Could not check access for action @id: @message', ['@id' => $id, '@message' => $e->getMessage()]);
+                }
             } else {
                 $this->logger->warning('Missing action plugin definition: @id', ['@id' => $id]);
             }
@@ -274,36 +316,6 @@ class SubmissionsForm extends FormBase
         return $form;
     }
 
-    public static function create(ContainerInterface $container): self
-    {
-        /** @var ConfigFactoryInterface $configFactory */
-        $configFactory = $container->get('config.factory');
-
-        /** @var EntityTypeManagerInterface $entityTypeManager */
-        $entityTypeManager = $container->get('entity_type.manager');
-
-        /** @var Connection $database */
-        $database = $container->get('database');
-
-        /** @var RequestStack $requestStack */
-        $requestStack = $container->get('request_stack');
-
-        /** @var ActionManager $actionManager */
-        $actionManager = $container->get('plugin.manager.action');
-
-        /** @var LoggerChannelFactoryInterface $loggerFactory */
-        $loggerFactory = $container->get('logger.factory');
-
-        return new static(
-            $configFactory,
-            $entityTypeManager,
-            $database,
-            $requestStack,
-            $actionManager,
-            $loggerFactory
-        );
-    }
-
     function generateFilePreview($file_id): array|string
     {
         if (empty($file_id)) {
@@ -363,13 +375,17 @@ class SubmissionsForm extends FormBase
             return;
         }
 
+        $currentID = '';
         try {
             if ($this->actionManager->hasDefinition($action_id)) {
                 /** @var ActionBase $action */
                 $action = $this->actionManager->createInstance($action_id);
 
                 foreach ($selected_ids as $id => $value) {
-                    $action->execute($id);
+                    $currentID = $id;
+                    if ($action->access($id, $this->currentUser())) {
+                        $action->execute($id);
+                    }
                 }
 
                 $this->messenger()->addStatus($this->t('Action applied to @count items.', ['@count' => count($selected_ids)]));
@@ -382,7 +398,7 @@ class SubmissionsForm extends FormBase
                 '@action' => $action_id,
                 '@message' => $e->getMessage()
             ]);
-            $this->messenger()->addError($this->t('An error occurred while processing the action.'));
+            $this->messenger()->addError($this->t('An error occurred while processing the action on ID @id: @message', ['@id' => $currentID, '@message' => $e->getMessage()]));
         }
     }
 }

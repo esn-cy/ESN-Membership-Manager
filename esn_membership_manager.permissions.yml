@@ -18,6 +18,22 @@ delete submission:
   description: "Allows users to delete submissions"
   restrict access: false
 
+mark submission as paid:
+  title: "Mark Submission as Paid"
+  description: "Allows users to mark submissions as paid"
+
+blacklist pass:
+  title: "Blacklist Pass"
+  description: "Allows users to blacklists a Free Pass"
+
+issue card:
+  title: "Issue Card"
+  description: "Allows users to mark cards as issued"
+
+deliver card:
+  title: "Deliver Card"
+  description: "Allows users to mark cards as delivered"
+
 scan cards:
   title: "Scan Cards"
   description: "Allows users to scan cards and passes"

@@ -177,8 +177,9 @@ class GoogleService
             }
         }
 
-        $paidDate = new DateTime(substr($data['date_paid'], 0, -7));
-        $expiryDate = (new DateTime(substr($data['date_paid'], 0, -7)))->add(new DateInterval("P1Y"));
+        $paidDate = new DateTime($data['date_paid']);
+        $paidDate->setTime(0, 0);
+        $expiryDate = (clone $paidDate)->add(new DateInterval("P1Y"));
 
         $object = new GenericObject([
             'genericType' => 'GENERIC_OTHER',
@@ -285,8 +286,9 @@ class GoogleService
             }
         }
 
-        $approvedDate = new DateTime(substr($data['date_approved'], 0, -7));
-        $expiryDate = (new DateTime(substr($data['date_approved'], 0, -7)))->add(new DateInterval("P1Y"));
+        $approvedDate = new DateTime($data['date_approved']);
+        $approvedDate->setTime(0, 0);
+        $expiryDate = (clone $approvedDate)->add(new DateInterval("P1Y"));
 
         $object = new GenericObject([
             'genericType' => 'GENERIC_OTHER',
@@ -329,7 +331,7 @@ class GoogleService
             ]),
             'heroImage' => new Image([
                 'sourceUri' => new ImageUri([
-                    'uri' => 'https://esncy.org/sites/default/files/2025-12/Free_Pass_Hero.png'
+                    'uri' => 'https://esncy.org/sites/default/files/2026-01/emm-hero.png'
                 ]),
                 'contentDescription' => new LocalizedString([
                     'defaultValue' => new TranslatedString([

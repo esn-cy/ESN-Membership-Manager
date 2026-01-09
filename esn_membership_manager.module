@@ -78,6 +78,16 @@ function esn_membership_manager_theme($existing, $type, $theme, $path): array
         'emm_both_confirmation' => [
             'variables' => $common_vars,
         ],
+
+        // 9. Pass Blacklist
+        'emm_pass_blacklist' => [
+            'variables' => $common_vars,
+        ],
+
+        // 10. Card Issuance
+        'emm_card_issuance' => [
+            'variables' => $common_vars,
+        ],
     ];
 }
 
@@ -140,6 +150,14 @@ function esn_membership_manager_mail($key, &$message, $params): void
 
         case 'both_confirmation':
             $message['subject'] = t('@scheme and ESNcard Application Received', ['@scheme' => $scheme], $options);
+            break;
+
+        case 'pass_blacklist':
+            $message['subject'] = t('@scheme Blacklisted', [], $options);
+            break;
+
+        case 'card_issuance':
+            $message['subject'] = t('ESNcard Issued', [], $options);
             break;
     }
 
