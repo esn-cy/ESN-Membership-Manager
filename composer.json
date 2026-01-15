@@ -1,10 +1,40 @@
 {
+  "name": "esn-cy/esn-membership-manager",
+  "type": "drupal-module",
+  "description": "Provides a framework to accept submissions for both Free Passes and ESNcards.",
+  "license": "Apache-2.0",
+  "homepage": "https://github.com/esn-cy/esn-membership-manager",
+  "readme": "README.MD",
+  "support": {
+    "email": "wpa@esncy.org",
+    "issues": "https://github.com/esn-cy/esn-membership-manager/issues"
+  },
+  "authors": [
+    {
+      "name": "Andreas Michael",
+      "email": "ateasm03@gmail.com",
+      "role": "Developer"
+    },
+    {
+      "name": "Charilaos Mikelli",
+      "email": "charilaosmikelli@gmail.com",
+      "role": "Original Concept Developer"
+    }
+  ],
+  "autoload": {
+    "psr-4": {
+      "Drupal\\esn_membership_manager\\": "src/"
+    }
+  },
   "require": {
+    "drupal/simple_oauth": "^6.1",
     "stripe/stripe-php": "^19.1",
-    "drupal/core": "^10",
-    "google/auth": "^1.49",
-    "google/apiclient": "^2.18",
+    "google/auth": "^1.50",
+    "google/apiclient": "^2.19",
     "google/apiclient-services": "^0.426"
+  },
+  "require-dev": {
+    "drupal/core": "^10"
   },
   "config": {
     "allow-plugins": {

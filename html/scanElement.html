@@ -192,7 +192,7 @@
     const scanner = new Html5Qrcode("reader", {formatsToSupport: [Html5QrcodeSupportedFormats.QR_CODE, Html5QrcodeSupportedFormats.CODE_128]});
     let processing = false;
 
-    const ESNCardNumberRegex = /^\d\d\d\d\d\d\d[A-Z][A-Z][A-Z][A-Z0-9]$/
+    const ESNCardNumberRegex = /\d\d\d\d\d\d\d[A-Z][A-Z][A-Z][A-Z0-9]/
     const FreePassRegex = /^[A-F0-9]{32}$/
 
     const breaks = Array.from(document.getElementById("qrModal").getElementsByTagName("br"));
@@ -215,12 +215,15 @@
             document.getElementById("name").innerText = result.name;
             document.getElementById("nationality").innerText = result.nationality;
             document.getElementById("mobilityStatus").innerText = result.mobilityStatus;
-            document.getElementById("lastScan").innerText = result.lastScan.toISOString().slice(0, 10);
             if (result.lastScan !== "Never Scanned") {
+                document.getElementById("lastScan").innerText = result.lastScan.toISOString().slice(0, 10);
+
                 if (result.lastScan.getTime() + 8.64e+7 > now) {
                     status = "Already Scanned";
                     document.getElementById("lastScan").classList.add("text-error");
                 }
+            } else {
+                document.getElementById("lastScan").innerText = "Never Scanned";
             }
             if (result.expires !== "UNKNOWN") {
                 document.getElementById("expires").innerText = result.expires.toISOString().slice(0, 10);
@@ -253,7 +256,7 @@
             document.getElementById("success").style.display = "flex";
         } else {
             document.getElementById("error").style.display = "block";
-            document.getElementById("error").innerText = result.message;
+            document.getElementById("error").innerText = result.message ?? "An error has occurred";
         }
         document.getElementById("qrModal").style.display = "flex";
     }
@@ -294,11 +297,17 @@
             try {
                 const response = await fetch("/api/esncard/scan", {
                     method: "POST",
+                    credentials: "same-origin",
                     body: JSON.stringify({
                         card: identifier
                     })
                 });
                 const json = await response.json();
+                if (!response.ok) {
+                    json.status = "Error";
+                    showModal(json);
+                    return;
+                }
 
                 let expiryDate;
                 if (json.datePaid) {

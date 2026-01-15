@@ -8,6 +8,7 @@ use Drupal\Core\Controller\ControllerBase;
 use Drupal\Core\Database\Connection;
 use Drupal\Core\Logger\LoggerChannelFactoryInterface;
 use Drupal\Core\Logger\LoggerChannelInterface;
+use Drupal\Core\Session\AccountProxyInterface;
 use Exception;
 use Symfony\Component\DependencyInjection\ContainerInterface;
 use Symfony\Component\HttpFoundation\JsonResponse;
@@ -17,17 +18,19 @@ class StatusController extends ControllerBase
 {
     protected Connection $database;
     protected ActionManager $actionManager;
+    protected $currentUser;
     protected LoggerChannelInterface $logger;
 
     public function __construct(
         Connection                    $database,
         ActionManager                 $actionManager,
+        AccountProxyInterface $currentUser,
         LoggerChannelFactoryInterface $loggerFactory
-
     )
     {
         $this->database = $database;
         $this->actionManager = $actionManager;
+        $this->currentUser = $currentUser;
         $this->logger = $loggerFactory->get('esn_membership_manager');
     }
 
@@ -39,12 +42,16 @@ class StatusController extends ControllerBase
         /** @var ActionManager $actionManager */
         $actionManager = $container->get('plugin.manager.action');
 
+        /** @var AccountProxyInterface $currentUser */
+        $currentUser = $container->get('current_user');
+
         /** @var LoggerChannelFactoryInterface $loggerFactory */
         $loggerFactory = $container->get('logger.factory');
 
         return new static(
             $database,
             $actionManager,
+            $currentUser,
             $loggerFactory
         );
     }
@@ -94,14 +101,14 @@ class StatusController extends ControllerBase
         }
 
         $selectedAction = array_filter($this->statuses, function ($search) use ($status) {
-            return $search['action'] == $status;
+            return $search['name'] == $status;
         });
 
-        if ($selectedAction == []) {
+        $selectedAction = reset($selectedAction);
+
+        if (!$selectedAction) {
             return new JsonResponse(['status' => 'error', 'message' => 'An invalid status was provided.'], 400);
         }
-
-        $selectedAction = reset($selectedAction);
 
         if (($isESNcard && !$selectedAction['cardAllowed']) || ($isPass && !$selectedAction['passAllowed'])) {
             return new JsonResponse(['status' => 'error', 'message' => 'Action not allowed with this kind of identifier.'], 400);
@@ -131,6 +138,14 @@ class StatusController extends ControllerBase
             if ($this->actionManager->hasDefinition($selectedAction['action'])) {
                 /** @var ActionBase $action */
                 $action = $this->actionManager->createInstance($selectedAction['action']);
+
+                $access = $action->access(NULL, $this->currentUser, TRUE);
+                if (!$access || !$access->isAllowed()) {
+                    return new JsonResponse([
+                        'status' => 'error',
+                        'message' => 'You do not have permission to perform this action.'
+                    ], 403);
+                }
 
                 $action->execute($data['id']);
 

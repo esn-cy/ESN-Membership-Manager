@@ -4,8 +4,10 @@ esn_membership_manager.scan:
     _controller: '\Drupal\esn_membership_manager\Controller\ScanController::scanCard'
     _title: 'Scan Free Passes and ESNcards'
   requirements:
-    _access: 'TRUE'
-  methods: [ GET, POST ]
+    _permission: 'scan cards'
+  methods: [ POST ]
+  options:
+    _auth: [ 'oauth2', 'cookie' ]
 
 esn_membership_manager.add:
   path: '/api/esncard/add'
@@ -13,8 +15,10 @@ esn_membership_manager.add:
     _controller: '\Drupal\esn_membership_manager\Controller\AddController::addCard'
     _title: 'Add ESNcard'
   requirements:
-    _access: 'TRUE'
+    _permission: 'manage esncard numbers'
   methods: [ POST ]
+  options:
+    _auth: [ 'oauth2', 'cookie' ]
 
 esn_membership_manager.status:
   path: '/api/esncard/status'
@@ -24,6 +28,16 @@ esn_membership_manager.status:
   requirements:
     _access: 'TRUE'
   methods: [ POST ]
+  options:
+    _auth: [ 'oauth2' ]
+
+esn_membership_manager.online_status:
+  path: '/api/status'
+  defaults:
+    _controller: '\Drupal\esn_membership_manager\Controller\OnlineStatusController::checkOnlineStatus'
+  requirements:
+    _access: 'TRUE'
+  methods: [ GET ]
 
 esn_membership_manager.stripe_webhook:
   path: '/stripe/webhook'

@@ -52,10 +52,6 @@ class ScanController extends ControllerBase
 
     public function scanCard(Request $request): JsonResponse
     {
-        if ($request->isMethod('GET')) {
-            return new JsonResponse(null, 200);
-        }
-
         $body = json_decode($request->getContent(), TRUE) ?? [];
         $cardNumber = $body['card'] ?? NULL;
 
@@ -90,6 +86,18 @@ class ScanController extends ControllerBase
         if (!$application) {
             return new JsonResponse(['status' => 'error', 'message' => 'Card/Pass not found.'], 404);
         }
+
+        if ($application['approval_status'] == 'Blacklisted')
+            return new JsonResponse([
+                'name' => 'BLACKLISTED',
+                'surname' => 'BLACKLISTED',
+                'nationality' => '',
+                'mobilityStatus' => '',
+                'datePaid' => '',
+                'dateApproved' => '',
+                'lastScanDate' => '',
+                'profileImageURL' => '',
+            ], 200);
 
         $last_scan_date = $application['date_last_scanned'] ?? NULL;
 

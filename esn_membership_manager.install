@@ -1,9 +1,17 @@
 <?php
 
+use Drupal\Component\Plugin\Exception\InvalidPluginDefinitionException;
+use Drupal\Component\Plugin\Exception\PluginNotFoundException;
+use Drupal\Core\Entity\EntityStorageException;
 use Drupal\Core\File\FileSystemInterface;
+use Drupal\user\Entity\Role;
 
 /**
  * Implements hook_install().
+ * @throws EntityStorageException
+ * @throws PluginNotFoundException
+ * @throws InvalidPluginDefinitionException
+ * @throws Exception
  */
 function esn_membership_manager_install(): void
 {
@@ -22,6 +30,77 @@ function esn_membership_manager_install(): void
         $content = "Order deny,allow\nDeny from all\n";
         $content .= "<IfModule mod_authz_core.c>\n  Require all denied\n</IfModule>\n";
         file_put_contents($htaccess_path, $content);
+    }
+
+    $role_id = 'esn_membership_manager_admin';
+    $role = Role::load($role_id);
+
+    if (!$role) {
+        $role = Role::create([
+            'id' => $role_id,
+            'label' => 'ESN Membership Manager Administrator',
+        ]);
+        $role->save();
+    }
+
+    if (empty($role->id())) {
+        throw new Exception('Failed to create Role, aborting install to prevent corruption.');
+    }
+
+    $permissions = Drupal::service('user.permissions')->getPermissions();
+    $module_permissions = [];
+
+    foreach ($permissions as $perm_name => $perm_def) {
+        if (isset($perm_def['provider']) && $perm_def['provider'] === 'esn_membership_manager') {
+            $module_permissions[] = $perm_name;
+        }
+    }
+
+    if (!empty($module_permissions)) {
+        user_role_grant_permissions($role_id, $module_permissions);
+    }
+
+    $scope_storage = Drupal::entityTypeManager()->getStorage('oauth2_scope');
+    $scope_name = 'esn_scanner';
+    $scope = $scope_storage->load($scope_name);
+
+    if (!$scope) {
+        $scope_storage->create([
+            'name' => $scope_name,
+            'description' => 'Grants permissions for the ESN Membership Scanner App',
+            'granularity_id' => 'role',
+            'granularity_configuration' => [
+                'role' => $role_id
+            ],
+            'grant_types' => [
+                'authorization_code' => ['status' => TRUE, 'description' => ''],
+                'refresh_token' => ['status' => TRUE, 'description' => ''],
+            ]
+        ])->save();
+    }
+
+    $consumer_storage = Drupal::entityTypeManager()->getStorage('consumer');
+    $client_uuid = '45534e20-5363-616e-6572-204f41757468';
+
+    $exists = $consumer_storage->loadByProperties(['uuid' => $client_uuid]);
+    if (empty($exists)) {
+        $consumer = $consumer_storage->create([
+            'uuid' => $client_uuid,
+            'label' => 'ESN Scanner App',
+            'machine_name' => 'esn_scanner_app',
+            'description' => 'Authentication client for the ESN Scanner app.',
+            'client_id' => $client_uuid,
+            'secret' => '',
+            'confidential' => FALSE,
+            'third_party' => FALSE,
+            'pkce' => TRUE,
+            'redirect' => 'org.esncy.esnscanner://callback',
+            'grant_types' => [
+                'authorization_code',
+                'refresh_token',
+            ],
+        ]);
+        $consumer->save();
     }
 }
 

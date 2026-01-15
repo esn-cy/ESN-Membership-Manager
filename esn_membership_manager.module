@@ -6,6 +6,7 @@ use Drupal\Core\Datetime\DrupalDateTime;
 use Drupal\Core\Entity\EntityStorageException;
 use Drupal\Core\Render\Markup;
 use Drupal\Core\StreamWrapper\StreamWrapperManager;
+use Drupal\user\Entity\User;
 
 /**
  * Implements hook_theme().
@@ -369,4 +370,30 @@ function esn_membership_manager_cron(): void
             ]);
         }
     }
+}
+
+/**
+ * Implements hook_simple_oauth_private_claims_alter().
+ */
+function esn_membership_manager_simple_oauth_private_claims_alter(&$private_claims, $token_entity): void
+{
+    $user_id = $token_entity->getUserIdentifier();
+    if (!$user_id) {
+        return;
+    }
+
+    $user = User::load($user_id);
+
+    $permissions = Drupal::service('user.permissions')->getPermissions();
+    $granted = [];
+    foreach ($permissions as $machine_name => $definition) {
+        if (isset($definition['provider']) && $definition['provider'] === 'esn_membership_manager') {
+            if ($user->hasPermission($machine_name)) {
+                $granted[] = $machine_name;
+            }
+        }
+    }
+
+    $private_claims['name'] = $user->getDisplayName();
+    $private_claims['permissions'] = $granted;
 }
