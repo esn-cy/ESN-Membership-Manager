@@ -94,7 +94,7 @@ class DeliverCard extends ActionBase implements ContainerFactoryPluginInterface
         }
 
         if (!$application['esncard'] || $application['approval_status'] != 'Issued') {
-            $this->logger->warning('Application @id cannot be marked as delivered.', ['@id' => $id]);
+            $this->logger->warning('Application @id cannot be marked as delivered because its current status is @status.', ['@id' => $id, '@status' => $application['status']]);
             throw new Exception('This status cannot be applied');
         }
 

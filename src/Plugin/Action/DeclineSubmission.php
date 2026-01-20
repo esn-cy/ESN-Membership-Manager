@@ -78,7 +78,7 @@ class DeclineSubmission extends ActionBase implements ContainerFactoryPluginInte
         }
 
         try {
-            $data = $this->database->select('esn_membership_manager_applications', 'a')
+            $application = $this->database->select('esn_membership_manager_applications', 'a')
                 ->fields('a')
                 ->condition('id', $id)
                 ->execute()
@@ -88,9 +88,14 @@ class DeclineSubmission extends ActionBase implements ContainerFactoryPluginInte
             throw new Exception('Failed to load application');
         }
 
-        if (empty($email)) {
+        if (empty($application)) {
             $this->logger->warning('Application @id was not found', ['@id' => $id]);
             throw new Exception('Application not found');
+        }
+
+        if ($application['approval_status'] != 'Pending') {
+            $this->logger->warning('Application @id cannot be marked as declined because its current status is @status.', ['@id' => $id, '@status' => $application['status']]);
+            throw new Exception('This status cannot be applied');
         }
 
         try {
@@ -99,7 +104,7 @@ class DeclineSubmission extends ActionBase implements ContainerFactoryPluginInte
                 ->condition('id', $id)
                 ->execute();
 
-            $this->emailManager->sendEmail($data['email'], 'both_denial', ['name' => $data['name']]);
+            $this->emailManager->sendEmail($application['email'], 'both_denial', ['name' => $application['name']]);
 
             $this->logger->notice('Declined submission @id', ['@id' => $id]);
         } catch (Exception $e) {

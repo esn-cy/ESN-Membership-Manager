@@ -508,7 +508,7 @@ class ApplicationForm extends FormBase
         else
             $this->emailManager->sendEmail($values['email'], 'pass_confirmation', $email_params);
 
-        $this->messenger()->addStatus($this->t('Application submitted successfully!'));
+        $form_state->setRedirect('esn_membership_manager.apply_success');
     }
 
     /**

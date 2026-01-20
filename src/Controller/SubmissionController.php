@@ -248,4 +248,14 @@ class SubmissionController extends ControllerBase implements ContainerInjectionI
         }
         return $this->t('File not found');
     }
+
+    /**
+     * Display a success page for application submission.
+     */
+    public function successPage(): array
+    {
+        return [
+            '#markup' => $this->t('<div><h3>Thank you for your application!</h3><p>We have successfully received your details. Please check your email for confirmation.</p><p><a href="/memberships/apply">Submit another application</a></p></div>'),
+        ];
+    }
 }

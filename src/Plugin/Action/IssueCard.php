@@ -94,7 +94,7 @@ class IssueCard extends ActionBase implements ContainerFactoryPluginInterface
         }
 
         if (!$application['esncard'] || $application['approval_status'] != 'Paid') {
-            $this->logger->warning('Application @id cannot be marked as issued.', ['@id' => $id]);
+            $this->logger->warning('Application @id cannot be marked as issued because its current status is @status.', ['@id' => $id, '@status' => $application['status']]);
             throw new Exception('This status cannot be applied');
         }
 

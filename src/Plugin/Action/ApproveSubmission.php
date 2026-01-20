@@ -113,6 +113,11 @@ class ApproveSubmission extends ActionBase implements ContainerFactoryPluginInte
             throw new Exception('Application not found');
         }
 
+        if ($application['approval_status'] != 'Pending') {
+            $this->logger->warning('Application @id cannot be marked as delivered because its current status is @status.', ['@id' => $id, '@status' => $application['status']]);
+            throw new Exception('This status cannot be applied');
+        }
+
         $moduleConfig = $this->configFactory->get('esn_membership_manager.settings');
 
         $now = (new DrupalDateTime())->format('Y-m-d H:i:s');
@@ -219,7 +224,7 @@ class ApproveSubmission extends ActionBase implements ContainerFactoryPluginInte
             $emailParams = [
                 'name' => $application['name'],
                 'token' => $application['pass_token'],
-                'payment_link' => $paymentLink,
+                'payment_link' => $application['payment_link'],
                 'google_wallet_link' => ''
             ];
 

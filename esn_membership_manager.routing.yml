@@ -55,6 +55,14 @@ esn_membership_manager.apply:
   requirements:
     _access: 'TRUE'
 
+esn_membership_manager.apply_success:
+  path: '/memberships/apply/success'
+  defaults:
+    _controller: '\Drupal\esn_membership_manager\Controller\SubmissionController::successPage'
+    _title: 'Application Received'
+  requirements:
+    _access: 'TRUE'
+
 esn_membership_manager.submissions:
   path: '/memberships/submissions'
   defaults:

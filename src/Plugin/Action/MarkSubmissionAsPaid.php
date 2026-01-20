@@ -133,13 +133,13 @@ class MarkSubmissionAsPaid extends ActionBase implements ContainerFactoryPluginI
             throw new Exception('Failed to load application');
         }
 
-        if (!$application) {
+        if (empty($application)) {
             $this->logger->warning('Application @id was not found.', ['@id' => $applicationID]);
             $this->lock->release('process_application_' . $applicationID);
             throw new Exception('Application not found');
         }
 
-        if ($application['approval_status'] == 'Paid' && !empty($application['esncard_number'])) {
+        if (!empty($application['esncard_number'] && $application['approval_status'] == 'Paid')) {
             $this->logger->warning(
                 'Application @id was already paid. Duplicate payment event detected.',
                 ['@id' => $applicationID]
