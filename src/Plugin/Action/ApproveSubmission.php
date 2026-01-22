@@ -190,7 +190,9 @@ class ApproveSubmission extends ActionBase implements ContainerFactoryPluginInte
         Stripe::setApiKey($stripeSecretKey);
 
         try {
-            $paymentLink = $this->createStripePaymentLink($id);
+            $isESNer = $application['mobility_status'] == 'ESN Volunteer' || $application['mobility_status'] == 'ESN Alumnus';
+
+            $paymentLink = $this->createStripePaymentLink($id, $isESNer);
         } catch (ApiErrorException $e) {
             $this->logger->error('Stripe API error for submission @id: @message', ['@id' => $id, '@message' => $e->getMessage()]);
             throw new Exception('Stripe API Error');
@@ -256,29 +258,46 @@ class ApproveSubmission extends ActionBase implements ContainerFactoryPluginInte
     /**
      * Create a Stripe payment link for the given submission.
      *
-     * @param int $id
-     *   The application ID.
+     * @param int $id The application ID.
+     * @param bool $isESNer If the applicant deserves the ESNer price.
      *
      * @return PaymentLink|null
      *   The payment link URL or null on failure.
      * @throws ApiErrorException
      */
-    protected function createStripePaymentLink(int $id): ?PaymentLink
+    protected function createStripePaymentLink(int $id, bool $isESNer): ?PaymentLink
     {
         $moduleConfig = $this->configFactory->get('esn_membership_manager.settings');
-        $esnCardPriceID = $moduleConfig->get('stripe_price_id_esncard');
-        $processingFeePriceID = $moduleConfig->get('stripe_price_id_processing');
 
-        if (empty($esnCardPriceID) || empty($processingFeePriceID)) {
-            $this->logger->error('Stripe Price IDs for ESNcard or Processing Fee are not configured.');
+        if (!$isESNer) {
+            $esnCardPriceID = $moduleConfig->get('stripe_price_id_esncard');
+            $processingFeePriceID = $moduleConfig->get('stripe_price_id_processing');
+        } else {
+            $esnCardPriceID = $moduleConfig->get('stripe_price_id_esncard_esner');
+            $processingFeePriceID = $moduleConfig->get('stripe_price_id_processing_esner');
+
+            if (empty($esnCardPriceID)) {
+                $esnCardPriceID = $moduleConfig->get('stripe_price_id_esncard');
+            }
+
+            if (empty($processingFeePriceID)) {
+                $processingFeePriceID = $moduleConfig->get('stripe_price_id_processing');
+            }
+        }
+
+        if (empty($esnCardPriceID)) {
+            $this->logger->error('Stripe Price ID for ESNcard is not configured.');
             return null;
         }
 
+        $prices = [['price' => $esnCardPriceID, 'quantity' => 1]];
+
+        if (!empty($processingFeePriceID)) {
+            $prices[] = ['price' => $processingFeePriceID, 'quantity' => 1];
+        }
+
         $paymentLink = PaymentLink::create([
-            'line_items' => [
-                ['price' => $esnCardPriceID, 'quantity' => 1,],
-                ['price' => $processingFeePriceID, 'quantity' => 1,]
-            ],
+            'line_items' => $prices,
             'metadata' => ['application_id' => (string)$id]
         ]);
 

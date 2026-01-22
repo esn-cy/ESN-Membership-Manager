@@ -186,7 +186,23 @@ class SettingsForm extends ConfigFormBase
             '#title' => $this->t('Stripe Price ID for Processing Fee'),
             '#description' => $this->t('Enter the Stripe Price ID for the processing fee product.'),
             '#default_value' => $config->get('stripe_price_id_processing'),
+            '#required' => FALSE
+        ];
+
+        $form['stripe']['stripe_price_id_esncard_esner'] = [
+            '#type' => 'textfield',
+            '#title' => $this->t('Stripe Price ID for ESNer ESNcard'),
+            '#description' => $this->t('Enter the Stripe Price ID for the ESNer ESNcard product.'),
+            '#default_value' => $config->get('stripe_price_id_esncard_esner'),
             '#required' => TRUE
+        ];
+
+        $form['stripe']['stripe_price_id_processing_esner'] = [
+            '#type' => 'textfield',
+            '#title' => $this->t('Stripe Price ID for ESNer Processing Fee'),
+            '#description' => $this->t('Enter the Stripe Price ID for the ESNer processing fee product.'),
+            '#default_value' => $config->get('stripe_price_id_processing_esner'),
+            '#required' => FALSE
         ];
 
         $form['weeztix'] = [
@@ -372,6 +388,8 @@ class SettingsForm extends ConfigFormBase
             ->set('stripe_webhook_secret', $form_state->getValue('stripe_webhook_secret'))
             ->set('stripe_price_id_esncard', $form_state->getValue('stripe_price_id_esncard'))
             ->set('stripe_price_id_processing', $form_state->getValue('stripe_price_id_processing'))
+            ->set('stripe_price_id_esncard_esner', $form_state->getValue('stripe_price_id_esncard_esner'))
+            ->set('stripe_price_id_processing_esner', $form_state->getValue('stripe_price_id_processing_esner'))
             ->set('weeztix_client_id', $form_state->getValue('weeztix_client_id'))
             ->set('weeztix_client_secret', $form_state->getValue('weeztix_client_secret'))
             ->set('weeztix_coupon_list_id', $form_state->getValue('weeztix_coupon_list_id'))

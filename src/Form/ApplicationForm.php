@@ -191,7 +191,7 @@ class ApplicationForm extends FormBase
             ],
             'ESN' => [
                 'esn_volunteer' => $this->t('ESN Volunteer'),
-                'esn_alumnus' => $this->t('Alumnus'),
+                'esn_alumnus' => $this->t('ESN Alumnus'),
             ],
             'Mobility Contributors' => [
                 'mobility_buddy' => $this->t('Buddy'),
@@ -409,6 +409,8 @@ class ApplicationForm extends FormBase
      */
     public function submitForm(array &$form, FormStateInterface $form_state): void
     {
+        $form['actions']['submit']['#disabled'] = TRUE;
+
         $values = $form_state->getValues();
 
         $choices = array_filter($values['choices']);
@@ -418,6 +420,7 @@ class ApplicationForm extends FormBase
         try {
             if (empty($values['proof_of_status'])) {
                 $this->messenger()->addError($this->t('Proof of status is missing. Please select your status again and re-upload the file.'));
+                $form['actions']['submit']['#disabled'] = FALSE;
                 return;
             }
 
@@ -434,6 +437,7 @@ class ApplicationForm extends FormBase
             if (!empty($facePhotoFID) && $hasESNcard) {
                 $this->deleteFile($facePhotoFID);
             }
+            $form['actions']['submit']['#disabled'] = FALSE;
             return;
         }
 
@@ -453,7 +457,7 @@ class ApplicationForm extends FormBase
             'other_train_apprenticeship' => 'Apprenticeship',
             'other_volunteer' => 'Volunteer (non-ESN)',
             'esn_volunteer' => 'ESN Volunteer',
-            'esn_alumnus' => 'Alumnus',
+            'esn_alumnus' => 'ESN Alumnus',
             'mobility_buddy' => 'Buddy',
             'mobility_mentor' => 'Mentor',
             'mobility_ambassador' => 'Mobility Ambassador'
@@ -496,6 +500,7 @@ class ApplicationForm extends FormBase
         } catch (Exception $e) {
             $this->messenger()->addError($this->t('Error saving application. Please try again.'));
             $this->logger->error($e->getMessage());
+            $form['actions']['submit']['#disabled'] = FALSE;
             return;
         }
 
@@ -508,6 +513,7 @@ class ApplicationForm extends FormBase
         else
             $this->emailManager->sendEmail($values['email'], 'pass_confirmation', $email_params);
 
+        $form['actions']['submit']['#disabled'] = FALSE;
         $form_state->setRedirect('esn_membership_manager.apply_success');
     }
 
