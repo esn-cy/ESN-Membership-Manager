@@ -5,7 +5,7 @@ namespace Drupal\esn_membership_manager\Controller;
 use Drupal\Core\Controller\ControllerBase;
 use Symfony\Component\HttpFoundation\JsonResponse;
 
-class OnlineStatusController extends ControllerBase
+class OnlineController extends ControllerBase
 {
     public function checkOnlineStatus(): JsonResponse
     {

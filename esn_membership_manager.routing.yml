@@ -1,5 +1,5 @@
 esn_membership_manager.scan:
-  path: '/api/esncard/scan'
+  path: '/api/memberships/scan'
   defaults:
     _controller: '\Drupal\esn_membership_manager\Controller\ScanController::scanCard'
     _title: 'Scan Free Passes and ESNcards'
@@ -10,7 +10,7 @@ esn_membership_manager.scan:
     _auth: [ 'oauth2', 'cookie' ]
 
 esn_membership_manager.add:
-  path: '/api/esncard/add'
+  path: '/api/memberships/add'
   defaults:
     _controller: '\Drupal\esn_membership_manager\Controller\AddController::addCard'
     _title: 'Add ESNcard'
@@ -21,7 +21,7 @@ esn_membership_manager.add:
     _auth: [ 'oauth2', 'cookie' ]
 
 esn_membership_manager.status:
-  path: '/api/esncard/status'
+  path: '/api/memberships/status'
   defaults:
     _controller: '\Drupal\esn_membership_manager\Controller\StatusController::changeStatus'
     _title: 'Change the status of an ESNcard'
@@ -31,10 +31,10 @@ esn_membership_manager.status:
   options:
     _auth: [ 'oauth2' ]
 
-esn_membership_manager.online_status:
-  path: '/api/status'
+esn_membership_manager.online:
+  path: '/api/memberships/online'
   defaults:
-    _controller: '\Drupal\esn_membership_manager\Controller\OnlineStatusController::checkOnlineStatus'
+    _controller: '\Drupal\esn_membership_manager\Controller\OnlineController::checkOnlineStatus'
   requirements:
     _access: 'TRUE'
   methods: [ GET ]
