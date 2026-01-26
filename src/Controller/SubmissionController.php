@@ -6,7 +6,7 @@ use Drupal\Core\Controller\ControllerBase;
 use Drupal\Core\Database\Connection;
 use Drupal\Core\DependencyInjection\ContainerInjectionInterface;
 use Drupal\Core\Link;
-use Drupal\Core\StringTranslation\TranslatableMarkup;
+use Drupal\Core\Session\AccountProxyInterface;
 use Drupal\Core\Url;
 use Drupal\file\FileInterface;
 use Exception;
@@ -25,14 +25,22 @@ class SubmissionController extends ControllerBase implements ContainerInjectionI
     protected Connection $database;
 
     /**
+     * The current user.
+     * @var AccountProxyInterface
+     */
+    protected $currentUser;
+
+    /**
      * Constructs a SubmissionController object.
      *
-     * @param Connection $database
-     *   The database connection.
      */
-    public function __construct(Connection $database)
+    public function __construct(
+        Connection            $database,
+        AccountProxyInterface $currentUser,
+    )
     {
         $this->database = $database;
+        $this->currentUser = $currentUser;
     }
 
     /**
@@ -42,8 +50,12 @@ class SubmissionController extends ControllerBase implements ContainerInjectionI
     {
         /** @var Connection $database */
         $database = $container->get('database');
+
+        /** @var AccountProxyInterface $currentUser */
+        $currentUser = $container->get('current_user');
         return new static(
-            $database
+            $database,
+            $currentUser
         );
     }
 
@@ -112,15 +124,15 @@ class SubmissionController extends ControllerBase implements ContainerInjectionI
      */
     public function viewSubmission(int $id): array
     {
-        $submission = $this->database->select('esn_membership_manager_applications', 'a')
+        $application = $this->database->select('esn_membership_manager_applications', 'a')
             ->fields('a')
             ->condition('id', $id)
             ->execute()
             ->fetchAssoc();
 
-        if (!$submission) {
+        if (!$application) {
             return [
-                '#markup' => $this->t('Submission not found.'),
+                '#markup' => $this->t('Application not found.'),
             ];
         }
 
@@ -136,15 +148,15 @@ class SubmissionController extends ControllerBase implements ContainerInjectionI
             'approval_status' => $this->t('Approval Status'),
             'proof_fid' => $this->t('Proof of Mobility')
         ];
-        if ($submission['esncard']) {
+        if ($application['esncard']) {
             $labels += [
                 'id_document_fid' => $this->t('ID Document'),
                 'face_photo_fid' => $this->t('Profile Photo')
             ];
         }
-        if ($submission['pass'])
+        if ($application['pass'])
             $labels += ['pass_token' => $this->t('Pass Token')];
-        if ($submission['esncard']) {
+        if ($application['esncard']) {
             $labels += [
                 'esncard_number' => $this->t('ESNcard Number'),
                 'payment_link' => $this->t('Stripe Payment Link')
@@ -154,74 +166,121 @@ class SubmissionController extends ControllerBase implements ContainerInjectionI
             'date_created' => $this->t('Created Date'),
             'date_approved' => $this->t('Date Approved')
         ];
-        if ($submission['esncard']) {
+        if ($application['esncard']) {
             $labels += ['date_paid' => $this->t('Date Paid')];
         }
         $labels += ['date_last_scanned' => $this->t('Date Last Scanned')];
 
-        $rows = [];
-        foreach ($submission as $key => $value) {
-            if (!$submission['esncard'] && in_array($key, ['id_document_fid', 'face_photo_fid', 'esncard_number', 'payment_link', 'date_paid']))
+        $proofURL = null;
+        $idURL = null;
+        $photoURL = null;
+
+        $readOnlyKeys = [
+            'id',
+            'proof_fid',
+            'id_document_fid',
+            'face_photo_fid',
+            'payment_link',
+            'payment_link_id',
+            'approval_status',
+            'date_created',
+            'date_paid',
+            'date_approved'
+        ];
+
+        $fieldData = [];
+        foreach ($application as $key => $value) {
+            if (!$application['esncard'] && in_array($key, ['id_document_fid', 'face_photo_fid', 'esncard_number', 'payment_link', 'date_paid']))
                 continue;
 
-            if (!$submission['pass'] && $key == "pass_token")
+            if (!$application['pass'] && $key == "pass_token")
                 continue;
 
             if (in_array($key, ['pass', 'esncard'])) continue;
 
             $label = $labels[$key] ?? $key;
-            $display_value = $value;
+            $displayValue = $value;
 
             if ($key == 'dob' && !empty($value)) {
                 $timestamp = is_numeric($value) ? $value : strtotime($value);
                 if ($timestamp) {
-                    $display_value = date('d/m/Y', $timestamp);
+                    $displayValue = date('d/m/Y', $timestamp);
                 }
             }
 
             if (str_contains($key, 'date') && !empty($value)) {
                 $timestamp = is_numeric($value) ? $value : strtotime($value);
                 if ($timestamp) {
-                    $display_value = date('d/m/Y H:i', $timestamp);
+                    $displayValue = date('d/m/Y H:i', $timestamp);
                 }
             }
 
-            if (in_array($key, ['id_document_fid', 'face_photo_fid', 'proof_fid'])) {
-                if (!empty($value))
-                    $display_value = $this->generateFileLink($value);
+            if (in_array($key, ['proof_fid', 'id_document_fid', 'face_photo_fid'])) {
+                if (!empty($value)) {
+                    $url = $this->generateFileLink($value);
+
+                    if (filter_var($url, FILTER_VALIDATE_URL)) {
+                        switch ($key) {
+                            case 'proof_fid':
+                                $proofURL = $url;
+                                break;
+                            case 'id_document_fid':
+                                $idURL = $url;
+                                break;
+                            case 'face_photo_fid':
+                                $photoURL = $url;
+                                break;
+                        }
+                        $displayValue = Link::fromTextAndUrl($url, Url::fromUri($url, ['attributes' => ['target' => '_blank']]))->toRenderable();
+                    } else {
+                        $displayValue = $url;
+                    }
+                } else {
+                    continue;
+                }
             }
 
             if ($key == 'payment_link') {
                 if (!empty($value)) {
-                    $display_value = Link::fromTextAndUrl($value, Url::fromUri($value, ['attributes' => ['target' => '_blank']]))->toRenderable();
+                    $displayValue = Link::fromTextAndUrl($value, Url::fromUri($value, ['attributes' => ['target' => '_blank']]))->toRenderable();
                 } else {
-                    $display_value = '';
+                    $displayValue = '';
                 }
             }
 
-            $rows[] = [
-                [
-                    'data' => $label,
-                    'header' => true,
-                    'style' => 'font-weight: bold; width: 30%;',
-                ],
-                ['data' => $display_value],
+            $fieldData[] = [
+                'key' => $key,
+                'label' => $label,
+                'value' => $displayValue,
+                'readonly' => in_array($key, $readOnlyKeys)
             ];
         }
 
-        $build['details'] = [
-            '#type' => 'table',
-            '#rows' => $rows,
-            '#attributes' => ['class' => ['submission-details-table']],
+        return [
+            '#theme' => 'emm_submission_view',
+            '#id' => $id,
+            '#fieldData' => $fieldData,
+            '#urls' => [
+                'proof' => $proofURL,
+                'id' => $idURL,
+                'photo' => $photoURL,
+            ],
+            '#permissions' => [
+                'edit' => $this->currentUser->hasPermission('edit submission'),
+                'approve' => $this->currentUser->hasPermission('approve submission'),
+                'decline' => $this->currentUser->hasPermission('decline submission'),
+            ],
+            '#apiURLs' => [
+                'update' => Url::fromRoute('esn_membership_manager.edit')->toString(),
+                'status' => Url::fromRoute('esn_membership_manager.status')->toString()
+            ]
         ];
-
-        return $build;
     }
 
     /**
      * Helper function to generate file links.
      */
-    protected function generateFileLink($file_id): array|TranslatableMarkup
+    protected function generateFileLink($file_id): string
     {
         if (empty($file_id)) {
             return $this->t('N/A');
@@ -231,18 +290,7 @@ class SubmissionController extends ControllerBase implements ContainerInjectionI
             /** @var FileInterface $file */
             $file = $this->entityTypeManager()->getStorage('file')->load($file_id);
             if ($file) {
-                $url = $file->createFileUrl(FALSE);
-                $download_url = Url::fromUri($this->getAbsoluteUrl($url), ['attributes' => ['target' => '_blank']]);
-
-                return [
-                    '#type' => 'link',
-                    '#title' => $file->getFilename(),
-                    '#url' => $download_url,
-                    '#attributes' => [
-                        'class' => ['file-download-link'],
-                        'style' => 'margin-right: 10px;',
-                    ],
-                ];
+                return $file->createFileUrl(FALSE);
             }
         } catch (Exception) {
         }

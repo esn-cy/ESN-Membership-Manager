@@ -1,0 +1,351 @@
+<style>
+    .split-modal {
+        display: flex;
+        gap: 20px;
+        height: 600px;
+        overflow: hidden;
+    }
+
+    .split-modal button {
+        padding: 8px;
+        border: none;
+        border-radius: 8px;
+    }
+
+    .pane {
+        display: flex;
+        flex-direction: column;
+        flex: 1;
+    }
+
+    .left-pane {
+        padding-right: 15px;
+        border-right: 1px solid #ddd;
+    }
+
+    .doc-viewer {
+        position: relative;
+        flex-grow: 1;
+        margin-bottom: 10px;
+        border: 1px solid #ccc;
+        background: #f2f2f2;
+    }
+
+    .doc-viewer iframe {
+        width: 100%;
+        height: 100%;
+    }
+
+    .doc-controls {
+        display: flex;
+        justify-content: center;
+        gap: 5px;
+    }
+
+    .doc-controls button {
+        background: #eee;
+    }
+
+    .doc-controls button:hover {
+        background: #ddd;
+    }
+
+    .selected-doc {
+        background: #ccc !important;
+    }
+
+    .right-pane {
+        overflow: hidden;
+    }
+
+    .details-table {
+        width: 100%;
+        border-collapse: collapse;
+        margin-bottom: 20px;
+    }
+
+    .details-table th {
+        text-align: left;
+        border-bottom: 2px solid #eee;
+        padding: 8px;
+        color: #666;
+        font-size: 0.9em;
+    }
+
+    .details-table td {
+        padding: 8px;
+        border-bottom: 1px solid #f5f5f5;
+        vertical-align: middle;
+    }
+
+    .label-cell {
+        font-weight: bold;
+        color: #333;
+    }
+
+    .scrollable-content {
+        flex-grow: 1;
+        overflow-y: auto;
+        padding-right: 5px;
+        margin-bottom: 10px;
+    }
+
+    .fixed-footer {
+        flex-shrink: 0;
+        background: #fff;
+        border-top: 2px solid #eee;
+        padding-top: 15px;
+        z-index: 10;
+    }
+
+    .seamless-input {
+        width: 100%;
+        border: 1px solid transparent;
+        background-color: transparent;
+        padding: 4px;
+        font-size: 1em;
+        color: inherit;
+        transition: all 0.2s;
+    }
+
+    .seamless-input:not([readonly]) {
+        border: 1px solid #0074bd;
+        background-color: #fff;
+        border-radius: 4px;
+        box-shadow: 0 0 3px rgba(0, 116, 189, 0.2);
+    }
+
+    .seamless-input:focus {
+        outline: none;
+    }
+
+    .actions {
+        margin-top: auto;
+        display: flex;
+        gap: 10px;
+        border-top: 1px solid #eee;
+        padding-top: 15px;
+        align-items: center;
+        justify-content: flex-end;
+    }
+
+    .divider {
+        border-left: 2px solid #ccc;
+        height: 30px;
+        margin: 0 10px;
+    }
+
+    .button--danger {
+        background-color: #e74c3c;
+        color: white;
+        border: none;
+    }
+
+    .button--action {
+        background-color: #27ae60;
+        color: white;
+        border: none;
+    }
+
+    #api-msg {
+        margin-top: 10px;
+        font-weight: bold;
+        text-align: right;
+    }
+</style>
+
+<div class="split-modal">
+    <div class="pane left-pane">
+        <div class="doc-viewer">
+            <iframe id="main-preview" src="{{ urls.proof }}"></iframe>
+            <div id="no-preview" style="display:none; padding:20px; text-align:center;">No document selected</div>
+        </div>
+        <div class="doc-controls">
+            <button type="button" class="selected-doc" onclick="changeActiveDocument(this, '{{ urls.proof }}')">
+                Proof of Status
+            </button>
+            {% if urls.id %}
+                <button type="button" onclick="changeActiveDocument(this, '{{ urls.id }}')">ID Document</button>
+            {% endif %}
+            {% if urls.photo %}
+                <button type="button" onclick="changeActiveDocument(this, '{{ urls.photo }}')">Face Photo</button>
+            {% endif %}
+        </div>
+    </div>
+
+    <div class="pane right-pane">
+        <h3>Submission Details</h3>
+        <div class="scrollable-content">
+            <form id="submission-form" onsubmit="return false;">
+                <table class="details-table">
+                    <thead>
+                    <tr>
+                        <th style="width: 30%">Label</th>
+                        <th>Content</th>
+                        {% if permissions.edit %}
+                            <th style="width: 50px; text-align:center;">Edit</th>{% endif %}
+                    </tr>
+                    </thead>
+                    <tbody>
+                    {% for field in fieldData %}
+                        <tr>
+                            <td class="label-cell">{{ field.label }}</td>
+                            <td>
+                                {% if field.readonly %}
+                                    {{ field.value }}
+                                {% else %}
+                                    <input type="text"
+                                           name="{{ field.key }}"
+                                           value="{{ field.value }}"
+                                           class="seamless-input"
+                                           readonly>
+                                {% endif %}
+                            </td>
+
+                            {% if permissions.edit %}
+                                <td style="text-align:center;">
+                                    {% if not field.readonly %}
+                                        <input type="checkbox" class="edit-checkbox" onchange="toggleRowEdit(this)">
+                                    {% endif %}
+                                </td>
+                            {% endif %}
+                        </tr>
+                    {% endfor %}
+                    </tbody>
+                </table>
+            </form>
+        </div>
+
+        <div class="fixed-footer">
+            <div class="actions">
+                <button type="button" id="btn-save" class="button button--primary" style="display:none;"
+                        onclick="doSave({{ id }})">Save Changes
+                </button>
+
+                <div class="divider"></div>
+
+                <button type="button" id="btn-decline" class="button button--danger"
+                        data-has-permission="{{ permissions.decline ? 'true' : 'false' }}"
+                        {% if not permissions.decline %} disabled style="opacity:0.5;" {% else %}
+                    onclick="doStatus('Declined')" {% endif %}>
+                    Decline
+                </button>
+                <button type="button" id="btn-approve" class="button button--action"
+                        data-has-permission="{{ permissions.approve ? 'true' : 'false' }}"
+                        {% if not permissions.approve %} disabled style="opacity:0.5;" {% else %}
+                    onclick="doStatus('Approved')" {% endif %}>
+                    Approve
+                </button>
+            </div>
+            <div id="api-msg"></div>
+        </div>
+    </div>
+</div>
+
+<script>
+    function changeActiveDocument(button, url) {
+        const frame = document.getElementById("main-preview");
+        const docControls = document.getElementsByClassName("doc-controls")[0];
+        for (const otherButton of [].slice.call(docControls.children)) {
+            otherButton.classList.remove('selected-doc');
+        }
+        button.classList.add('selected-doc');
+        if (url) {
+            frame.src = url;
+            frame.style.display = "block";
+            document.getElementById("no-preview").style.display = "none";
+        } else {
+            frame.style.display = "none";
+            document.getElementById("no-preview").style.display = "block";
+        }
+    }
+
+    function toggleRowEdit(checkbox) {
+        const row = checkbox.closest("tr");
+        const input = row.querySelector("input.seamless-input");
+
+        if (checkbox.checked) {
+            input.removeAttribute("readonly");
+            input.focus();
+
+            input.oninput = function () {
+                checkbox.disabled = input.value !== input.defaultValue;
+            };
+        } else {
+            input.setAttribute("readonly", true);
+
+            input.oninput = null;
+        }
+
+        const anyChecked = document.querySelectorAll(".edit-checkbox:checked").length > 0;
+        const saveBtn = document.getElementById("btn-save");
+        const approveBtn = document.getElementById("btn-approve");
+        const declineBtn = document.getElementById("btn-decline");
+
+        if (anyChecked) {
+            saveBtn.style.display = "inline-block";
+            approveBtn.disabled = true;
+            approveBtn.style.opacity = "0.5";
+            declineBtn.disabled = true;
+            declineBtn.style.opacity = "0.5";
+        } else {
+            saveBtn.style.display = "none";
+            if (approveBtn.dataset.hasPermission === "true") {
+                approveBtn.disabled = false;
+                approveBtn.style.opacity = "1";
+            }
+            if (declineBtn.dataset.hasPermission === "true") {
+                declineBtn.disabled = false;
+                declineBtn.style.opacity = "1";
+            }
+        }
+    }
+
+    async function doSave(id) {
+        const form = document.getElementById("submission-form");
+        const data = {"id": id};
+
+        form.querySelectorAll("input.seamless-input").forEach(function (input) {
+            data[input.name] = input.value;
+        });
+
+        const request = await fetch("{{ apiURLs.update }}", {
+            method: "POST",
+            headers: {"Content-Type": "application/json"},
+            body: JSON.stringify(data)
+        });
+
+        const json = await request.json();
+
+        const msg = document.getElementById("api-msg");
+        msg.innerHTML = json.message;
+        msg.style.color = json.status === 'success' ? "green" : "red";
+
+        if (json.status === 'success') {
+            document.querySelectorAll(".edit-checkbox").forEach(c => {
+                if (c.checked) {
+                    c.checked = false;
+                    c.disabled = false;
+                    toggleRowEdit(c);
+                }
+            });
+        }
+    }
+
+    async function doStatus(status) {
+        const request = await fetch("{{ apiURLs.status }}", {
+            method: "POST",
+            headers: {"Content-Type": "application/json"},
+            body: JSON.stringify({
+                "status": status,
+                "id": {{ id }}
+            })
+        });
+
+        const json = await request.json();
+
+        const msg = document.getElementById("api-msg");
+        msg.innerHTML = json.message;
+        msg.style.color = json.status === 'success' ? "green" : "red";
+    }
+</script>

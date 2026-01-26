@@ -94,6 +94,8 @@ class SubmissionsForm extends FormBase
         $params = $this->requestStack->getCurrentRequest()->query;
         $search = $params->get('search', '');
         $status = $params->get('approval_status', '');
+        $esncard = $params->get('esncard', '');
+        $pass = $params->get('pass', '');
         $sort_by = $params->get('sort_by', 'created');
         $sortOrder = $params->get('sort_order', 'DESC');
 
@@ -108,7 +110,6 @@ class SubmissionsForm extends FormBase
 
         $form['filters']['container'] = [
             '#type' => 'container',
-            '#attributes' => ['class' => ['container-inline']],
         ];
 
         $form['filters']['container']['search'] = [
@@ -131,6 +132,18 @@ class SubmissionsForm extends FormBase
                 'Delivered' => $this->t('Delivered'),
             ],
             '#default_value' => $status,
+        ];
+
+        $form['filters']['container']['esncard'] = [
+            '#type' => 'checkbox',
+            '#title' => $this->t('ESNcard'),
+            '#default_value' => $esncard,
+        ];
+
+        $form['filters']['container']['pass'] = [
+            '#type' => 'checkbox',
+            '#title' => $this->t('Pass'),
+            '#default_value' => $pass,
         ];
 
         $form['filters']['container']['sort_by'] = [
@@ -248,6 +261,14 @@ class SubmissionsForm extends FormBase
             $query->condition('approval_status', $status);
         }
 
+        if (!empty($esncard)) {
+            $query->condition('esncard', 1);
+        }
+
+        if (!empty($pass)) {
+            $query->condition('pass', 1);
+        }
+
         $pagedQuery = $query->extend('Drupal\Core\Database\Query\PagerSelectExtender')->limit(20);
 
         $sortOrder = strtoupper($sortOrder) === 'ASC' ? 'ASC' : 'DESC';
@@ -296,7 +317,7 @@ class SubmissionsForm extends FormBase
                         '#attributes' => [
                             'class' => ['use-ajax', 'button', 'button--small'],
                             'data-dialog-type' => 'modal',
-                            'data-dialog-options' => Json::encode(['width' => 700]),
+                            'data-dialog-options' => Json::encode(['width' => '90%']),
                         ],
                     ],
                 ],
@@ -350,6 +371,8 @@ class SubmissionsForm extends FormBase
         $query_params = [];
         if (!empty($values['search'])) $query_params['search'] = $values['search'];
         if (!empty($values['status'])) $query_params['status'] = $values['status'];
+        if (!empty($values['esncard'])) $query_params['esncard'] = $values['esncard'];
+        if (!empty($values['pass'])) $query_params['pass'] = $values['pass'];
         if (!empty($values['sort_by'])) $query_params['sort_by'] = $values['sort_by'];
         if (!empty($values['sort_order'])) $query_params['sort_order'] = $values['sort_order'];
         $form_state->setRedirect('esn_membership_manager.submissions', [], ['query' => $query_params]);

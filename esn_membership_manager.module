@@ -89,6 +89,16 @@ function esn_membership_manager_theme($existing, $type, $theme, $path): array
         'emm_card_issuance' => [
             'variables' => $common_vars,
         ],
+
+        'emm_submission_view' => [
+            'variables' => [
+                'id' => NULL,
+                'fieldData' => [],
+                'urls' => [],
+                'permissions' => [],
+                'apiURLs' => [],
+            ],
+        ],
     ];
 }
 
