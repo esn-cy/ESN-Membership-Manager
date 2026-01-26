@@ -3,6 +3,11 @@ view submissions:
   description: "Allows users to view the submissions"
   restrict access: false
 
+edit submission:
+  title: "Edit Submission"
+  description: "Allows users to edit submissions"
+  restrict access: false
+
 approve submission:
   title: "Approve Submission"
   description: "Allows users to approve submissions"

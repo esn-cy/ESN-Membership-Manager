@@ -31,6 +31,17 @@ esn_membership_manager.status:
   options:
     _auth: [ 'oauth2' ]
 
+esn_membership_manager.edit:
+  path: '/api/memberships/edit'
+  defaults:
+    _controller: '\Drupal\esn_membership_manager\Controller\EditController::editApplication'
+    _title: 'Edit Application'
+  requirements:
+    _permission: 'edit submission'
+  methods: [ POST ]
+  options:
+    _auth: [ 'oauth2', 'cookie' ]
+
 esn_membership_manager.online:
   path: '/api/memberships/online'
   defaults:
