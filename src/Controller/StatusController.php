@@ -58,6 +58,20 @@ class StatusController extends ControllerBase
 
     protected array $statuses = [
         [
+            'name' => 'Approved',
+            'action' => 'esn_membership_manager_approve',
+            'passAllowed' => TRUE,
+            'cardAllowed' => TRUE,
+            'bothAllowed' => TRUE
+        ],
+        [
+            'name' => 'Declined',
+            'action' => 'esn_membership_manager_decline',
+            'passAllowed' => TRUE,
+            'cardAllowed' => TRUE,
+            'bothAllowed' => TRUE
+        ],
+        [
             'name' => 'Paid',
             'action' => 'esn_membership_manager_mark_paid',
             'passAllowed' => TRUE,
@@ -90,14 +104,12 @@ class StatusController extends ControllerBase
     public function changeStatus(Request $request): JsonResponse
     {
         $body = json_decode($request->getContent(), TRUE) ?? [];
-        $cardNumber = $body['card'] ?? null;
-        $status = $body['status'] ?? null;
+        $cardNumber = trim($body['card'] ?? '');
+        $applicationID = trim($body['id'] ?? '');
+        $status = trim($body['status'] ?? '');
 
-        $isESNcard = preg_match("/^\d\d\d\d\d\d\d[A-Z][A-Z][A-Z][A-Z0-9]$/", $cardNumber) == 1;
-        $isPass = preg_match("/^[A-F0-9]{32}$/", $cardNumber) == 1;
-
-        if (!$isESNcard && !$isPass) {
-            return new JsonResponse(['status' => 'error', 'message' => 'An invalid card number was provided.'], 400);
+        if ((empty($cardNumber) && empty($applicationID)) || (empty($status))) {
+            return new JsonResponse(['status' => 'error', 'message' => 'The request was missing required parameters.'], 400);
         }
 
         $selectedAction = array_filter($this->statuses, function ($search) use ($status) {
@@ -106,31 +118,58 @@ class StatusController extends ControllerBase
 
         $selectedAction = reset($selectedAction);
 
-        if (!$selectedAction) {
+        if (empty($selectedAction)) {
             return new JsonResponse(['status' => 'error', 'message' => 'An invalid status was provided.'], 400);
         }
 
-        if (($isESNcard && !$selectedAction['cardAllowed']) || ($isPass && !$selectedAction['passAllowed'])) {
-            return new JsonResponse(['status' => 'error', 'message' => 'Action not allowed with this kind of identifier.'], 400);
+        if (empty($applicationID)) {
+            $isESNcard = preg_match("/^\d\d\d\d\d\d\d[A-Z][A-Z][A-Z][A-Z0-9]$/", $cardNumber) == 1;
+            $isPass = preg_match("/^[A-F0-9]{32}$/", $cardNumber) == 1;
+
+            if (!$isESNcard && !$isPass) {
+                return new JsonResponse(['status' => 'error', 'message' => 'An invalid card number was provided.'], 400);
+            }
+
+            if (($isESNcard && !$selectedAction['cardAllowed']) || ($isPass && !$selectedAction['passAllowed'])) {
+                return new JsonResponse(['status' => 'error', 'message' => 'Action not allowed with this kind of identifier.'], 400);
+            }
+
+            try {
+                $query = $this->database->select('esn_membership_manager_applications', 'a')
+                    ->fields('a', ['id', 'pass', 'esncard']);
+                if ($isESNcard)
+                    $query->condition('esncard_number', $cardNumber);
+                else
+                    $query->condition('pass_token', $cardNumber);
+                $application = $query->execute()->fetchAssoc();
+            } catch (Exception) {
+                return new JsonResponse(['status' => 'error', 'message' => 'There was a problem getting the card.'], 500);
+            }
+        } else {
+            if (!is_numeric($applicationID)) {
+                return new JsonResponse(['status' => 'error', 'message' => 'An invalid ID was provided.'], 400);
+            }
+
+            try {
+                $application = $this->database->select('esn_membership_manager_applications', 'a')
+                    ->fields('a', ['id', 'pass', 'esncard'])
+                    ->condition('id', $applicationID)
+                    ->execute()
+                    ->fetchAssoc();
+            } catch (Exception) {
+                return new JsonResponse(['status' => 'error', 'message' => 'There was a problem getting the card.'], 500);
+            }
         }
 
-        try {
-            $query = $this->database->select('esn_membership_manager_applications', 'a')
-                ->fields('a', ['id', 'pass', 'esncard']);
-            if ($isESNcard)
-                $query->condition('esncard_number', $cardNumber);
-            else
-                $query->condition('pass_token', $cardNumber);
-            $data = $query->execute()->fetchAssoc();
-        } catch (Exception) {
-            return new JsonResponse(['status' => 'error', 'message' => 'There was a problem getting the card.'], 500);
-        }
-
-        if (empty($data)) {
+        if (empty($application)) {
             return new JsonResponse(['status' => 'error', 'message' => 'Application not found.'], 404);
         }
 
-        if ((($isESNcard && $data['pass']) || $isPass && $data['esncard']) && !$selectedAction['bothAllowed']) {
+        if (
+            ($application['esncard'] && !$selectedAction['cardAllowed']) ||
+            ($application['pass'] && !$selectedAction['passAllowed']) ||
+            (($application['esncard'] && $application['pass']) && !$selectedAction['bothAllowed'])
+        ) {
             return new JsonResponse(['status' => 'error', 'message' => 'Action not allowed for this application.'], 400);
         }
 
@@ -147,10 +186,10 @@ class StatusController extends ControllerBase
                     ], 403);
                 }
 
-                $action->execute($data['id']);
+                $action->execute($application['id']);
 
                 $this->logger->info('Successfully changed the status of Application @id to @action.', [
-                    '@id' => $data['id'],
+                    '@id' => $application['id'],
                     '@action' => $selectedAction['name'],
                 ]);
             } else {
@@ -158,7 +197,7 @@ class StatusController extends ControllerBase
             }
         } catch (Exception $e) {
             $this->logger->error('Failed to change status of Application @id to @action: @message', [
-                '@id' => $data['id'],
+                '@id' => $application['id'],
                 '@action' => $selectedAction['name'],
                 '@message' => $e->getMessage()
             ]);
