@@ -254,7 +254,7 @@ class GoogleService
                 [
                     'id' => 'valid_since',
                     'header' => 'Valid Since',
-                    'body' => $paidDate->sub(new DateInterval("P1Y"))->format('d/m/Y')
+                    'body' => $paidDate->format('d/m/Y')
                 ]
             ],
             'state' => 'ACTIVE',
@@ -271,7 +271,6 @@ class GoogleService
      */
     public function getFreePassObject(array $data): string
     {
-
         $config = $this->configFactory->get('esn_membership_manager.settings');
         $issuerID = $config->get('google_issuer_id');
         $classID = $this->getPassClass();

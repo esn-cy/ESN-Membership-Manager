@@ -93,7 +93,7 @@ class SubmissionsForm extends FormBase
     {
         $params = $this->requestStack->getCurrentRequest()->query;
         $search = $params->get('search', '');
-        $status = $params->get('approval_status', '');
+        $status = $params->get('status', '');
         $esncard = $params->get('esncard', '');
         $pass = $params->get('pass', '');
         $sort_by = $params->get('sort_by', 'created');
@@ -247,6 +247,8 @@ class SubmissionsForm extends FormBase
         $query = $this->database->select('esn_membership_manager_applications', 'a');
         $query->fields('a');
 
+        $andGroup = $query->andConditionGroup();
+
         if (!empty($search)) {
             $orGroup = $query->orConditionGroup()
                 ->condition('name', '%' . $this->database->escapeLike($search) . '%', 'LIKE')
@@ -254,19 +256,23 @@ class SubmissionsForm extends FormBase
                 ->condition('email', '%' . $this->database->escapeLike($search) . '%', 'LIKE')
                 ->condition('esncard_number', '%' . $this->database->escapeLike($search) . '%', 'LIKE')
                 ->condition('pass_token', '%' . $this->database->escapeLike($search) . '%', 'LIKE');
-            $query->condition($orGroup);
+            $andGroup->condition($orGroup);
         }
 
         if (!empty($status)) {
-            $query->condition('approval_status', $status);
+            $andGroup->condition('approval_status', $status);
         }
 
         if (!empty($esncard)) {
-            $query->condition('esncard', 1);
+            $andGroup->condition('esncard', 1);
         }
 
         if (!empty($pass)) {
-            $query->condition('pass', 1);
+            $andGroup->condition('pass', 1);
+        }
+
+        if (!empty($search) || !empty($status) || !empty($esncard) || !empty($pass)) {
+            $query->condition($andGroup);
         }
 
         $pagedQuery = $query->extend('Drupal\Core\Database\Query\PagerSelectExtender')->limit(20);

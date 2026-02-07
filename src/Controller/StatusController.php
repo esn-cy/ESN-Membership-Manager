@@ -165,11 +165,7 @@ class StatusController extends ControllerBase
             return new JsonResponse(['status' => 'error', 'message' => 'Application not found.'], 404);
         }
 
-        if (
-            ($application['esncard'] && !$selectedAction['cardAllowed']) ||
-            ($application['pass'] && !$selectedAction['passAllowed']) ||
-            (($application['esncard'] && $application['pass']) && !$selectedAction['bothAllowed'])
-        ) {
+        if (($application['esncard'] && $application['pass']) && !$selectedAction['bothAllowed']) {
             return new JsonResponse(['status' => 'error', 'message' => 'Action not allowed for this application.'], 400);
         }
 

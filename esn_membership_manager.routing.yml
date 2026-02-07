@@ -62,7 +62,7 @@ esn_membership_manager.apply:
   path: '/memberships/apply'
   defaults:
     _form: '\Drupal\esn_membership_manager\Form\ApplicationForm'
-    _title: 'ESN Cyprus Registration'
+    _title: 'Membership Registration'
   requirements:
     _access: 'TRUE'
 
