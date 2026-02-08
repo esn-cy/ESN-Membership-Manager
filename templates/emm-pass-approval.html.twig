@@ -57,7 +57,7 @@
                             <tbody>
                             <tr>
                                 <td align="center" style="padding: 15px 0;" width="100%">
-                                    <img src="https://api.qrserver.com/v1/create-qr-code/?size=200x200&amp;data={{ user_token }}"
+                                    <img src="https://api.qrserver.com/v1/create-qr-code/?size=200x200&amp;data={{ pass_token }}"
                                          alt="QR Code">
                                 </td>
                             </tr>
@@ -69,25 +69,38 @@
                             <tr>
                                 <td style="padding: 9px 20px;" width="100%">
                                     <p style="font-family: Arial, sans-serif; font-weight: 400; text-align: center; font-size: 12pt; color: #1c1c1c; margin: 0; line-height: 1.38;">
-                                        Your private token: {{ user_token }}.
+                                        Your private token: {{ pass_token }}.
                                     </p>
                                 </td>
                             </tr>
                             </tbody>
                         </table>
 
-                        {% if google_wallet_link is not empty %}
+                        {% if (google_wallet_link is not empty) or (apple_wallet_link is not empty) %}
                             <table border="0" cellpadding="0" cellspacing="0" role="presentation" width="100%">
                                 <tbody>
-                                <tr>
-                                    <td style="padding: 9px 20px;" width="100%" align="center">
-                                        <a href="{{ google_wallet_link }}">
-                                            <img alt="Add to Google Wallet"
-                                                 src="https://esncy.org/sites/default/files/2025-12/add_to_google_wallet_badge.png"
-                                                 height="45">
-                                        </a>
-                                    </td>
-                                </tr>
+                                {% if google_wallet_link is not empty %}
+                                    <tr>
+                                        <td style="padding: 9px 20px;" width="100%" align="center">
+                                            <a href="{{ google_wallet_link }}">
+                                                <img alt="Add to Google Wallet"
+                                                     src="https://esncy.org/sites/default/files/2025-12/add_to_google_wallet_badge.png"
+                                                     height="45">
+                                            </a>
+                                        </td>
+                                    </tr>
+                                {% endif %}
+                                {% if apple_wallet_link is not empty %}
+                                    <tr>
+                                        <td style="padding: 9px 20px;" width="100%" align="center">
+                                            <a href="{{ apple_wallet_link }}">
+                                                <img alt="Add to Apple Wallet"
+                                                     src="https://esncy.org/sites/default/files/2026-02/Add_to_Apple_Wallet.png"
+                                                     height="45">
+                                            </a>
+                                        </td>
+                                    </tr>
+                                {% endif %}
                                 </tbody>
                             </table>
                         {% endif %}

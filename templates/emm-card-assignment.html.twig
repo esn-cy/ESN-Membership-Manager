@@ -66,18 +66,31 @@
                             </tbody>
                         </table>
 
-                        {% if google_wallet_link is not empty %}
+                        {% if (google_wallet_link is not empty) or (apple_wallet_link is not empty) %}
                             <table border="0" cellpadding="0" cellspacing="0" role="presentation" width="100%">
                                 <tbody>
-                                <tr>
-                                    <td style="padding: 9px 20px;" width="100%" align="center">
-                                        <a href="{{ google_wallet_link }}">
-                                            <img alt="Add to Google Wallet"
-                                                 src="https://esncy.org/sites/default/files/2025-12/add_to_google_wallet_badge.png"
-                                                 height="45">
-                                        </a>
-                                    </td>
-                                </tr>
+                                {% if google_wallet_link is not empty %}
+                                    <tr>
+                                        <td style="padding: 9px 20px;" width="100%" align="center">
+                                            <a href="{{ google_wallet_link }}">
+                                                <img alt="Add to Google Wallet"
+                                                     src="https://esncy.org/sites/default/files/2025-12/add_to_google_wallet_badge.png"
+                                                     height="45">
+                                            </a>
+                                        </td>
+                                    </tr>
+                                {% endif %}
+                                {% if apple_wallet_link is not empty %}
+                                    <tr>
+                                        <td style="padding: 9px 20px;" width="100%" align="center">
+                                            <a href="{{ apple_wallet_link }}">
+                                                <img alt="Add to Apple Wallet"
+                                                     src="https://esncy.org/sites/default/files/2026-02/Add_to_Apple_Wallet.png"
+                                                     height="45">
+                                            </a>
+                                        </td>
+                                    </tr>
+                                {% endif %}
                                 </tbody>
                             </table>
                         {% endif %}

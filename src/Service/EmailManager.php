@@ -45,11 +45,12 @@ class EmailManager
             '#logo_location' => $moduleConfig->get('logo_url'),
             '#custom_footer' => $moduleConfig->get('email_footer'),
 
-            '#user_token' => $data['token'] ?? NULL,
+            '#pass_token' => $data['pass_token'] ?? NULL,
             '#payment_link' => $data['payment_link'] ?? NULL,
             '#esncard_number' => $data['esncard_number'] ?? NULL,
 
             '#google_wallet_link' => $data['google_wallet_link'] ?? NULL,
+            '#apple_wallet_link' => $data['apple_wallet_link'] ?? NULL,
         ];
 
         try {

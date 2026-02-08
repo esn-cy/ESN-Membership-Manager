@@ -25,17 +25,19 @@ function esn_membership_manager_theme($existing, $type, $theme, $path): array
         // 1. Pass Approval (QR Code only)
         'emm_pass_approval' => [
             'variables' => array_merge($common_vars, [
-                'user_token' => '',
-                'google_wallet_link' => ''
+                'pass_token' => '',
+                'google_wallet_link' => '',
+                'apple_wallet_link' => ''
             ])
         ],
 
         // 2. Both Approval (Pass + ESNcard)
         'emm_both_approval' => [
             'variables' => array_merge($common_vars, [
-                'user_token' => '',
+                'pass_token' => '',
                 'payment_link' => '',
-                'google_wallet_link' => ''
+                'google_wallet_link' => '',
+                'apple_wallet_link' => ''
             ]),
         ],
 
@@ -46,7 +48,8 @@ function esn_membership_manager_theme($existing, $type, $theme, $path): array
                 'logo_location' => 'https://esn.org/sites/default/files/ESN_full-logo-Satellite.png',
                 'custom_footer' => '',
                 'esncard_number' => NULL,
-                'google_wallet_link' => ''
+                'google_wallet_link' => '',
+                'apple_wallet_link' => ''
             ],
         ],
 

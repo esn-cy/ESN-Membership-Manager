@@ -28,10 +28,11 @@
   },
   "require": {
     "drupal/simple_oauth": "^6.1",
-    "stripe/stripe-php": "^19.1",
+    "stripe/stripe-php": "^19.3",
     "google/auth": "^1.50",
     "google/apiclient": "^2.19",
-    "google/apiclient-services": "^0.426"
+    "google/apiclient-services": "^0.426",
+    "pkpass/pkpass": "^2.5.1"
   },
   "require-dev": {
     "drupal/core": "^10"

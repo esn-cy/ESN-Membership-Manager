@@ -18,6 +18,13 @@ services:
       - '@config.factory'
       - '@logger.factory'
 
+  esn_membership_manager.apple_wallet_service:
+    class: Drupal\esn_membership_manager\Service\AppleWalletService
+    arguments:
+      - '@config.factory'
+      - '@module_handler'
+      - '@logger.factory'
+
   esn_membership_manager.email_manager:
     class: Drupal\esn_membership_manager\Service\EmailManager
     arguments:

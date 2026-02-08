@@ -96,11 +96,25 @@ class SettingsForm extends ConfigFormBase
             '#default_value' => $config->get('switch_google_wallet') ?? FALSE,
         ];
 
+        $form['switches']['switch_apple_wallet'] = [
+            '#type' => 'checkbox',
+            '#title' => $this->t('Enable Apple Wallet Integration'),
+            '#default_value' => $config->get('switch_apple_wallet') ?? FALSE,
+        ];
+
         $form['general'] = [
             '#type' => 'details',
             '#title' => $this->t('General Settings'),
             '#description' => $this->t('Configuration for the ESN Membership Manager module.'),
             '#open' => TRUE
+        ];
+
+        $form['general']['organization_name'] = [
+            '#type' => 'textfield',
+            '#title' => $this->t('Organization Name'),
+            '#description' => $this->t('Enter the name of your NO or section.'),
+            '#default_value' => $config->get('organization_name') ?? 'Erasmus Student Network',
+            '#required' => TRUE
         ];
 
         $form['general']['scheme_name'] = [
@@ -335,6 +349,67 @@ class SettingsForm extends ConfigFormBase
             '#required' => $config->get('switch_google_wallet') ?? FALSE
         ];
 
+        $form['apple'] = [
+            '#type' => 'details',
+            '#title' => $this->t('Apple Wallet Settings'),
+            '#description' => $this->t('Configuration for the Apple Wallet Service.'),
+            '#open' => ($config->get('switch_apple_wallet') ?? FALSE) || ($config->get('switch_apple_wallet') ?? FALSE)
+        ];
+
+        $certString = $config->get('apple_certificate_string');
+
+        if ($certString) {
+            $form['apple']['current_status'] = [
+                '#markup' => '<div class="alert alert-success">' .
+                    $this->t('Certificate already uploaded.') .
+                    '</div>',
+            ];
+        } else {
+            $form['apple']['current_status'] = [
+                '#markup' => '<div class="alert alert-warning>' .
+                    $this->t('No Certificate has been uploaded.') .
+                    '</div>',
+            ];
+        }
+
+        $form['apple']['apple_certificate_file'] = [
+            '#type' => 'file',
+            '#title' => $this->t('Upload Pass Certificate'),
+            '#description' => $this->t('Upload the .p12 file you created and contains the Pass Signing Certificate.'),
+            '#attributes' => [
+                'accept' => '.p12',
+            ],
+            '#disabled' => !$config->get('switch_apple_wallet') ?? TRUE,
+            '#required' => empty($certString) && ($config->get('switch_apple_wallet') ?? FALSE)
+        ];
+
+        $form['apple']['apple_certificate_password'] = [
+            '#type' => 'textfield',
+            '#title' => $this->t('Pass Certificate Password'),
+            '#description' => $this->t('The password you have set for your .p12 file.'),
+            '#default_value' => $config->get('apple_certificate_password'),
+            '#disabled' => !$config->get('switch_apple_wallet') ?? TRUE,
+            '#required' => $config->get('switch_apple_wallet') ?? FALSE
+        ];
+
+        $form['apple']['apple_team_id'] = [
+            '#type' => 'textfield',
+            '#title' => $this->t('Apple Team ID'),
+            '#description' => $this->t('Your Apple Team ID.'),
+            '#default_value' => $config->get('apple_team_id'),
+            '#disabled' => !$config->get('switch_apple_wallet') ?? TRUE,
+            '#required' => $config->get('switch_apple_wallet') ?? FALSE
+        ];
+
+        $form['apple']['apple_pass_type_id'] = [
+            '#type' => 'textfield',
+            '#title' => $this->t('Pass Type ID'),
+            '#description' => $this->t('The Pass Type ID created on Certificates, Identifiers & Profiles.'),
+            '#default_value' => $config->get('apple_pass_type_id'),
+            '#disabled' => !$config->get('switch_apple_wallet') ?? TRUE,
+            '#required' => $config->get('switch_apple_wallet') ?? FALSE
+        ];
+
         return parent::buildForm($form, $form_state);
     }
 
@@ -346,12 +421,12 @@ class SettingsForm extends ConfigFormBase
         parent::validateForm($form, $form_state);
 
         $all_files = $this->getRequest()->files->get('files', []);
-        /** @var UploadedFile $file */
-        $file = $all_files['google_json_key_file'] ?? NULL;
+        /** @var UploadedFile $googleFile */
+        $googleFile = $all_files['google_json_key_file'] ?? NULL;
 
-        if ($file instanceof UploadedFile) {
-            if ($file->isValid()) {
-                $content = file_get_contents($file->getRealPath());
+        if ($googleFile instanceof UploadedFile) {
+            if ($googleFile->isValid()) {
+                $content = file_get_contents($googleFile->getRealPath());
                 $json = json_decode($content, TRUE);
 
                 if (json_last_error() !== JSON_ERROR_NONE) {
@@ -367,6 +442,14 @@ class SettingsForm extends ConfigFormBase
                 $form_state->set('parsed_google_credentials', $json);
             }
         }
+
+        $appleFile = $all_files['apple_certificate_file'] ?? NULL;
+        if ($appleFile instanceof UploadedFile) {
+            if ($appleFile->isValid()) {
+                $content = file_get_contents($appleFile->getRealPath());
+                $form_state->set('apple_certificate_string', $content);
+            }
+        }
     }
 
     /**
@@ -380,6 +463,9 @@ class SettingsForm extends ConfigFormBase
             ->set('switch_weeztix', $form_state->getValue('switch_weeztix'))
             ->set('switch_google_sheets', $form_state->getValue('switch_google_sheets'))
             ->set('switch_google_wallet', $form_state->getValue('switch_google_wallet'))
+            ->set('switch_apple_wallet', $form_state->getValue('switch_apple_wallet'))
+            ->set('organization_name', $form_state->getValue('organization_name'))
+            ->set('scheme_name', $form_state->getValue('scheme_name'))
             ->set('logo_url', $form_state->getValue('logo_url'))
             ->set('email_from_address', $form_state->getValue('email_from_address'))
             ->set('email_from_name', $form_state->getValue('email_from_name'))
@@ -395,10 +481,12 @@ class SettingsForm extends ConfigFormBase
             ->set('weeztix_coupon_list_id', $form_state->getValue('weeztix_coupon_list_id'))
             ->set('google_spreadsheet_id', $form_state->getValue('google_spreadsheet_id'))
             ->set('google_sheet_name', $form_state->getValue('google_sheet_name'))
-            ->set('google_issuer_id', $form_state->getValue('google_issuer_id'));
+            ->set('google_issuer_id', $form_state->getValue('google_issuer_id'))
+            ->set('apple_team_id', $form_state->getValue('apple_team_id'))
+            ->set('apple_pass_type_id', $form_state->getValue('apple_pass_type_id'))
+            ->set('apple_certificate_password', $form_state->getValue('apple_certificate_password'));
 
         $google_credentials = $form_state->get('parsed_google_credentials');
-
         if ($google_credentials) {
             $config->set('google_client_email', $google_credentials['client_email']);
             $config->set('google_private_key', $google_credentials['private_key']);
@@ -407,6 +495,12 @@ class SettingsForm extends ConfigFormBase
             $config->set('google_client_id', $google_credentials['client_id'] ?? '');
 
             $this->messenger()->addStatus($this->t('Credentials updated for @email. Remember to share your sheet with this email!', ['@email' => $google_credentials['client_email']]));
+        }
+
+        $appleCertificate = $form_state->get('apple_certificate_string');
+        if ($appleCertificate) {
+            $config->set('apple_certificate_string', $appleCertificate);
+            $this->messenger()->addStatus($this->t('The Apple Pass Certificate has been saved.'));
         }
 
         $config->save();

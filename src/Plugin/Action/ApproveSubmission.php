@@ -12,6 +12,7 @@ use Drupal\Core\Logger\LoggerChannelFactoryInterface;
 use Drupal\Core\Logger\LoggerChannelInterface;
 use Drupal\Core\Plugin\ContainerFactoryPluginInterface;
 use Drupal\Core\Session\AccountInterface;
+use Drupal\Core\Url;
 use Drupal\esn_membership_manager\Service\EmailManager;
 use Drupal\esn_membership_manager\Service\GoogleService;
 use Exception;
@@ -149,10 +150,19 @@ class ApproveSubmission extends ActionBase implements ContainerFactoryPluginInte
                     }
                 }
 
+                if ($moduleConfig->get('switch_apple_wallet') ?? FALSE) {
+                    $appleWalletLink = Url::fromRoute(
+                        'esn_membership_manager.download_apple_pass',
+                        ['identifier' => $application['pass_token']],
+                        ['absolute' => TRUE]
+                    )->toString();
+                }
+
                 $emailParams = [
                     'name' => $application['name'],
-                    'token' => $application['pass_token'],
+                    'pass_token' => $application['pass_token'],
                     'google_wallet_link' => $googleWalletLink ?? '',
+                    'apple_wallet_link' => $appleWalletLink ?? '',
                 ];
                 $this->emailManager->sendEmail($application['email'], 'pass_approval', $emailParams);
 
@@ -225,7 +235,7 @@ class ApproveSubmission extends ActionBase implements ContainerFactoryPluginInte
 
             $emailParams = [
                 'name' => $application['name'],
-                'token' => $application['pass_token'],
+                'pass_token' => $application['pass_token'],
                 'payment_link' => $application['payment_link'],
                 'google_wallet_link' => ''
             ];
@@ -239,6 +249,13 @@ class ApproveSubmission extends ActionBase implements ContainerFactoryPluginInte
                     } catch (Exception $e) {
                         $this->logger->warning('Google Wallet Error: @error.', ['@error' => $e->getMessage()]);
                     }
+                }
+                if ($moduleConfig->get('switch_apple_wallet') ?? FALSE) {
+                    $emailParams['apple_wallet_link'] = Url::fromRoute(
+                        'esn_membership_manager.download_apple_pass',
+                        ['identifier' => $application['pass_token']],
+                        ['absolute' => TRUE]
+                    )->toString();
                 }
                 $this->emailManager->sendEmail($application['email'], 'both_approval', $emailParams);
             } else {

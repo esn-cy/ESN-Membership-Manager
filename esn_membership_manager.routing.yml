@@ -152,3 +152,15 @@ esn_membership_manager.submission_view:
   requirements:
     _permission: 'view submissions'
   methods: [ GET, POST ]
+
+esn_membership_manager.download_apple_pass:
+  path: '/memberships/apple-wallet/{identifier}'
+  defaults:
+    _controller: '\Drupal\esn_membership_manager\Controller\AppleWalletController::download'
+    _title: 'Download Apple Wallet Pass'
+  requirements:
+    _access: 'TRUE'
+  options:
+    parameters:
+      identifier:
+        type: string

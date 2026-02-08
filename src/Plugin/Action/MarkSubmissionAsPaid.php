@@ -13,6 +13,7 @@ use Drupal\Core\Logger\LoggerChannelFactoryInterface;
 use Drupal\Core\Logger\LoggerChannelInterface;
 use Drupal\Core\Plugin\ContainerFactoryPluginInterface;
 use Drupal\Core\Session\AccountInterface;
+use Drupal\Core\Url;
 use Drupal\esn_membership_manager\Service\EmailManager;
 use Drupal\esn_membership_manager\Service\GoogleService;
 use Drupal\esn_membership_manager\Service\WeeztixApiService;
@@ -235,10 +236,19 @@ class MarkSubmissionAsPaid extends ActionBase implements ContainerFactoryPluginI
             }
         }
 
+        if ($moduleConfig->get('switch_apple_wallet') ?? FALSE) {
+            $appleWalletLink = Url::fromRoute(
+                'esn_membership_manager.download_apple_pass',
+                ['identifier' => $application['esncard_number']],
+                ['absolute' => TRUE]
+            )->toString();
+        }
+
         $emailParams = [
             'name' => $application['name'],
             'esncard_number' => $esnCard,
             'google_wallet_link' => $googleWalletLink ?? '',
+            'apple_wallet_link' => $appleWalletLink ?? '',
         ];
         $this->emailManager->sendEmail($application['email'], 'card_assignment', $emailParams);
 
