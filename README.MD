@@ -27,6 +27,8 @@ integrating seamlessly with your existing Drupal infrastructure.
   discounts to holders.
 - **👛 Google Wallet Integration:** Allows users to add their ESNcard or Free Pass to
   their [Google Wallet](https://developers.google.com/wallet) for easy access.
+- **🍎 Apple Wallet Integration:** Enables iOS users to save their ESNcard or Free Pass to
+  the [Apple Wallet](https://developer.apple.com/apple-wallet/).
 - **📝 Google Sheets Integration:** Leverages the Google Sheets API to all paid for ESNcards to a spreadsheet in order to
   help integrate physical and online sales.
 
@@ -58,9 +60,11 @@ Navigate to the module configuration page (`/admin/config/system/esn_membership_
 ## Dependencies
 
 - **[Drupal Core](https://www.drupal.org/):** ^10
-- **[Stripe PHP](https://github.com/stripe/stripe-php):** ^17.6
-- **[Google Auth](https://github.com/googleapis/google-auth-library-php):** ^1.48
-- **[Google API Client](https://github.com/googleapis/google-api-php-client):** ^2.18
+- **[Drupal Simple Auth](https://www.drupal.org/project/simple_oauth):** ^6.1
+- **[Stripe PHP](https://github.com/stripe/stripe-php):** ^19.3
+- **[Google Auth](https://github.com/googleapis/google-auth-library-php):** ^1.50
+- **[Google API Client](https://github.com/googleapis/google-api-php-client):** ^2.19
+- **[PKPass](https://github.com/tschoffelen/php-pkpass):** ^2.5.1
 
 ## License
 
