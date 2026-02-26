@@ -4,7 +4,7 @@ dependencies:
   module:
     - esn_membership_manager
 id: esn_membership_manager_blacklist
-label: "Blacklist Passes"
+label: "Blacklist Submissions"
 type: system
 plugin: esn_membership_manager_blacklist
 configuration: { }

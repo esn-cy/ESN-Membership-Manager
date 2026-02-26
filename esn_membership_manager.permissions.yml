@@ -27,8 +27,8 @@ mark submission as paid:
   title: "Mark Submission as Paid"
   description: "Allows users to mark submissions as paid"
 
-blacklist pass:
-  title: "Blacklist Pass"
+blacklist submission:
+  title: "Blacklist Submission"
   description: "Allows users to blacklists a Free Pass"
 
 issue card:

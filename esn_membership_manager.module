@@ -84,7 +84,7 @@ function esn_membership_manager_theme($existing, $type, $theme, $path): array
         ],
 
         // 9. Pass Blacklist
-        'emm_pass_blacklist' => [
+        'emm_both_blacklist' => [
             'variables' => $common_vars,
         ],
 
@@ -166,8 +166,8 @@ function esn_membership_manager_mail($key, &$message, $params): void
             $message['subject'] = t('@scheme and ESNcard Application Received', ['@scheme' => $scheme], $options);
             break;
 
-        case 'pass_blacklist':
-            $message['subject'] = t('@scheme Blacklisted', [], $options);
+        case 'both_blacklist':
+            $message['subject'] = t('@scheme Blacklisted', ['@scheme' => $scheme], $options);
             break;
 
         case 'card_issuance':
