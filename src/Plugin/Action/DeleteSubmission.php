@@ -12,6 +12,7 @@ use Drupal\Core\Logger\LoggerChannelFactoryInterface;
 use Drupal\Core\Logger\LoggerChannelInterface;
 use Drupal\Core\Plugin\ContainerFactoryPluginInterface;
 use Drupal\Core\Session\AccountInterface;
+use Drupal\esn_membership_manager\Service\StripeService;
 use Drupal\file\FileInterface;
 use Exception;
 use Symfony\Component\DependencyInjection\ContainerInterface;
@@ -32,13 +33,15 @@ class DeleteSubmission extends ActionBase implements ContainerFactoryPluginInter
     protected EntityTypeManagerInterface $entityTypeManager;
     protected FileSystemInterface $fileSystem;
     protected LoggerChannelInterface $logger;
+    protected StripeService $stripeService;
 
     public function __construct(
         array                         $configuration, $plugin_id, $plugin_definition,
         Connection                    $database,
         EntityTypeManagerInterface    $entityTypeManager,
         FileSystemInterface           $fileSystem,
-        LoggerChannelFactoryInterface $loggerFactory
+        LoggerChannelFactoryInterface $loggerFactory,
+        StripeService                 $stripeService
     )
     {
         parent::__construct($configuration, $plugin_id, $plugin_definition);
@@ -46,6 +49,7 @@ class DeleteSubmission extends ActionBase implements ContainerFactoryPluginInter
         $this->entityTypeManager = $entityTypeManager;
         $this->fileSystem = $fileSystem;
         $this->logger = $loggerFactory->get('esn_membership_manager');
+        $this->stripeService = $stripeService;
     }
 
     public static function create(
@@ -65,6 +69,9 @@ class DeleteSubmission extends ActionBase implements ContainerFactoryPluginInter
         /** @var LoggerChannelFactoryInterface $loggerFactory */
         $loggerFactory = $container->get('logger.factory');
 
+        /** @var StripeService $stripeService */
+        $stripeService = $container->get('esn_membership_manager.stripe_service');
+
         return new static(
             $configuration,
             $plugin_id,
@@ -72,7 +79,8 @@ class DeleteSubmission extends ActionBase implements ContainerFactoryPluginInter
             $database,
             $entityTypeManager,
             $fileSystem,
-            $loggerFactory
+            $loggerFactory,
+            $stripeService
         );
     }
 
@@ -109,6 +117,10 @@ class DeleteSubmission extends ActionBase implements ContainerFactoryPluginInter
 
             $directory = 'membership://' . $id;
             $this->fileSystem->deleteRecursive($directory);
+
+            if ($application['esncard'] && $application['approval_status'] == "Approved") {
+                $this->stripeService->disablePaymentLink($id);
+            }
 
             $this->database->delete('esn_membership_manager_applications')
                 ->condition('id', $id)

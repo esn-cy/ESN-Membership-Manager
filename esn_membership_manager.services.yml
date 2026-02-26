@@ -3,6 +3,12 @@ services:
     parent: logger.channel_base
     arguments: [ 'esn_membership_manager' ]
 
+  esn_membership_manager.stripe_service:
+    class: Drupal\esn_membership_manager\Service\StripeService
+    arguments:
+      - '@config.factory'
+      - '@logger.factory'
+
   esn_membership_manager.weeztix_api_service:
     class: Drupal\esn_membership_manager\Service\WeeztixApiService
     arguments:

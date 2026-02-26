@@ -8,9 +8,8 @@ use Drupal\Core\Controller\ControllerBase;
 use Drupal\Core\Logger\LoggerChannelFactoryInterface;
 use Drupal\Core\Logger\LoggerChannelInterface;
 use Drupal\esn_membership_manager\Plugin\Action\MarkSubmissionAsPaid;
+use Drupal\esn_membership_manager\Service\StripeService;
 use Exception;
-use Stripe\Stripe;
-use Stripe\Webhook;
 use Symfony\Component\DependencyInjection\ContainerInterface;
 use Symfony\Component\HttpFoundation\Request;
 use Symfony\Component\HttpFoundation\Response;
@@ -20,16 +19,19 @@ class StripeWebhookController extends ControllerBase
     protected $configFactory;
     protected ActionManager $actionManager;
     protected LoggerChannelInterface $logger;
+    protected StripeService $stripeService;
 
     public function __construct(
         ConfigFactoryInterface        $configFactory,
         ActionManager                 $actionManager,
-        LoggerChannelFactoryInterface $loggerFactory
+        LoggerChannelFactoryInterface $loggerFactory,
+        StripeService                 $stripeService
     )
     {
         $this->configFactory = $configFactory;
         $this->actionManager = $actionManager;
         $this->logger = $loggerFactory->get('esn_membership_manager');
+        $this->stripeService = $stripeService;
     }
 
     public static function create(ContainerInterface $container): self
@@ -43,29 +45,21 @@ class StripeWebhookController extends ControllerBase
         /** @var LoggerChannelFactoryInterface $loggerFactory */
         $loggerFactory = $container->get('logger.factory');
 
+        /** @var StripeService $stripeService */
+        $stripeService = $container->get('esn_membership_manager.stripe_service');
+
         return new static(
             $configFactory,
             $actionManager,
-            $loggerFactory
+            $loggerFactory,
+            $stripeService
         );
     }
 
     public function handleWebhook(Request $request): Response
     {
-        $payload = $request->getContent();
-        $signatureHeader = $request->headers->get('Stripe-Signature');
-
-        $moduleConfig = $this->configFactory->get('esn_membership_manager.settings');
-        $stripeSecretKey = $moduleConfig->get('stripe_secret_key');
-        $stripeWebhookSecret = $moduleConfig->get('stripe_webhook_secret');
-        if (empty($stripeSecretKey) || empty($stripeWebhookSecret)) {
-            $this->logger->error('Stripe Secret Key and/or Stripe Webhook Key not set in the module configuration.');
-            return new Response('Webhook error', 400);
-        }
-        Stripe::setApiKey($stripeSecretKey);
-
         try {
-            $event = Webhook::constructEvent($payload, $signatureHeader, $stripeWebhookSecret);
+            $event = $this->stripeService->createWebhookEvent($request);
         } catch (Exception $e) {
             $this->logger->error('Unable to construct webhook event: @message', ['@message' => $e->getMessage()]);
             return new Response('Webhook failed', 400);

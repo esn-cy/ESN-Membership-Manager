@@ -15,10 +15,9 @@ use Drupal\Core\Session\AccountInterface;
 use Drupal\Core\Url;
 use Drupal\esn_membership_manager\Service\EmailManager;
 use Drupal\esn_membership_manager\Service\GoogleService;
+use Drupal\esn_membership_manager\Service\StripeService;
 use Exception;
 use Stripe\Exception\ApiErrorException;
-use Stripe\PaymentLink;
-use Stripe\Stripe;
 use Symfony\Component\DependencyInjection\ContainerInterface;
 
 /**
@@ -35,6 +34,7 @@ class ApproveSubmission extends ActionBase implements ContainerFactoryPluginInte
 {
     protected ConfigFactoryInterface $configFactory;
     protected Connection $database;
+    protected StripeService $stripeService;
     protected EmailManager $emailManager;
     protected GoogleService $googleService;
     protected LoggerChannelInterface $logger;
@@ -43,6 +43,7 @@ class ApproveSubmission extends ActionBase implements ContainerFactoryPluginInte
         array                         $configuration, $plugin_id, $plugin_definition,
         ConfigFactoryInterface        $configFactory,
         Connection                    $database,
+        StripeService $stripeService,
         EmailManager                  $emailManager,
         GoogleService                 $googleService,
         LoggerChannelFactoryInterface $loggerFactory
@@ -51,6 +52,7 @@ class ApproveSubmission extends ActionBase implements ContainerFactoryPluginInte
         parent::__construct($configuration, $plugin_id, $plugin_definition);
         $this->configFactory = $configFactory;
         $this->database = $database;
+        $this->stripeService = $stripeService;
         $this->emailManager = $emailManager;
         $this->googleService = $googleService;
         $this->logger = $loggerFactory->get('esn_membership_manager');
@@ -67,6 +69,9 @@ class ApproveSubmission extends ActionBase implements ContainerFactoryPluginInte
         /** @var Connection $database */
         $database = $container->get('database');
 
+        /** @var StripeService $stripeService */
+        $stripeService = $container->get('esn_membership_manager.stripe_service');
+
         /** @var EmailManager $emailManager */
         $emailManager = $container->get('esn_membership_manager.email_manager');
 
@@ -82,6 +87,7 @@ class ApproveSubmission extends ActionBase implements ContainerFactoryPluginInte
             $plugin_definition,
             $configFactory,
             $database,
+            $stripeService,
             $emailManager,
             $googleService,
             $loggerFactory
@@ -192,17 +198,10 @@ class ApproveSubmission extends ActionBase implements ContainerFactoryPluginInte
             throw new Exception('No available ESNcards');
         }
 
-        $stripeSecretKey = $moduleConfig->get('stripe_secret_key');
-        if (empty($stripeSecretKey)) {
-            $this->logger->error('Stripe Secret Key not set in the module configuration.');
-            throw new Exception('Stripe Secret Key not set');
-        }
-        Stripe::setApiKey($stripeSecretKey);
-
         try {
             $isESNer = $application['mobility_status'] == 'ESN Volunteer' || $application['mobility_status'] == 'ESN Alumnus';
 
-            $paymentLink = $this->createStripePaymentLink($id, $isESNer);
+            $paymentLink = $this->stripeService->createPaymentLink($id, $isESNer);
         } catch (ApiErrorException $e) {
             $this->logger->error('Stripe API error for submission @id: @message', ['@id' => $id, '@message' => $e->getMessage()]);
             throw new Exception('Stripe API Error');
@@ -270,55 +269,6 @@ class ApproveSubmission extends ActionBase implements ContainerFactoryPluginInte
             ]);
             throw new Exception('Failed to complete approval process');
         }
-    }
-
-    /**
-     * Create a Stripe payment link for the given submission.
-     *
-     * @param int $id The application ID.
-     * @param bool $isESNer If the applicant deserves the ESNer price.
-     *
-     * @return PaymentLink|null
-     *   The payment link URL or null on failure.
-     * @throws ApiErrorException
-     */
-    protected function createStripePaymentLink(int $id, bool $isESNer): ?PaymentLink
-    {
-        $moduleConfig = $this->configFactory->get('esn_membership_manager.settings');
-
-        if (!$isESNer) {
-            $esnCardPriceID = $moduleConfig->get('stripe_price_id_esncard');
-            $processingFeePriceID = $moduleConfig->get('stripe_price_id_processing');
-        } else {
-            $esnCardPriceID = $moduleConfig->get('stripe_price_id_esncard_esner');
-            $processingFeePriceID = $moduleConfig->get('stripe_price_id_processing_esner');
-
-            if (empty($esnCardPriceID)) {
-                $esnCardPriceID = $moduleConfig->get('stripe_price_id_esncard');
-            }
-
-            if (empty($processingFeePriceID)) {
-                $processingFeePriceID = $moduleConfig->get('stripe_price_id_processing');
-            }
-        }
-
-        if (empty($esnCardPriceID)) {
-            $this->logger->error('Stripe Price ID for ESNcard is not configured.');
-            return null;
-        }
-
-        $prices = [['price' => $esnCardPriceID, 'quantity' => 1]];
-
-        if (!empty($processingFeePriceID)) {
-            $prices[] = ['price' => $processingFeePriceID, 'quantity' => 1];
-        }
-
-        $paymentLink = PaymentLink::create([
-            'line_items' => $prices,
-            'metadata' => ['application_id' => (string)$id]
-        ]);
-
-        return $paymentLink ?? null;
     }
 
     /**

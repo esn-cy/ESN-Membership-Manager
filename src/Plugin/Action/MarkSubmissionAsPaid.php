@@ -16,10 +16,9 @@ use Drupal\Core\Session\AccountInterface;
 use Drupal\Core\Url;
 use Drupal\esn_membership_manager\Service\EmailManager;
 use Drupal\esn_membership_manager\Service\GoogleService;
+use Drupal\esn_membership_manager\Service\StripeService;
 use Drupal\esn_membership_manager\Service\WeeztixApiService;
 use Exception;
-use Stripe\PaymentLink;
-use Stripe\Stripe;
 use Symfony\Component\DependencyInjection\ContainerInterface;
 
 /**
@@ -39,6 +38,7 @@ class MarkSubmissionAsPaid extends ActionBase implements ContainerFactoryPluginI
     protected Connection $database;
     protected LockBackendInterface $lock;
     protected LoggerChannelInterface $logger;
+    protected StripeService $stripeService;
     protected EmailManager $emailManager;
     protected WeeztixApiService $weeztixService;
     protected GoogleService $googleService;
@@ -49,6 +49,7 @@ class MarkSubmissionAsPaid extends ActionBase implements ContainerFactoryPluginI
         Connection                    $database,
         LockBackendInterface          $lock,
         LoggerChannelFactoryInterface $loggerFactory,
+        StripeService $stripeService,
         EmailManager                  $emailManager,
         WeeztixApiService             $weeztixService,
         GoogleService                 $googleService
@@ -59,6 +60,7 @@ class MarkSubmissionAsPaid extends ActionBase implements ContainerFactoryPluginI
         $this->database = $database;
         $this->logger = $loggerFactory->get('esn_membership_manager');
         $this->lock = $lock;
+        $this->stripeService = $stripeService;
         $this->emailManager = $emailManager;
         $this->weeztixService = $weeztixService;
         $this->googleService = $googleService;
@@ -81,6 +83,9 @@ class MarkSubmissionAsPaid extends ActionBase implements ContainerFactoryPluginI
         /** @var LoggerChannelFactoryInterface $loggerFactory */
         $loggerFactory = $container->get('logger.factory');
 
+        /** @var StripeService $stripeService */
+        $stripeService = $container->get('esn_membership_manager.stripe_service');
+
         /** @var EmailManager $emailManager */
         $emailManager = $container->get('esn_membership_manager.email_manager');
 
@@ -98,6 +103,7 @@ class MarkSubmissionAsPaid extends ActionBase implements ContainerFactoryPluginI
             $database,
             $lock,
             $loggerFactory,
+            $stripeService,
             $emailManager,
             $weeztixService,
             $googleService
@@ -188,11 +194,7 @@ class MarkSubmissionAsPaid extends ActionBase implements ContainerFactoryPluginI
                     $this->logger->error('Stripe Secret Key not set in the module configuration.');
                     throw new Exception('Stripe Secret Key not set');
                 }
-                Stripe::setApiKey($stripeSecretKey);
-                PaymentLink::update(
-                    $linkID,
-                    ['active' => false]
-                );
+                $this->stripeService->disablePaymentLink($linkID);
             } catch (Exception $e) {
                 $this->logger->error(
                     'Application @id processed, but failed to deactivate Stripe Payment Link @linkID: @message',
