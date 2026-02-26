@@ -116,9 +116,6 @@ class ScanController extends ControllerBase
 
         try {
             $updateFields = [];
-            if ($isESNcard) {
-                $updateFields['approval_status'] = 'Delivered';
-            }
             $updateFields['date_last_scanned'] = (new DrupalDateTime())->format('Y-m-d H:i:s');
 
             $this->database->update('esn_membership_manager_applications')
