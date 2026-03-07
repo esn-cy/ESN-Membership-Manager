@@ -3,7 +3,6 @@
 namespace Drupal\esn_membership_manager\Controller;
 
 use Drupal\Core\Action\ActionManager;
-use Drupal\Core\Config\ConfigFactoryInterface;
 use Drupal\Core\Controller\ControllerBase;
 use Drupal\Core\Logger\LoggerChannelFactoryInterface;
 use Drupal\Core\Logger\LoggerChannelInterface;
@@ -16,19 +15,16 @@ use Symfony\Component\HttpFoundation\Response;
 
 class StripeWebhookController extends ControllerBase
 {
-    protected $configFactory;
     protected ActionManager $actionManager;
     protected LoggerChannelInterface $logger;
     protected StripeService $stripeService;
 
     public function __construct(
-        ConfigFactoryInterface        $configFactory,
         ActionManager                 $actionManager,
         LoggerChannelFactoryInterface $loggerFactory,
         StripeService                 $stripeService
     )
     {
-        $this->configFactory = $configFactory;
         $this->actionManager = $actionManager;
         $this->logger = $loggerFactory->get('esn_membership_manager');
         $this->stripeService = $stripeService;
@@ -36,9 +32,6 @@ class StripeWebhookController extends ControllerBase
 
     public static function create(ContainerInterface $container): self
     {
-        /** @var ConfigFactoryInterface $configFactory */
-        $configFactory = $container->get('config.factory');
-
         /** @var ActionManager $actionManager */
         $actionManager = $container->get('plugin.manager.action');
 
@@ -49,7 +42,6 @@ class StripeWebhookController extends ControllerBase
         $stripeService = $container->get('esn_membership_manager.stripe_service');
 
         return new static(
-            $configFactory,
             $actionManager,
             $loggerFactory,
             $stripeService

@@ -218,6 +218,13 @@
 
         <div class="fixed-footer">
             <div class="actions">
+                {% if is_paid %}
+                    <button type="button" id="btn-esncard" class="button"
+                            onclick="window.open('/memberships/submissions/{{ id }}/esncard', 'esncardWindow', 'width=660,height=320,popup=1,toolbar=0,location=0,menubar=0')">
+                        View ESNcard
+                    </button>
+                {% endif %}
+
                 <button type="button" id="btn-save" class="button button--primary" style="display:none;"
                         onclick="doSave({{ id }})">Save Changes
                 </button>

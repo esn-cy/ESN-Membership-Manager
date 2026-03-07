@@ -2,6 +2,7 @@
 
 namespace Drupal\esn_membership_manager\Controller;
 
+use DateTime;
 use Drupal\Core\Controller\ControllerBase;
 use Drupal\Core\Database\Connection;
 use Drupal\Core\Logger\LoggerChannelFactoryInterface;
@@ -68,7 +69,11 @@ class EditController extends ControllerBase
 
         foreach ($allowedFields as $field) {
             if (isset($body[$field])) {
-                $fieldsToUpdate[$field] = $body[$field];
+                if ($field == "dob") {
+                    $fieldsToUpdate[$field] = DateTime::createFromFormat('d/m/Y', $body[$field])->format('Y-m-d');
+                } else {
+                    $fieldsToUpdate[$field] = $body[$field];
+                }
             }
         }
 

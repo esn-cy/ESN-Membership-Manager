@@ -100,8 +100,26 @@ function esn_membership_manager_theme($existing, $type, $theme, $path): array
                 'urls' => [],
                 'permissions' => [],
                 'apiURLs' => [],
+                'is_paid' => FALSE,
             ],
         ],
+
+        'emm_esncard' => [
+            'variables' => [
+                'face_photo_link' => '',
+                'full_name' => '',
+                'nationality' => '',
+                'dob_day' => '',
+                'dob_month' => '',
+                'dob_year' => '',
+                'host_institution' => '',
+                'section' => '',
+                'doe_day' => '',
+                'doe_month' => '',
+                'doe_year' => '',
+                'esncard_number' => ''
+            ],
+        ]
     ];
 }
 

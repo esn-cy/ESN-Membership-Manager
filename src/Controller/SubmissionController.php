@@ -2,6 +2,9 @@
 
 namespace Drupal\esn_membership_manager\Controller;
 
+use DateInterval;
+use DateTime;
+use Drupal\Core\Config\ConfigFactoryInterface;
 use Drupal\Core\Controller\ControllerBase;
 use Drupal\Core\Database\Connection;
 use Drupal\Core\DependencyInjection\ContainerInjectionInterface;
@@ -17,6 +20,7 @@ use Symfony\Component\DependencyInjection\ContainerInterface;
  */
 class SubmissionController extends ControllerBase implements ContainerInjectionInterface
 {
+    protected $configFactory;
     /**
      * The database connection.
      *
@@ -35,10 +39,13 @@ class SubmissionController extends ControllerBase implements ContainerInjectionI
      *
      */
     public function __construct(
+        ConfigFactoryInterface $configFactory,
+
         Connection            $database,
         AccountProxyInterface $currentUser,
     )
     {
+        $this->configFactory = $configFactory;
         $this->database = $database;
         $this->currentUser = $currentUser;
     }
@@ -48,12 +55,16 @@ class SubmissionController extends ControllerBase implements ContainerInjectionI
      */
     public static function create(ContainerInterface $container): self
     {
+        /** @var ConfigFactoryInterface $configFactory */
+        $configFactory = $container->get('config.factory');
+
         /** @var Connection $database */
         $database = $container->get('database');
 
         /** @var AccountProxyInterface $currentUser */
         $currentUser = $container->get('current_user');
         return new static(
+            $configFactory,
             $database,
             $currentUser
         );
@@ -273,7 +284,8 @@ class SubmissionController extends ControllerBase implements ContainerInjectionI
             '#apiURLs' => [
                 'update' => Url::fromRoute('esn_membership_manager.edit')->toString(),
                 'status' => Url::fromRoute('esn_membership_manager.status')->toString()
-            ]
+            ],
+            '#is_paid' => $application['approval_status'] == "Paid" || $application['approval_status'] == "Issued" || $application['approval_status'] == "Delivered",
         ];
     }
 
@@ -304,6 +316,58 @@ class SubmissionController extends ControllerBase implements ContainerInjectionI
     {
         return [
             '#markup' => $this->t('<div><h3>Thank you for your application!</h3><p>We have successfully received your details. Please check your email for confirmation.</p><p><a href="/memberships/apply">Submit another application</a></p></div>'),
+        ];
+    }
+
+    /**
+     * Views the ESNcard for a submission.
+     *
+     * @param int $id
+     *   The submission ID.
+     *
+     * @return array
+     *   A render array.
+     * @throws Exception
+     */
+    public function viewESNcard(int $id): array
+    {
+        $moduleConfig = $this->configFactory->get('esn_membership_manager.settings');
+
+        $application = $this->database->select('esn_membership_manager_applications', 'a')
+            ->fields('a')
+            ->condition('id', $id)
+            ->execute()
+            ->fetchAssoc();
+
+        if (!$application) {
+            return [
+                '#markup' => $this->t('Application not found.'),
+            ];
+        }
+
+        $dob = explode('-', $application['dob']);
+
+        $paidDate = new DateTime($application['date_paid']);
+        $paidDate->setTime(0, 0);
+        $expiryDate = (clone $paidDate)->add(new DateInterval("P1Y"))->format('Y-m-d');
+        $doe = explode('-', $expiryDate);
+
+        $section = preg_replace('/^' . preg_quote('ESN ', '/') . '/', '', $moduleConfig->get('organization_name') ?? 'ESN');
+
+        return [
+            '#theme' => 'emm_esncard',
+            '#face_photo_link' => $this->generateFileLink($application['face_photo_fid']),
+            '#full_name' => $application['name'] . ' ' . $application['surname'],
+            '#nationality' => $application['nationality'],
+            '#dob_day' => $dob[2],
+            '#dob_month' => $dob[1],
+            '#dob_year' => substr($dob[0], -2, 2),
+            '#host_institution' => $application['host_institution'],
+            '#section' => $section,
+            '#doe_day' => $doe[2],
+            '#doe_month' => $doe[1],
+            '#doe_year' => substr($doe[0], -2, 2),
+            '#esncard_number' => $application['esncard_number'] ?? '',
         ];
     }
 }

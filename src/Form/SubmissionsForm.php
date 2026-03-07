@@ -7,7 +7,6 @@ use Drupal\Component\Plugin\Exception\PluginNotFoundException;
 use Drupal\Component\Serialization\Json;
 use Drupal\Core\Action\ActionBase;
 use Drupal\Core\Action\ActionManager;
-use Drupal\Core\Config\ConfigFactoryInterface;
 use Drupal\Core\Database\Connection;
 use Drupal\Core\Entity\EntityTypeManagerInterface;
 use Drupal\Core\Form\FormBase;
@@ -24,7 +23,6 @@ use Symfony\Component\HttpFoundation\RequestStack;
 
 class SubmissionsForm extends FormBase
 {
-    protected $configFactory;
     protected EntityTypeManagerInterface $entityTypeManager;
     protected Connection $database;
     protected $requestStack;
@@ -32,7 +30,6 @@ class SubmissionsForm extends FormBase
     protected LoggerChannelInterface $logger;
 
     public function __construct(
-        ConfigFactoryInterface        $configFactory,
         EntityTypeManagerInterface    $entityTypeManager,
         Connection                    $database,
         RequestStack                  $requestStack,
@@ -40,7 +37,6 @@ class SubmissionsForm extends FormBase
         LoggerChannelFactoryInterface $loggerFactory
     )
     {
-        $this->configFactory = $configFactory;
         $this->entityTypeManager = $entityTypeManager;
         $this->database = $database;
         $this->requestStack = $requestStack;
@@ -50,9 +46,6 @@ class SubmissionsForm extends FormBase
 
     public static function create(ContainerInterface $container): self
     {
-        /** @var ConfigFactoryInterface $configFactory */
-        $configFactory = $container->get('config.factory');
-
         /** @var EntityTypeManagerInterface $entityTypeManager */
         $entityTypeManager = $container->get('entity_type.manager');
 
@@ -69,7 +62,6 @@ class SubmissionsForm extends FormBase
         $loggerFactory = $container->get('logger.factory');
 
         return new static(
-            $configFactory,
             $entityTypeManager,
             $database,
             $requestStack,

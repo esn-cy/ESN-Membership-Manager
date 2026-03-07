@@ -153,6 +153,15 @@ esn_membership_manager.submission_view:
     _permission: 'view submissions'
   methods: [ GET, POST ]
 
+esn_membership_manager.esncard_view:
+  path: '/memberships/submissions/{id}/esncard'
+  defaults:
+    _controller: '\Drupal\esn_membership_manager\Controller\SubmissionController::viewESNcard'
+    _title: 'View ESNcard'
+  requirements:
+    _permission: 'view submissions'
+  methods: [ GET ]
+
 esn_membership_manager.download_apple_pass:
   path: '/memberships/apple-wallet/{identifier}'
   defaults:

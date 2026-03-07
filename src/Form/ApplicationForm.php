@@ -2,6 +2,7 @@
 
 namespace Drupal\esn_membership_manager\Form;
 
+use DateTime;
 use Drupal\Component\Plugin\Exception\InvalidPluginDefinitionException;
 use Drupal\Component\Plugin\Exception\PluginNotFoundException;
 use Drupal\Core\Config\ConfigFactoryInterface;
@@ -406,10 +407,11 @@ class ApplicationForm extends FormBase
 
     /**
      * {@inheritdoc}
+     * @throws Exception
      */
     public function submitForm(array &$form, FormStateInterface $form_state): void
     {
-        $form['actions']['submit']['#disabled'] = TRUE;
+        $form['actions']['submit']['#attributes']['disabled'] = 'disabled';
 
         $values = $form_state->getValues();
 
@@ -420,7 +422,7 @@ class ApplicationForm extends FormBase
         try {
             if (empty($values['proof_of_status'])) {
                 $this->messenger()->addError($this->t('Proof of status is missing. Please select your status again and re-upload the file.'));
-                $form['actions']['submit']['#disabled'] = FALSE;
+                $form['actions']['submit']['#attributes']['disabled'] = '';
                 return;
             }
 
@@ -437,7 +439,7 @@ class ApplicationForm extends FormBase
             if (!empty($facePhotoFID) && $hasESNcard) {
                 $this->deleteFile($facePhotoFID);
             }
-            $form['actions']['submit']['#disabled'] = FALSE;
+            $form['actions']['submit']['#attributes']['disabled'] = '';
             return;
         }
 
@@ -468,7 +470,7 @@ class ApplicationForm extends FormBase
             'surname' => $values['surname'],
             'email' => $values['email'],
             'nationality' => $values['nationality'],
-            'dob' => $values['dob'],
+            'dob' => (new DateTime($values['dob']))->format('Y-m-d'),
             'mobility_status' => $statuses[$values['status']],
             'host_institution' => $values['host'] ?? '',
             'proof_fid' => $proofFID,
@@ -500,7 +502,7 @@ class ApplicationForm extends FormBase
         } catch (Exception $e) {
             $this->messenger()->addError($this->t('Error saving application. Please try again.'));
             $this->logger->error($e->getMessage());
-            $form['actions']['submit']['#disabled'] = FALSE;
+            $form['actions']['submit']['#attributes']['disabled'] = '';
             return;
         }
 
@@ -513,7 +515,7 @@ class ApplicationForm extends FormBase
         else
             $this->emailManager->sendEmail($values['email'], 'pass_confirmation', $email_params);
 
-        $form['actions']['submit']['#disabled'] = FALSE;
+        $form['actions']['submit']['#attributes']['disabled'] = '';
         $form_state->setRedirect('esn_membership_manager.apply_success');
     }
 
