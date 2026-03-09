@@ -283,6 +283,7 @@ class SubmissionController extends ControllerBase implements ContainerInjectionI
             ],
             '#apiURLs' => [
                 'update' => Url::fromRoute('esn_membership_manager.edit')->toString(),
+                'crop' => Url::fromRoute('esn_membership_manager.crop')->toString(),
                 'status' => Url::fromRoute('esn_membership_manager.status')->toString()
             ],
             '#is_paid' => $application['approval_status'] == "Paid" || $application['approval_status'] == "Issued" || $application['approval_status'] == "Delivered",

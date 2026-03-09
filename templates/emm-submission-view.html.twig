@@ -1,3 +1,5 @@
+<link href="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.5.13/cropper.min.css" rel="stylesheet">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.5.13/cropper.min.js"></script>
 <style>
     .split-modal {
         display: flex;
@@ -152,12 +154,79 @@
         font-weight: bold;
         text-align: right;
     }
+
+    .circular-btn {
+        width: 48px;
+        height: 48px;
+        border-radius: 50%;
+        border: none;
+        display: flex;
+        justify-content: center;
+        align-items: center;
+        cursor: pointer;
+        box-shadow: 0 4px 6px rgba(0, 0, 0, 0.3);
+        color: white;
+        transition: all 0.2s;
+    }
+
+    .circular-btn:hover {
+        transform: scale(1.05);
+    }
+
+    .circular-btn:disabled {
+        opacity: 0.5;
+        cursor: not-allowed;
+        transform: none;
+    }
+
+    .crop-btn {
+        background-color: #0074bd;
+    }
+
+    .cancel-btn {
+        background-color: #e74c3c;
+    }
+
+    .tick-btn {
+        background-color: #27ae60;
+    }
 </style>
 
 <div class="split-modal">
     <div class="pane left-pane">
-        <div class="doc-viewer">
+        <div class="doc-viewer" style="display: flex; flex-direction: column; overflow: hidden; position: relative;">
             <iframe id="main-preview" src="{{ urls.proof }}"></iframe>
+            <div id="image-preview-container"
+                 style="display: none; width: 100%; height: 100%; justify-content: center; align-items: center; overflow: hidden; position: relative;">
+                <img id="image-preview" src="" style="max-width: 100%; max-height: 100%;">
+
+                {% if permissions.edit %}
+                    <div id="crop-action-buttons"
+                         style="display: none; position: absolute; bottom: 15px; right: 15px; flex-direction: column; gap: 10px; z-index: 10;">
+                        <button type="button" id="btn-save-crop" class="circular-btn tick-btn" style="display: none;"
+                                onclick="saveCrop()" title="Save Crop">
+                            <svg viewBox="0 0 24 24" width="24" height="24" stroke="currentColor" stroke-width="2"
+                                 fill="none" stroke-linecap="round" stroke-linejoin="round">
+                                <polyline points="20 6 9 17 4 12"></polyline>
+                            </svg>
+                        </button>
+                        <button type="button" id="btn-toggle-crop" class="circular-btn crop-btn" onclick="toggleCrop()"
+                                title="Crop Image">
+                            <svg id="icon-crop" viewBox="0 0 24 24" width="24" height="24" stroke="currentColor"
+                                 stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round">
+                                <path d="M6.13 1L6 16a2 2 0 0 0 2 2h15"></path>
+                                <path d="M1 6.13L16 6a2 2 0 0 1 2 2v15"></path>
+                            </svg>
+                            <svg id="icon-cancel" viewBox="0 0 24 24" width="24" height="24" stroke="currentColor"
+                                 stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round"
+                                 style="display: none;">
+                                <line x1="18" y1="6" x2="6" y2="18"></line>
+                                <line x1="6" y1="6" x2="18" y2="18"></line>
+                            </svg>
+                        </button>
+                    </div>
+                {% endif %}
+            </div>
             <div id="no-preview" style="display:none; padding:20px; text-align:center;">No document selected</div>
         </div>
         <div class="doc-controls">
@@ -168,7 +237,7 @@
                 <button type="button" onclick="changeActiveDocument(this, '{{ urls.id }}')">ID Document</button>
             {% endif %}
             {% if urls.photo %}
-                <button type="button" onclick="changeActiveDocument(this, '{{ urls.photo }}')">Face Photo</button>
+                <button type="button" onclick="changeActiveDocument(this, '{{ urls.photo }}', true)">Face Photo</button>
             {% endif %}
         </div>
     </div>
@@ -250,20 +319,138 @@
 </div>
 
 <script>
-    function changeActiveDocument(button, url) {
+    let cropper = null;
+
+    function changeActiveDocument(button, url, isFacePhoto = false) {
         const frame = document.getElementById("main-preview");
+        const imgContainer = document.getElementById("image-preview-container");
+        const img = document.getElementById("image-preview");
         const docControls = document.getElementsByClassName("doc-controls")[0];
+
         for (const otherButton of [].slice.call(docControls.children)) {
             otherButton.classList.remove('selected-doc');
         }
         button.classList.add('selected-doc');
+
+        resetCropUI();
+
+        const cropActionButtons = document.getElementById("crop-action-buttons");
+        if (cropActionButtons) {
+            cropActionButtons.style.display = (isFacePhoto && {{ permissions.edit ? 'true' : 'false' }}) ? "flex" : "none";
+        }
+
         if (url) {
-            frame.src = url;
-            frame.style.display = "block";
+            if (isFacePhoto) {
+                frame.style.display = "none";
+                img.src = url + (url.includes('?') ? '&' : '?') + "t=" + new Date().getTime();
+                imgContainer.style.display = "flex";
+            } else {
+                frame.src = url;
+                frame.style.display = "block";
+                imgContainer.style.display = "none";
+            }
             document.getElementById("no-preview").style.display = "none";
         } else {
             frame.style.display = "none";
+            imgContainer.style.display = "none";
             document.getElementById("no-preview").style.display = "block";
+        }
+    }
+
+    function resetCropUI() {
+        if (cropper) {
+            cropper.destroy();
+            cropper = null;
+        }
+        const btnToggle = document.getElementById("btn-toggle-crop");
+        if (btnToggle) {
+            btnToggle.classList.add('crop-btn');
+            btnToggle.classList.remove('cancel-btn');
+        }
+        const iconCrop = document.getElementById("icon-crop");
+        if (iconCrop) iconCrop.style.display = "block";
+        const iconCancel = document.getElementById("icon-cancel");
+        if (iconCancel) iconCancel.style.display = "none";
+
+        const btnSave = document.getElementById("btn-save-crop");
+        if (btnSave) btnSave.style.display = "none";
+    }
+
+
+    function toggleCrop() {
+        if (cropper) {
+            cancelCrop();
+        } else {
+            startCrop();
+        }
+    }
+
+    function startCrop() {
+        const img = document.getElementById("image-preview");
+        if (cropper) cropper.destroy();
+
+        cropper = new Cropper(img, {
+            aspectRatio: 3 / 4,
+            viewMode: 1,
+        });
+
+        const btnToggle = document.getElementById("btn-toggle-crop");
+        btnToggle.classList.remove('crop-btn');
+        btnToggle.classList.add('cancel-btn');
+        document.getElementById("icon-crop").style.display = "none";
+        document.getElementById("icon-cancel").style.display = "block";
+
+        document.getElementById("btn-save-crop").style.display = "flex";
+    }
+
+    function cancelCrop() {
+        resetCropUI();
+        const img = document.getElementById("image-preview");
+        if (img.src) {
+            img.src = img.src.split("&t=")[0].split("?t=")[0] + "?t=" + new Date().getTime();
+        }
+    }
+
+    async function saveCrop() {
+        if (!cropper) return;
+
+        const canvas = cropper.getCroppedCanvas({
+            width: 600,
+            height: 800
+        });
+
+        const base64Image = canvas.toDataURL("image/jpeg");
+        const saveBtn = document.getElementById("btn-save-crop");
+        saveBtn.disabled = true;
+
+        const originalToggleDisplay = document.getElementById("btn-toggle-crop").style.display;
+        document.getElementById("btn-toggle-crop").style.display = "none";
+
+        const request = await fetch("{{ apiURLs.crop }}", {
+            method: "POST",
+            headers: {"Content-Type": "application/json"},
+            body: JSON.stringify({
+                "id": {{ id }},
+                "image": base64Image
+            })
+        });
+
+        const json = await request.json();
+
+        const msg = document.getElementById("api-msg");
+        msg.innerHTML = json.message;
+        msg.style.color = json.status === 'success' ? "green" : "red";
+
+        saveBtn.disabled = false;
+        document.getElementById("btn-toggle-crop").style.display = originalToggleDisplay;
+
+        if (json.status === 'success') {
+            const img = document.getElementById("image-preview");
+            const baseUrl = img.src.split("&t=")[0].split("?t=")[0];
+
+            resetCropUI();
+
+            img.src = baseUrl + "?t=" + new Date().getTime();
         }
     }
 

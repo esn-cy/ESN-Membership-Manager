@@ -42,6 +42,17 @@ esn_membership_manager.edit:
   options:
     _auth: [ 'oauth2', 'cookie' ]
 
+esn_membership_manager.crop:
+  path: '/api/memberships/edit/crop'
+  defaults:
+    _controller: '\Drupal\esn_membership_manager\Controller\EditController::cropPhoto'
+    _title: 'Crop Photo'
+  requirements:
+    _permission: 'edit submission'
+  methods: [ POST ]
+  options:
+    _auth: [ 'oauth2', 'cookie' ]
+
 esn_membership_manager.online:
   path: '/api/memberships/online'
   defaults:
