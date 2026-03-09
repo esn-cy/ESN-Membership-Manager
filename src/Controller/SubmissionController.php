@@ -8,12 +8,18 @@ use Drupal\Core\Config\ConfigFactoryInterface;
 use Drupal\Core\Controller\ControllerBase;
 use Drupal\Core\Database\Connection;
 use Drupal\Core\DependencyInjection\ContainerInjectionInterface;
+use Drupal\Core\Entity\EntityTypeManagerInterface;
+use Drupal\Core\File\FileSystemInterface;
 use Drupal\Core\Link;
 use Drupal\Core\Session\AccountProxyInterface;
 use Drupal\Core\Url;
 use Drupal\file\FileInterface;
 use Exception;
 use Symfony\Component\DependencyInjection\ContainerInterface;
+use Symfony\Component\HttpFoundation\Request;
+use Symfony\Component\HttpFoundation\Response;
+use Symfony\Component\HttpFoundation\ResponseHeaderBag;
+use TCPDF;
 
 /**
  * Controller for viewing submission details.
@@ -34,20 +40,27 @@ class SubmissionController extends ControllerBase implements ContainerInjectionI
      */
     protected $currentUser;
 
+    protected $entityTypeManager;
+
+    protected FileSystemInterface $fileSystem;
+
     /**
      * Constructs a SubmissionController object.
      *
      */
     public function __construct(
-        ConfigFactoryInterface $configFactory,
-
-        Connection            $database,
-        AccountProxyInterface $currentUser,
+        ConfigFactoryInterface     $configFactory,
+        Connection                 $database,
+        AccountProxyInterface      $currentUser,
+        EntityTypeManagerInterface $entity_type_manager,
+        FileSystemInterface        $fileSystem
     )
     {
         $this->configFactory = $configFactory;
         $this->database = $database;
         $this->currentUser = $currentUser;
+        $this->entityTypeManager = $entity_type_manager;
+        $this->fileSystem = $fileSystem;
     }
 
     /**
@@ -63,10 +76,19 @@ class SubmissionController extends ControllerBase implements ContainerInjectionI
 
         /** @var AccountProxyInterface $currentUser */
         $currentUser = $container->get('current_user');
+
+        /** @var EntityTypeManagerInterface $entityTypeManager */
+        $entityTypeManager = $container->get('entity_type.manager');
+
+        /** @var FileSystemInterface $fileSystem */
+        $fileSystem = $container->get('file_system');
+
         return new static(
             $configFactory,
             $database,
-            $currentUser
+            $currentUser,
+            $entityTypeManager,
+            $fileSystem
         );
     }
 
@@ -370,5 +392,114 @@ class SubmissionController extends ControllerBase implements ContainerInjectionI
             '#doe_year' => substr($doe[0], -2, 2),
             '#esncard_number' => $application['esncard_number'] ?? '',
         ];
+    }
+
+    /**
+     * Generates a PDF containing a grid of face photos for Paid applications.
+     *
+     * @return Response
+     *   A Symfony Response carrying the PDF.
+     * @throws Exception
+     */
+    public function generateFacePDF(Request $request): Response
+    {
+        $query_params = $request->query->all();
+        $application_ids = $query_params['id'] ?? [];
+
+        if (!is_array($application_ids)) {
+            $application_ids = [$application_ids];
+        }
+
+        $application_ids = array_filter(array_map('intval', $application_ids));
+
+        if (empty($application_ids)) {
+            $applications = $this->database->select('esn_membership_manager_applications', 'a')
+                ->fields('a', ['face_photo_fid', 'esncard_number'])
+                ->condition('approval_status', 'Paid')
+                ->condition('esncard', 1)
+                ->isNotNull('face_photo_fid')
+                ->orderBy('esncard_number')
+                ->execute()
+                ->fetchAll();
+        } else {
+            $applications = $this->database->select('esn_membership_manager_applications', 'a')
+                ->fields('a', ['face_photo_fid', 'esncard_number'])
+                ->condition('id', $application_ids, 'IN')
+                ->isNotNull('face_photo_fid')
+                ->orderBy('esncard_number')
+                ->execute()
+                ->fetchAll();
+        }
+
+        $pdf = new TCPDF('P', 'mm', 'A4', true, 'UTF-8', false);
+
+        $pdf->setPrintHeader(false);
+        $pdf->setPrintFooter(false);
+        $pdf->SetAutoPageBreak(TRUE, 10);
+        $pdf->AddPage();
+        $pdf->SetMargins(10, 10, 10);
+
+        $imageHeight = 35;
+        $availableWidth = 190;
+
+        $currentX = 10;
+        $currentY = 10;
+
+        foreach ($applications as $app) {
+            $fileID = $app->face_photo_fid;
+            if (!$fileID) {
+                continue;
+            }
+
+            /** @var FileInterface $file */
+            $file = $this->entityTypeManager->getStorage('file')->load($fileID);
+            if (!$file) {
+                continue;
+            }
+
+            $uri = $file->getFileUri();
+            $path = $this->fileSystem->realpath($uri);
+
+            if (!file_exists($path)) {
+                continue;
+            }
+
+            $sizes = @getimagesize($path);
+            if ($sizes === false) {
+                continue;
+            }
+
+            $origW = $sizes[0];
+            $origH = $sizes[1];
+
+            $targetWidth = ($origW / $origH) * $imageHeight;
+
+            if (($currentX + $targetWidth) > (10 + $availableWidth)) {
+                $currentX = 10;
+                $currentY += $imageHeight;
+
+                if (($currentY + $imageHeight) > (297 - 10)) {
+                    $pdf->AddPage();
+                }
+            }
+
+            $pdf->Image($path, $currentX, $currentY, $targetWidth, $imageHeight, '', '', '', true, 300, '', false, false, 1);
+
+            $currentX += $targetWidth;
+        }
+
+        $pdfContent = $pdf->Output('esncard_images.pdf', 'S');
+
+        $response = new Response($pdfContent);
+
+        // Set Headers
+        $disposition = $response->headers->makeDisposition(
+            ResponseHeaderBag::DISPOSITION_ATTACHMENT,
+            'esncard_images.pdf'
+        );
+        $response->headers->set('Content-Disposition', $disposition);
+        $response->headers->set('Content-Type', 'application/pdf');
+
+        return $response;
     }
 }

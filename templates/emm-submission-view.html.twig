@@ -204,7 +204,7 @@
                     <div id="crop-action-buttons"
                          style="display: none; position: absolute; bottom: 15px; right: 15px; flex-direction: column; gap: 10px; z-index: 10;">
                         <button type="button" id="btn-save-crop" class="circular-btn tick-btn" style="display: none;"
-                                onclick="saveCrop()" title="Save Crop">
+                                onclick="saveCrop({{ id }})" title="Save Crop">
                             <svg viewBox="0 0 24 24" width="24" height="24" stroke="currentColor" stroke-width="2"
                                  fill="none" stroke-linecap="round" stroke-linejoin="round">
                                 <polyline points="20 6 9 17 4 12"></polyline>
@@ -411,7 +411,7 @@
         }
     }
 
-    async function saveCrop() {
+    async function saveCrop(id) {
         if (!cropper) return;
 
         const canvas = cropper.getCroppedCanvas({
@@ -430,7 +430,7 @@
             method: "POST",
             headers: {"Content-Type": "application/json"},
             body: JSON.stringify({
-                "id": {{ id }},
+                "id": id,
                 "image": base64Image
             })
         });

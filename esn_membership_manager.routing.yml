@@ -173,6 +173,14 @@ esn_membership_manager.esncard_view:
     _permission: 'view submissions'
   methods: [ GET ]
 
+esn_membership_manager.face_pdf:
+  path: '/memberships/submissions/face-pdf'
+  defaults:
+    _controller: '\Drupal\esn_membership_manager\Controller\SubmissionController::generateFacePDF'
+    _title: 'Generate ESNcard Pictures PDF'
+  requirements:
+    _permission: 'view submissions'
+
 esn_membership_manager.download_apple_pass:
   path: '/memberships/apple-wallet/{identifier}'
   defaults:

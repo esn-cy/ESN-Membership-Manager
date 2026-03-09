@@ -206,6 +206,8 @@ class SubmissionsForm extends FormBase
             }
         }
 
+        $options['face_pdf'] = $this->t('Generate ESNcard Pictures PDF');
+
         $form['actions']['container'] = [
             '#type' => 'container',
             '#attributes' => ['class' => ['container-inline']],
@@ -390,6 +392,12 @@ class SubmissionsForm extends FormBase
 
         $action_id = $form_state->getValue('action');
         $selected_ids = array_filter($form_state->getValue('table'));
+
+        if ($action_id == 'face_pdf') {
+            $valid_ids = array_keys(array_filter($selected_ids));
+            $form_state->setRedirect('esn_membership_manager.face_pdf', [], ['query' => ['id' => $valid_ids]]);
+            return;
+        }
 
         if (empty($selected_ids) || empty($action_id)) {
             $this->messenger()->addWarning($this->t('No items selected or no action chosen.'));
