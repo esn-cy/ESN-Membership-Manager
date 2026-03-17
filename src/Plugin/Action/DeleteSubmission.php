@@ -111,12 +111,43 @@ class DeleteSubmission extends ActionBase implements ContainerFactoryPluginInter
         }
 
         try {
-            $this->deleteFile($application['proof_fid']);
-            $this->deleteFile($application['id_document_fid']);
-            $this->deleteFile($application['face_photo_fid']);
+            $deletedFiles = 0;
+            foreach (['proof_fid', 'id_document_fid', 'face_photo_fid'] as $fileName) {
+                if (!$application['esncard'] && $fileName != 'proof_fid') {
+                    continue;
+                }
 
-            $directory = 'membership://' . $id;
-            $this->fileSystem->deleteRecursive($directory);
+                if (empty($application[$fileName])) {
+                    $deletedFiles++;
+                    continue;
+                }
+
+                try {
+                    $count = $this->database->select('esn_membership_manager_applications', 'a')
+                        ->condition($fileName, $application[$fileName])
+                        ->countQuery()
+                        ->execute()
+                        ->fetchField();
+                    if ($count <= 1) {
+                        try {
+                            /** @var FileInterface $file */
+                            $file = $this->entityTypeManager->getStorage('file')->load($application[$fileName]);
+                            $file?->delete();
+                        } catch (Exception $e) {
+                            $this->logger->error('Error deleting file @fid: @message', [
+                                '@fid' => $application[$fileName],
+                                '@message' => $e->getMessage()
+                            ]);
+                        }
+                        $deletedFiles++;
+                    }
+                } catch (Exception $e) {
+                    $this->logger->error('Failed check if file is present in another application. Skipping', ['@id' => $id, '@message' => $e->getMessage()]);
+                }
+            }
+            if (($application['esncard'] && $deletedFiles == 3) || (!$application['esncard'] && $deletedFiles == 1)) {
+                $this->fileSystem->deleteRecursive('membership://' . $id);
+            }
 
             if ($application['esncard'] && $application['approval_status'] == "Approved") {
                 $this->stripeService->disablePaymentLink($id);
@@ -130,27 +161,6 @@ class DeleteSubmission extends ActionBase implements ContainerFactoryPluginInter
         } catch (Exception $e) {
             $this->logger->error('Unable to delete submission @id: @message', ['@id' => $id, '@message' => $e->getMessage()]);
             throw new Exception('Failed to complete deletion process');
-        }
-    }
-
-    /**
-     * Helper to delete a file.
-     */
-    protected function deleteFile($fid): void
-    {
-        if (empty($fid)) {
-            return;
-        }
-
-        try {
-            /** @var FileInterface $file */
-            $file = $this->entityTypeManager->getStorage('file')->load($fid);
-            $file?->delete();
-        } catch (Exception $e) {
-            $this->logger->error('Error deleting file @fid: @message', [
-                '@fid' => $fid,
-                '@message' => $e->getMessage()
-            ]);
         }
     }
 
