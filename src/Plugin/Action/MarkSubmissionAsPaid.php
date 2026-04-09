@@ -210,7 +210,7 @@ class MarkSubmissionAsPaid extends ActionBase implements ContainerFactoryPluginI
         $this->logger->notice('Application @id marked as Paid and assigned ESNcard number.', ['@id' => $applicationID]);
 
         if ($moduleConfig->get('switch_weeztix') ?? FALSE) {
-            $this->weeztixService->addCoupon($esnCard, ['applies_to_count' => 1]);
+            $this->weeztixService->addCoupon($esnCard, ['applies_to_count' => 1, 'usage_count' => 5]);
         }
 
         if ($moduleConfig->get('switch_google_sheets') ?? FALSE) {
