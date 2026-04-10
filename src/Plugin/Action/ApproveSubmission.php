@@ -143,17 +143,13 @@ class ApproveSubmission extends ActionBase implements ContainerFactoryPluginInte
                     ->execute();
 
                 $application['pass_token'] = $token;
-                $application['approval_status'] = 'Approved';
-                $application['date_approved'] = $now;
 
                 if ($moduleConfig->get('switch_google_wallet') ?? FALSE) {
-                    try {
-                        $googleWalletLink = $this->googleService->getFreePassObject($application);
-                    } catch (\Google\Service\Exception $e) {
-                        $this->logger->warning('Google Wallet Error: @error.', ['@error' => $e->getErrors()]);
-                    } catch (Exception $e) {
-                        $this->logger->warning('Google Wallet Error: @error.', ['@error' => $e->getMessage()]);
-                    }
+                    $googleWalletLink = Url::fromRoute(
+                        'esn_membership_manager.add_to_google_wallet',
+                        ['identifier' => $application['pass_token']],
+                        ['absolute' => TRUE]
+                    )->toString();
                 }
 
                 if ($moduleConfig->get('switch_apple_wallet') ?? FALSE) {
@@ -228,34 +224,35 @@ class ApproveSubmission extends ActionBase implements ContainerFactoryPluginInte
                 ->execute();
 
             $application['pass_token'] = $token ?? NULL;
-            $application['approval_status'] = 'Approved';
-            $application['date_approved'] = $now;
             $application['payment_link'] = $paymentLink->url;
 
             $emailParams = [
                 'name' => $application['name'],
                 'pass_token' => $application['pass_token'],
-                'payment_link' => $application['payment_link'],
-                'google_wallet_link' => ''
+                'payment_link' => $application['payment_link']
             ];
 
             if (!empty($application['pass'])) {
                 if ($moduleConfig->get('switch_google_wallet') ?? FALSE) {
-                    try {
-                        $emailParams['google_wallet_link'] = $this->googleService->getFreePassObject($application);
-                    } catch (\Google\Service\Exception $e) {
-                        $this->logger->warning('Google Wallet Error: @error.', ['@error' => $e->getErrors()]);
-                    } catch (Exception $e) {
-                        $this->logger->warning('Google Wallet Error: @error.', ['@error' => $e->getMessage()]);
-                    }
+                    $googleWalletLink = Url::fromRoute(
+                        'esn_membership_manager.add_to_google_wallet',
+                        ['identifier' => $application['pass_token']],
+                        ['absolute' => TRUE]
+                    )->toString();
                 }
                 if ($moduleConfig->get('switch_apple_wallet') ?? FALSE) {
-                    $emailParams['apple_wallet_link'] = Url::fromRoute(
+                    $appleWalletLink = Url::fromRoute(
                         'esn_membership_manager.download_apple_pass',
                         ['identifier' => $application['pass_token']],
                         ['absolute' => TRUE]
                     )->toString();
                 }
+
+                $emailParams += [
+                    'google_wallet_link' => $googleWalletLink ?? '',
+                    'apple_wallet_link' => $appleWalletLink ?? '',
+                ];
+
                 $this->emailManager->sendEmail($application['email'], 'both_approval', $emailParams);
             } else {
                 $this->emailManager->sendEmail($application['email'], 'card_approval', $emailParams);

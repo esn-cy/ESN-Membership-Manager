@@ -22,6 +22,8 @@ services:
     class: Drupal\esn_membership_manager\Service\GoogleService
     arguments:
       - '@config.factory'
+      - '@entity_type.manager'
+      - '@file_system'
       - '@logger.factory'
 
   esn_membership_manager.apple_wallet_service:

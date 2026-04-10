@@ -179,8 +179,6 @@ class MarkSubmissionAsPaid extends ActionBase implements ContainerFactoryPluginI
             throw new Exception('Failed to update application');
         }
 
-        $application['approval_status'] = 'Paid';
-        $application['date_paid'] = $datePaid;
         $application['esncard_number'] = $esnCard;
 
         if (empty($linkID) && !empty($application['payment_link_id'])) {
@@ -229,13 +227,11 @@ class MarkSubmissionAsPaid extends ActionBase implements ContainerFactoryPluginI
         }
 
         if ($moduleConfig->get('switch_google_wallet') ?? FALSE) {
-            try {
-                $googleWalletLink = $this->googleService->getESNcardObject($application);
-            } catch (\Google\Service\Exception $e) {
-                $this->logger->warning('Google Wallet Error: @error.', ['@error' => $e->getErrors()]);
-            } catch (Exception $e) {
-                $this->logger->warning('Google Wallet Error: @error.', ['@error' => $e->getMessage()]);
-            }
+            $googleWalletLink = Url::fromRoute(
+                'esn_membership_manager.add_to_google_wallet',
+                ['identifier' => $esnCard],
+                ['absolute' => TRUE]
+            )->toString();
         }
 
         if ($moduleConfig->get('switch_apple_wallet') ?? FALSE) {

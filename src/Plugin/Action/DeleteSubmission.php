@@ -5,6 +5,7 @@ namespace Drupal\esn_membership_manager\Plugin\Action;
 use Drupal\Core\Access\AccessResult;
 use Drupal\Core\Access\AccessResultInterface;
 use Drupal\Core\Action\ActionBase;
+use Drupal\Core\Config\ConfigFactoryInterface;
 use Drupal\Core\Database\Connection;
 use Drupal\Core\Entity\EntityTypeManagerInterface;
 use Drupal\Core\File\FileSystemInterface;
@@ -12,6 +13,7 @@ use Drupal\Core\Logger\LoggerChannelFactoryInterface;
 use Drupal\Core\Logger\LoggerChannelInterface;
 use Drupal\Core\Plugin\ContainerFactoryPluginInterface;
 use Drupal\Core\Session\AccountInterface;
+use Drupal\esn_membership_manager\Service\GoogleService;
 use Drupal\esn_membership_manager\Service\StripeService;
 use Drupal\file\FileInterface;
 use Exception;
@@ -29,27 +31,33 @@ use Symfony\Component\DependencyInjection\ContainerInterface;
  */
 class DeleteSubmission extends ActionBase implements ContainerFactoryPluginInterface
 {
+    protected ConfigFactoryInterface $configFactory;
     protected Connection $database;
     protected EntityTypeManagerInterface $entityTypeManager;
     protected FileSystemInterface $fileSystem;
     protected LoggerChannelInterface $logger;
     protected StripeService $stripeService;
+    protected GoogleService $googleService;
 
     public function __construct(
         array                         $configuration, $plugin_id, $plugin_definition,
+        ConfigFactoryInterface $configFactory,
         Connection                    $database,
         EntityTypeManagerInterface    $entityTypeManager,
         FileSystemInterface           $fileSystem,
         LoggerChannelFactoryInterface $loggerFactory,
-        StripeService                 $stripeService
+        StripeService          $stripeService,
+        GoogleService          $googleService
     )
     {
         parent::__construct($configuration, $plugin_id, $plugin_definition);
+        $this->configFactory = $configFactory;
         $this->database = $database;
         $this->entityTypeManager = $entityTypeManager;
         $this->fileSystem = $fileSystem;
         $this->logger = $loggerFactory->get('esn_membership_manager');
         $this->stripeService = $stripeService;
+        $this->googleService = $googleService;
     }
 
     public static function create(
@@ -57,6 +65,9 @@ class DeleteSubmission extends ActionBase implements ContainerFactoryPluginInter
         array              $configuration, $plugin_id, $plugin_definition
     ): self
     {
+        /** @var ConfigFactoryInterface $configFactory */
+        $configFactory = $container->get('config.factory');
+
         /** @var Connection $database */
         $database = $container->get('database');
 
@@ -72,15 +83,20 @@ class DeleteSubmission extends ActionBase implements ContainerFactoryPluginInter
         /** @var StripeService $stripeService */
         $stripeService = $container->get('esn_membership_manager.stripe_service');
 
+        /** @var GoogleService $googleService */
+        $googleService = $container->get('esn_membership_manager.google_service');
+
         return new static(
             $configuration,
             $plugin_id,
             $plugin_definition,
+            $configFactory,
             $database,
             $entityTypeManager,
             $fileSystem,
             $loggerFactory,
-            $stripeService
+            $stripeService,
+            $googleService
         );
     }
 
@@ -93,6 +109,8 @@ class DeleteSubmission extends ActionBase implements ContainerFactoryPluginInter
         if (empty($id)) {
             return;
         }
+
+        $moduleConfig = $this->configFactory->get('esn_membership_manager.settings');
 
         try {
             $application = $this->database->select('esn_membership_manager_applications', 'a')
@@ -151,6 +169,15 @@ class DeleteSubmission extends ActionBase implements ContainerFactoryPluginInter
 
             if ($application['esncard'] && $application['approval_status'] == "Approved") {
                 $this->stripeService->disablePaymentLink($id);
+            }
+
+            if ($moduleConfig->get('switch_google_wallet') ?? FALSE) {
+                if ($application['esncard']) {
+                    $this->googleService->deleteObject($application['id'], 'card');
+                }
+                if ($application['pass']) {
+                    $this->googleService->deleteObject($application['id'], 'pass');
+                }
             }
 
             $this->database->delete('esn_membership_manager_applications')

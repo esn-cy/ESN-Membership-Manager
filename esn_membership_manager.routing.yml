@@ -181,6 +181,18 @@ esn_membership_manager.face_pdf:
   requirements:
     _permission: 'view submissions'
 
+esn_membership_manager.add_to_google_wallet:
+  path: '/memberships/google-wallet/{identifier}'
+  defaults:
+    _controller: '\Drupal\esn_membership_manager\Controller\GoogleWalletController::addToWallet'
+    _title: 'Add to Google Wallet'
+  requirements:
+    _access: 'TRUE'
+  options:
+    parameters:
+      identifier:
+        type: string
+
 esn_membership_manager.download_apple_pass:
   path: '/memberships/apple-wallet/{identifier}'
   defaults:
