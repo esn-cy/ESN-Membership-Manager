@@ -18,14 +18,14 @@ class EmailManager
 
     public function __construct(
         ConfigFactoryInterface        $configFactory,
-        LoggerChannelFactoryInterface $logger_factory,
-        MailManagerInterface          $mail_manager,
+        LoggerChannelFactoryInterface $loggerFactory,
+        MailManagerInterface          $mailManager,
         RendererInterface             $renderer
     )
     {
         $this->configFactory = $configFactory;
-        $this->logger = $logger_factory->get('esn_membership_manager');
-        $this->mailManager = $mail_manager;
+        $this->logger = $loggerFactory->get('esn_membership_manager');
+        $this->mailManager = $mailManager;
         $this->renderer = $renderer;
     }
 
@@ -35,13 +35,14 @@ class EmailManager
     public function sendEmail($to, $key, $data): void
     {
         $moduleConfig = $this->configFactory->get('esn_membership_manager.settings');
-        $scheme_name = $moduleConfig->get('scheme_name');
+        $schemeName = $moduleConfig->get('scheme_name');
+        $organizationName = $moduleConfig->get('organization_name');
 
-        $render_array = [
+        $renderArray = [
             '#theme' => 'emm_' . $key,
 
-            '#name' => $data['name'],
-            '#scheme_name' => $scheme_name,
+            '#name' => $data['name'] ?? NULL,
+            '#scheme_name' => $schemeName,
             '#logo_location' => $moduleConfig->get('logo_url'),
             '#custom_footer' => $moduleConfig->get('email_footer'),
 
@@ -51,15 +52,19 @@ class EmailManager
 
             '#google_wallet_link' => $data['google_wallet_link'] ?? NULL,
             '#apple_wallet_link' => $data['apple_wallet_link'] ?? NULL,
+
+            '#organization_name' => $organizationName,
+            '#authentication_type' => $data['authentication_type'] ?? NULL,
+            '#authentication_code' => $data['authentication_code'] ?? NULL,
         ];
 
         try {
             if (method_exists($this->renderer, 'renderInIsolation')) {
                 // Drupal 10.3+
-                $html_body = $this->renderer->renderInIsolation($render_array);
+                $htmlBody = $this->renderer->renderInIsolation($renderArray);
             } else {
                 // Drupal 9 / <10.3
-                $html_body = $this->renderer->renderPlain($render_array);
+                $htmlBody = $this->renderer->renderPlain($renderArray);
             }
         } catch (Exception $e) {
             $this->logger->error('Email Send Error: @message', ['@message' => $e->getMessage()]);
@@ -67,8 +72,9 @@ class EmailManager
         }
 
         $params = [
-            'body' => $html_body,
-            'scheme_name' => $scheme_name,
+            'body' => $htmlBody,
+            'scheme_name' => $schemeName,
+            'organization_name' => $organizationName
         ];
 
         $this->mailManager->mail('esn_membership_manager', $key, $to, 'en', $params);

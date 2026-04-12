@@ -93,6 +93,15 @@ function esn_membership_manager_theme($existing, $type, $theme, $path): array
             'variables' => $common_vars,
         ],
 
+        // 11. Authentication
+        'emm_authentication' => [
+            'variables' => array_merge($common_vars, [
+                'organization_name' => 'ESN',
+                'authentication_type' => '',
+                'authentication_code' => NULL
+            ])
+        ],
+
         'emm_submission_view' => [
             'variables' => [
                 'id' => NULL,
@@ -150,6 +159,7 @@ function esn_membership_manager_mail($key, &$message, $params): void
     $message['headers']['MIME-Version'] = '1.0';
 
     $scheme = $params['scheme_name'] ?? 'ESN Pass';
+    $organization = $params['organization_name'] ?? 'ESN';
 
     switch ($key) {
         case 'pass_approval':
@@ -190,6 +200,10 @@ function esn_membership_manager_mail($key, &$message, $params): void
 
         case 'card_issuance':
             $message['subject'] = t('ESNcard Issued', [], $options);
+            break;
+
+        case 'authentication':
+            $message['subject'] = t('@org Authentication Code', ['@org' => $organization], $options);
             break;
     }
 

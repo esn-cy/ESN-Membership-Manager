@@ -354,7 +354,6 @@ class GoogleService
      */
     public function getESNcardObject(array $data): string
     {
-
         $config = $this->configFactory->get('esn_membership_manager.settings');
         $issuerID = $config->get('google_issuer_id');
 

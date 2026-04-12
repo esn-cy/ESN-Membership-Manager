@@ -278,5 +278,38 @@ function esn_membership_manager_schema(): array
         ],
     ];
 
+    $schema['esn_membership_manager_authentication'] = [
+        'description' => 'Stores authentication tokens for application emails.',
+        'fields' => [
+            'email' => [
+                'description' => 'The email address requesting access.',
+                'type' => 'varchar',
+                'length' => 254,
+                'not null' => TRUE,
+            ],
+            'code' => [
+                'description' => 'The 8 digit verification code.',
+                'type' => 'varchar',
+                'length' => 8,
+                'not null' => TRUE,
+            ],
+            'type' => [
+                'description' => 'The type of authentication requested.',
+                'type' => 'varchar',
+                'length' => 24,
+                'not null' => TRUE,
+            ],
+            'expires_at' => [
+                'description' => 'Unix timestamp when the token expires.',
+                'type' => 'int',
+                'not null' => TRUE,
+            ],
+        ],
+        'primary key' => ['email', 'type'],
+        'unique keys' => [
+            'unique_code' => ['code'],
+        ],
+    ];
+
     return $schema;
 }
