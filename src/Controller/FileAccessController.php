@@ -58,14 +58,14 @@ class FileAccessController extends ControllerBase
         $uri = 'membership://' . $application_id . '/' . $filename;
 
         if (!file_exists($uri)) {
-            $real_path = realpath(dirname(DRUPAL_ROOT) . '/../../private/esn_membership_manager_storage/' . $application_id . '/' . $filename);
-            $dir_path = dirname(DRUPAL_ROOT) . '/../../private/esn_membership_manager_storage';
+            $realPath = realpath(dirname(DRUPAL_ROOT) . '/../../private/esn_membership_manager_storage/' . $application_id . '/' . $filename);
+            $directoryPath = dirname(DRUPAL_ROOT) . '/../../private/esn_membership_manager_storage';
 
             $this->logger->warning('FileAccessController: File not found: @uri. Debug Info: Realpath: @real. Dir exists: @dir_exists. Dir writable: @dir_writable. Root: @root', [
                 '@uri' => $uri,
-                '@real' => $real_path ?: 'FALSE',
-                '@dir_exists' => is_dir($dir_path) ? 'YES' : 'NO',
-                '@dir_writable' => is_writable($dir_path) ? 'YES' : 'NO',
+                '@real' => $realPath ?: 'FALSE',
+                '@dir_exists' => is_dir($directoryPath) ? 'YES' : 'NO',
+                '@dir_writable' => is_writable($directoryPath) ? 'YES' : 'NO',
                 '@root' => DRUPAL_ROOT
             ]);
             throw new NotFoundHttpException();

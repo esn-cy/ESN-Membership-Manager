@@ -36,14 +36,14 @@ class WeeztixApiService
     public function getAuthorizationUrl(string $redirect_uri, string $state_token): ?string
     {
         $moduleConfig = $this->configFactory->get('esn_membership_manager.settings');
-        $client_id = $moduleConfig->get('weeztix_client_id');
+        $clientID = $moduleConfig->get('weeztix_client_id');
 
-        if (!$client_id) {
+        if (!$clientID) {
             return NULL;
         }
 
         $query = [
-            'client_id' => $client_id,
+            'client_id' => $clientID,
             'redirect_uri' => $redirect_uri,
             'response_type' => 'code',
             'state' => $state_token,
@@ -52,12 +52,12 @@ class WeeztixApiService
         return 'https://login.weeztix.com/login?' . http_build_query($query);
     }
 
-    public function addCoupon(string $coupon_code, array $additional_data = []): bool
+    public function addCoupon(string $couponCode, array $additionalData = []): bool
     {
         $moduleConfig = $this->configFactory->get('esn_membership_manager.settings');
-        $list_id = $moduleConfig->get('weeztix_coupon_list_id');
+        $listID = $moduleConfig->get('weeztix_coupon_list_id');
 
-        if (empty($list_id)) {
+        if (empty($listID)) {
             $this->logger->error('Weeztix List ID configuration is missing. Please check module settings.');
             return FALSE;
         }
@@ -69,21 +69,21 @@ class WeeztixApiService
         }
 
 
-        $list_id = trim($list_id);
-        if (empty($list_id)) return FALSE;
+        $listID = trim($listID);
+        if (empty($listID)) return FALSE;
 
-        $code_object = array_merge([
-            'code' => $coupon_code
-        ], $additional_data);
+        $codeObject = array_merge([
+            'code' => $couponCode
+        ], $additionalData);
 
         $payload = [
             'codes' => [
-                $code_object
+                $codeObject
             ]
         ];
 
         try {
-            $response = $this->httpClient->request('PUT', "https://api.weeztix.com/coupon/$list_id/codes", [
+            $response = $this->httpClient->request('PUT', "https://api.weeztix.com/coupon/$listID/codes", [
                 'headers' => [
                     'Authorization' => 'Bearer ' . $token,
                     'Content-Type' => 'application/json',
@@ -92,13 +92,13 @@ class WeeztixApiService
                 'json' => $payload,
             ]);
 
-            $status_code = $response->getStatusCode();
+            $statusCode = $response->getStatusCode();
 
-            if ($status_code >= 200 && $status_code < 300) {
-                $this->logger->info('Successfully added coupon @code to Weeztix.', ['@code' => $coupon_code]);
+            if ($statusCode >= 200 && $statusCode < 300) {
+                $this->logger->info('Successfully added coupon @code to Weeztix.', ['@code' => $couponCode]);
                 return TRUE;
             } else {
-                $this->logger->error('Weeztix API returned unexpected status: @status', ['@status' => $status_code]);
+                $this->logger->error('Weeztix API returned unexpected status: @status', ['@status' => $statusCode]);
                 return FALSE;
             }
         } catch (GuzzleException $e) {
@@ -109,11 +109,11 @@ class WeeztixApiService
 
     protected function getAccessToken()
     {
-        $stored_token = $this->state->get('esn_membership_manager.weeztix_access_token');
+        $storedToken = $this->state->get('esn_membership_manager.weeztix_access_token');
         $expiry = $this->state->get('esn_membership_manager.weeztix_token_expires');
 
-        if ($stored_token && $expiry && $expiry > ($this->time->getRequestTime() + 300)) {
-            return $stored_token;
+        if ($storedToken && $expiry && $expiry > ($this->time->getRequestTime() + 300)) {
+            return $storedToken;
         }
 
         return $this->refreshAccessToken();
@@ -122,17 +122,17 @@ class WeeztixApiService
     protected function refreshAccessToken()
     {
         $moduleConfig = $this->configFactory->get('esn_membership_manager.settings');
-        $client_id = $moduleConfig->get('weeztix_client_id');
-        $client_secret = $moduleConfig->get('weeztix_client_secret');
-        $refresh_token = $this->state->get('esn_membership_manager.weeztix_refresh_token');
+        $clientID = $moduleConfig->get('weeztix_client_id');
+        $clientSecret = $moduleConfig->get('weeztix_client_secret');
+        $refreshToken = $this->state->get('esn_membership_manager.weeztix_refresh_token');
 
         try {
             $response = $this->httpClient->request('POST', 'https://auth.weeztix.com/tokens', [
                 'form_params' => [
                     'grant_type' => 'refresh_token',
-                    'client_id' => $client_id,
-                    'client_secret' => $client_secret,
-                    'refresh_token' => $refresh_token
+                    'client_id' => $clientID,
+                    'client_secret' => $clientSecret,
+                    'refresh_token' => $refreshToken
                 ],
             ]);
 
@@ -154,10 +154,10 @@ class WeeztixApiService
 
         if (isset($data['access_token'])) {
             $token = $data['access_token'];
-            $expires_in = $data['expires_in'] ?? 3600;
+            $expiresIn = $data['expires_in'] ?? 3600;
 
             $this->state->set('esn_membership_manager.weeztix_access_token', $token);
-            $this->state->set('esn_membership_manager.weeztix_token_expires', $this->time->getRequestTime() + $expires_in);
+            $this->state->set('esn_membership_manager.weeztix_token_expires', $this->time->getRequestTime() + $expiresIn);
 
             if (isset($data['refresh_token'])) {
                 $this->state->set('esn_membership_manager.weeztix_refresh_token', $data['refresh_token']);
@@ -170,10 +170,10 @@ class WeeztixApiService
     public function authorizeWithCode(string $auth_code, string $redirect_uri): bool
     {
         $moduleConfig = $this->configFactory->get('esn_membership_manager.settings');
-        $client_id = $moduleConfig->get('weeztix_client_id');
-        $client_secret = $moduleConfig->get('weeztix_client_secret');
+        $clientID = $moduleConfig->get('weeztix_client_id');
+        $clientSecret = $moduleConfig->get('weeztix_client_secret');
 
-        if (!$client_id || !$client_secret) {
+        if (!$clientID || !$clientSecret) {
             $this->logger->error('Weeztix Authentication configuration is missing. Please check module settings.');
             return FALSE;
         }
@@ -182,8 +182,8 @@ class WeeztixApiService
             $response = $this->httpClient->request('POST', 'https://auth.weeztix.com/tokens', [
                 'form_params' => [
                     'grant_type' => 'authorization_code',
-                    'client_id' => $client_id,
-                    'client_secret' => $client_secret,
+                    'client_id' => $clientID,
+                    'client_secret' => $clientSecret,
                     'redirect_uri' => $redirect_uri,
                     'code' => $auth_code,
                 ],

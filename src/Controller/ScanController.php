@@ -99,18 +99,18 @@ class ScanController extends ControllerBase
                 'profileImageURL' => '',
             ], 200);
 
-        $last_scan_date = $application['date_last_scanned'] ?? NULL;
+        $lastScanDate = $application['date_last_scanned'] ?? NULL;
 
         $profileImageURL = NULL;
-        $file_id = $application['face_photo_fid'] ?? NULL;
+        $fileID = $application['face_photo_fid'] ?? NULL;
 
-        if (!empty($file_id)) {
+        if (!empty($fileID)) {
             try {
                 /** @var FileInterface $file */
-                $file = $this->entityTypeManager->getStorage('file')->load($file_id);
+                $file = $this->entityTypeManager->getStorage('file')->load($fileID);
                 $profileImageURL = $file?->createFileUrl(FALSE);
             } catch (InvalidPluginDefinitionException|PluginNotFoundException) {
-                $this->logger->warning('File ID @id was unable to be retrieved.', ['@id' => $file_id]);
+                $this->logger->warning('File ID @id was unable to be retrieved.', ['@id' => $fileID]);
             }
         }
 
@@ -135,7 +135,7 @@ class ScanController extends ControllerBase
             'mobilityStatus' => $application['mobility_status'],
             'datePaid' => !empty($application['date_paid']) ? (new DrupalDateTime($application['date_paid']))->format('Y-m-d') : null,
             'dateApproved' => !empty($application['date_approved']) ? (new DrupalDateTime($application['date_approved']))->format('Y-m-d') : null,
-            'lastScanDate' => !empty($last_scan_date) ? (new DrupalDateTime($last_scan_date))->format('Y-m-d') : null,
+            'lastScanDate' => !empty($lastScanDate) ? (new DrupalDateTime($lastScanDate))->format('Y-m-d') : null,
             'profileImageURL' => $profileImageURL,
         ], 200);
     }

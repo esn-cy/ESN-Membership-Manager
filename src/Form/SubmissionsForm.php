@@ -88,7 +88,7 @@ class SubmissionsForm extends FormBase
         $status = $params->get('status', '');
         $esncard = $params->get('esncard', '');
         $pass = $params->get('pass', '');
-        $sort_by = $params->get('sort_by', 'created');
+        $sortBy = $params->get('sort_by', 'created');
         $sortOrder = $params->get('sort_order', 'DESC');
 
         $form['#attached']['library'][] = 'core/drupal.dialog.ajax';
@@ -146,7 +146,7 @@ class SubmissionsForm extends FormBase
                 'date_paid' => $this->t('Date Paid'),
                 'esncard_number' => $this->t('ESNcard Number'),
             ],
-            '#default_value' => $sort_by,
+            '#default_value' => $sortBy,
         ];
 
         $form['filters']['container']['sort_order'] = [
@@ -178,7 +178,7 @@ class SubmissionsForm extends FormBase
             '#weight' => -10,
         ];
 
-        $action_plugin_ids = [
+        $actionPluginIDs = [
             'esn_membership_manager_approve',
             'esn_membership_manager_decline',
             'esn_membership_manager_delete',
@@ -189,7 +189,7 @@ class SubmissionsForm extends FormBase
         ];
 
         $options = ['' => $this->t('- Select an action -')];
-        foreach ($action_plugin_ids as $id) {
+        foreach ($actionPluginIDs as $id) {
             if ($this->actionManager->hasDefinition($id)) {
                 try {
                     /** @var ActionBase $action */
@@ -272,7 +272,7 @@ class SubmissionsForm extends FormBase
         $pagedQuery = $query->extend('Drupal\Core\Database\Query\PagerSelectExtender')->limit(20);
 
         $sortOrder = strtoupper($sortOrder) === 'ASC' ? 'ASC' : 'DESC';
-        switch ($sort_by) {
+        switch ($sortBy) {
             case 'created':
                 $pagedQuery->orderBy('a.date_created', $sortOrder);
                 break;
@@ -368,14 +368,14 @@ class SubmissionsForm extends FormBase
     public function filterFormSubmit(array &$form, FormStateInterface $form_state): void
     {
         $values = $form_state->getValues();
-        $query_params = [];
-        if (!empty($values['search'])) $query_params['search'] = $values['search'];
-        if (!empty($values['status'])) $query_params['status'] = $values['status'];
-        if (!empty($values['esncard'])) $query_params['esncard'] = $values['esncard'];
-        if (!empty($values['pass'])) $query_params['pass'] = $values['pass'];
-        if (!empty($values['sort_by'])) $query_params['sort_by'] = $values['sort_by'];
-        if (!empty($values['sort_order'])) $query_params['sort_order'] = $values['sort_order'];
-        $form_state->setRedirect('esn_membership_manager.submissions', [], ['query' => $query_params]);
+        $queryParams = [];
+        if (!empty($values['search'])) $queryParams['search'] = $values['search'];
+        if (!empty($values['status'])) $queryParams['status'] = $values['status'];
+        if (!empty($values['esncard'])) $queryParams['esncard'] = $values['esncard'];
+        if (!empty($values['pass'])) $queryParams['pass'] = $values['pass'];
+        if (!empty($values['sort_by'])) $queryParams['sort_by'] = $values['sort_by'];
+        if (!empty($values['sort_order'])) $queryParams['sort_order'] = $values['sort_order'];
+        $form_state->setRedirect('esn_membership_manager.submissions', [], ['query' => $queryParams]);
     }
 
     public function filterFormReset(array &$form, FormStateInterface $form_state): void
@@ -390,41 +390,41 @@ class SubmissionsForm extends FormBase
             return;
         }
 
-        $action_id = $form_state->getValue('action');
-        $selected_ids = array_filter($form_state->getValue('table'));
+        $actionID = $form_state->getValue('action');
+        $selectedIDs = array_filter($form_state->getValue('table'));
 
-        if ($action_id == 'face_pdf') {
-            $valid_ids = array_keys(array_filter($selected_ids));
-            $form_state->setRedirect('esn_membership_manager.face_pdf', [], ['query' => ['id' => $valid_ids]]);
+        if ($actionID == 'face_pdf') {
+            $validIDs = array_keys(array_filter($selectedIDs));
+            $form_state->setRedirect('esn_membership_manager.face_pdf', [], ['query' => ['id' => $validIDs]]);
             return;
         }
 
-        if (empty($selected_ids) || empty($action_id)) {
+        if (empty($selectedIDs) || empty($actionID)) {
             $this->messenger()->addWarning($this->t('No items selected or no action chosen.'));
             return;
         }
 
         $currentID = '';
         try {
-            if ($this->actionManager->hasDefinition($action_id)) {
+            if ($this->actionManager->hasDefinition($actionID)) {
                 /** @var ActionBase $action */
-                $action = $this->actionManager->createInstance($action_id);
+                $action = $this->actionManager->createInstance($actionID);
 
-                foreach ($selected_ids as $id => $value) {
+                foreach ($selectedIDs as $id => $value) {
                     $currentID = $id;
                     if ($action->access($id, $this->currentUser())) {
                         $action->execute($id);
                     }
                 }
 
-                $this->messenger()->addStatus($this->t('Action applied to @count items.', ['@count' => count($selected_ids)]));
+                $this->messenger()->addStatus($this->t('Action applied to @count items.', ['@count' => count($selectedIDs)]));
             } else {
                 $this->messenger()->addError($this->t('Action plugin not found.'));
             }
 
         } catch (Exception $e) {
             $this->logger->error('Failed to execute bulk action @action: @message', [
-                '@action' => $action_id,
+                '@action' => $actionID,
                 '@message' => $e->getMessage()
             ]);
             $this->messenger()->addError($this->t('An error occurred while processing the action on ID @id: @message', ['@id' => $currentID, '@message' => $e->getMessage()]));

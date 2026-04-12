@@ -18,21 +18,21 @@ use Symfony\Component\HttpFoundation\RequestStack;
  */
 class SettingsForm extends ConfigFormBase
 {
-    protected WeeztixApiService $apiService;
+    protected WeeztixApiService $weeztixApiService;
     protected StateInterface $state;
     protected $requestStack;
 
     public function __construct(
         ConfigFactoryInterface $config_factory,
-        WeeztixApiService      $api_service,
+        WeeztixApiService $weeztixApiService,
         StateInterface         $state,
-        RequestStack           $request_stack
+        RequestStack      $requestStack
     )
     {
         parent::__construct($config_factory);
-        $this->apiService = $api_service;
+        $this->weeztixApiService = $weeztixApiService;
         $this->state = $state;
-        $this->requestStack = $request_stack;
+        $this->requestStack = $requestStack;
     }
 
     public static function create(ContainerInterface $container): self
@@ -40,20 +40,20 @@ class SettingsForm extends ConfigFormBase
         /** @var ConfigFactoryInterface $configFactory */
         $configFactory = $container->get('config.factory');
 
-        /** @var WeeztixApiService $api_service */
-        $api_service = $container->get('esn_membership_manager.weeztix_api_service');
+        /** @var WeeztixApiService $weeztixApiService */
+        $weeztixApiService = $container->get('esn_membership_manager.weeztix_api_service');
 
         /** @var StateInterface $state */
         $state = $container->get('state');
 
-        /** @var RequestStack $request_stack */
-        $request_stack = $container->get('request_stack');
+        /** @var RequestStack $requestStack */
+        $requestStack = $container->get('request_stack');
 
         return new static(
             $configFactory,
-            $api_service,
+            $weeztixApiService,
             $state,
-            $request_stack
+            $requestStack
         );
     }
 
@@ -226,9 +226,9 @@ class SettingsForm extends ConfigFormBase
             '#open' => $config->get('switch_weeztix') ?? FALSE
         ];
 
-        $access_token = $this->state->get('esn_membership_manager.weeztix_access_token');
+        $accessToken = $this->state->get('esn_membership_manager.weeztix_access_token');
 
-        if ($access_token) {
+        if ($accessToken) {
             $form['weeztix']['weeztix_status_message'] = [
                 '#type' => 'markup',
                 '#markup' => '<div class="alert alert-success">' . $this->t('Connected to Weeztix API.') . '</div>',
@@ -266,24 +266,24 @@ class SettingsForm extends ConfigFormBase
         ];
 
         if ($config->get('switch_weeztix') ?? FALSE) {
-            $redirect_uri = Url::fromRoute('esn_membership_manager.weeztix_oauth_callback', [], ['absolute' => TRUE])->toString();
+            $redirectURI = Url::fromRoute('esn_membership_manager.weeztix_oauth_callback', [], ['absolute' => TRUE])->toString();
 
             $state = Crypt::randomBytesBase64(64);
             $session = $this->requestStack->getCurrentRequest()->getSession();
             $session->set('weeztix_oauth_state', $state);
 
-            $auth_url = $this->apiService->getAuthorizationUrl($redirect_uri, $state);
+            $authURL = $this->weeztixApiService->getAuthorizationUrl($redirectURI, $state);
 
-            if ($auth_url) {
+            if ($authURL) {
                 $form['weeztix']['auth_link'] = [
                     '#type' => 'link',
                     '#title' => $this->t('Authorize with Weeztix'),
-                    '#url' => Url::fromUri($auth_url),
+                    '#url' => Url::fromUri($authURL),
                     '#attributes' => [
                         'class' => ['button', 'button--primary'],
                         'style' => 'margin-top: 1em;',
                     ],
-                    '#suffix' => '<p class="description">' . $this->t('Note: Ensure <strong>@url</strong> is added as a Redirect URI in your Weeztix Dashboard.', ['@url' => $redirect_uri]) . '</p>',
+                    '#suffix' => '<p class="description">' . $this->t('Note: Ensure <strong>@url</strong> is added as a Redirect URI in your Weeztix Dashboard.', ['@url' => $redirectURI]) . '</p>',
                 ];
             }
         }
@@ -420,9 +420,9 @@ class SettingsForm extends ConfigFormBase
     {
         parent::validateForm($form, $form_state);
 
-        $all_files = $this->getRequest()->files->get('files', []);
+        $allFiles = $this->getRequest()->files->get('files', []);
         /** @var UploadedFile $googleFile */
-        $googleFile = $all_files['google_json_key_file'] ?? NULL;
+        $googleFile = $allFiles['google_json_key_file'] ?? NULL;
 
         if ($googleFile instanceof UploadedFile) {
             if ($googleFile->isValid()) {
@@ -443,7 +443,7 @@ class SettingsForm extends ConfigFormBase
             }
         }
 
-        $appleFile = $all_files['apple_certificate_file'] ?? NULL;
+        $appleFile = $allFiles['apple_certificate_file'] ?? NULL;
         if ($appleFile instanceof UploadedFile) {
             if ($appleFile->isValid()) {
                 $content = file_get_contents($appleFile->getRealPath());
@@ -486,15 +486,15 @@ class SettingsForm extends ConfigFormBase
             ->set('apple_pass_type_id', $form_state->getValue('apple_pass_type_id'))
             ->set('apple_certificate_password', $form_state->getValue('apple_certificate_password'));
 
-        $google_credentials = $form_state->get('parsed_google_credentials');
-        if ($google_credentials) {
-            $config->set('google_client_email', $google_credentials['client_email']);
-            $config->set('google_private_key', $google_credentials['private_key']);
-            $config->set('google_project_id', $google_credentials['project_id'] ?? '');
-            $config->set('google_private_key_id', $google_credentials['private_key_id'] ?? '');
-            $config->set('google_client_id', $google_credentials['client_id'] ?? '');
+        $googleCredentials = $form_state->get('parsed_google_credentials');
+        if ($googleCredentials) {
+            $config->set('google_client_email', $googleCredentials['client_email']);
+            $config->set('google_private_key', $googleCredentials['private_key']);
+            $config->set('google_project_id', $googleCredentials['project_id'] ?? '');
+            $config->set('google_private_key_id', $googleCredentials['private_key_id'] ?? '');
+            $config->set('google_client_id', $googleCredentials['client_id'] ?? '');
 
-            $this->messenger()->addStatus($this->t('Credentials updated for @email. Remember to share your sheet with this email!', ['@email' => $google_credentials['client_email']]));
+            $this->messenger()->addStatus($this->t('Credentials updated for @email. Remember to share your sheet with this email!', ['@email' => $googleCredentials['client_email']]));
         }
 
         $appleCertificate = $form_state->get('apple_certificate_string');

@@ -39,19 +39,19 @@ class AddController extends ControllerBase
     public function addCard(Request $request): JsonResponse
     {
         $body = json_decode($request->getContent(), TRUE) ?? [];
-        $card_number = $body['card'] ?? null;
+        $cardNumber = $body['card'] ?? null;
 
-        if (empty($card_number)) {
+        if (empty($cardNumber)) {
             return new JsonResponse(['status' => 'error', 'message' => 'No ESNcard number was provided.'], 400);
         }
 
-        if (preg_match("/\d\d\d\d\d\d\d[A-Z][A-Z][A-Z][A-Z0-9]/", $card_number) != 1) {
+        if (preg_match("/\d\d\d\d\d\d\d[A-Z][A-Z][A-Z][A-Z0-9]/", $cardNumber) != 1) {
             return new JsonResponse(['status' => 'error', 'message' => 'Invalid ESNcard number was provided.'], 400);
         }
 
         try {
             $query = $this->database->select('esn_membership_manager_cards', 'e');
-            $query->condition('e.number', $card_number);
+            $query->condition('e.number', $cardNumber);
             $exists = $query->countQuery()->execute()->fetchField() > 0;
 
             if ($exists) {
@@ -59,7 +59,7 @@ class AddController extends ControllerBase
             }
         } catch (Exception $e) {
             $this->logger->error('Failed to checking ESNcard @card: @message', [
-                '@card' => $card_number,
+                '@card' => $cardNumber,
                 '@message' => $e->getMessage(),
             ]);
             return new JsonResponse(['status' => 'error', 'message' => 'There was a problem checking the card.'], 500);
@@ -71,7 +71,7 @@ class AddController extends ControllerBase
 
             $this->database->insert('esn_membership_manager_cards')
                 ->fields([
-                    'number' => $card_number,
+                    'number' => $cardNumber,
                     'assigned' => 0,
                 ])
                 ->execute();
@@ -79,7 +79,7 @@ class AddController extends ControllerBase
         } catch (Exception $e) {
             $transaction?->rollBack();
             $this->logger->error('Failed to insert ESNcard @card: @message', [
-                '@card' => $card_number,
+                '@card' => $cardNumber,
                 '@message' => $e->getMessage(),
             ]);
             return new JsonResponse(['status' => 'error', 'message' => 'There was a problem inserting the card.'], 500);

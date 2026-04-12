@@ -68,11 +68,11 @@ class MembershipStreamWrapper extends PrivateStream
         $directory = $this->getDirectoryPath();
 
         if (is_dir($directory)) {
-            $htaccess_path = $directory . '/.htaccess';
-            if (!file_exists($htaccess_path)) {
+            $htaccessPath = $directory . '/.htaccess';
+            if (!file_exists($htaccessPath)) {
                 $content = "Order deny,allow\nDeny from all\n";
                 $content .= "<IfModule mod_authz_core.c>\n  Require all denied\n</IfModule>\n";
-                file_put_contents($htaccess_path, $content);
+                file_put_contents($htaccessPath, $content);
             }
             self::$secureChecked = TRUE;
         }

@@ -52,14 +52,14 @@ class SubmissionController extends ControllerBase implements ContainerInjectionI
         ConfigFactoryInterface     $configFactory,
         Connection                 $database,
         AccountProxyInterface      $currentUser,
-        EntityTypeManagerInterface $entity_type_manager,
+        EntityTypeManagerInterface $entityTypeManager,
         FileSystemInterface        $fileSystem
     )
     {
         $this->configFactory = $configFactory;
         $this->database = $database;
         $this->currentUser = $currentUser;
-        $this->entityTypeManager = $entity_type_manager;
+        $this->entityTypeManager = $entityTypeManager;
         $this->fileSystem = $fileSystem;
     }
 
@@ -98,7 +98,7 @@ class SubmissionController extends ControllerBase implements ContainerInjectionI
     public function preview(FileInterface $file): array
     {
         $url = $file->createFileUrl(FALSE);
-        $absolute_url = $this->getAbsoluteUrl($url);
+        $absoluteUrl = $this->getAbsoluteUrl($url);
         $mime = $file->getMimeType();
 
         $build = [];
@@ -106,7 +106,7 @@ class SubmissionController extends ControllerBase implements ContainerInjectionI
         if (str_starts_with($mime, 'image/')) {
             $build['image'] = [
                 '#theme' => 'image',
-                '#uri' => $absolute_url,
+                '#uri' => $absoluteUrl,
                 '#attributes' => [
                     'style' => 'max-width: 100%; height: auto;',
                 ],
@@ -116,14 +116,14 @@ class SubmissionController extends ControllerBase implements ContainerInjectionI
                 '#type' => 'inline_template',
                 '#template' => '<iframe src="{{ url }}" width="100%" height="600px" style="border: none;"></iframe>',
                 '#context' => [
-                    'url' => $absolute_url,
+                    'url' => $absoluteUrl,
                 ],
             ];
         } else {
             $build['link'] = [
                 '#type' => 'link',
                 '#title' => $this->t('Click here to view file'),
-                '#url' => Url::fromUri($absolute_url),
+                '#url' => Url::fromUri($absoluteUrl),
                 '#attributes' => ['target' => '_blank'],
             ];
             $build['message'] = [
@@ -403,16 +403,16 @@ class SubmissionController extends ControllerBase implements ContainerInjectionI
      */
     public function generateFacePDF(Request $request): Response
     {
-        $query_params = $request->query->all();
-        $application_ids = $query_params['id'] ?? [];
+        $queryParams = $request->query->all();
+        $applicationIDs = $queryParams['id'] ?? [];
 
-        if (!is_array($application_ids)) {
-            $application_ids = [$application_ids];
+        if (!is_array($applicationIDs)) {
+            $applicationIDs = [$applicationIDs];
         }
 
-        $application_ids = array_filter(array_map('intval', $application_ids));
+        $applicationIDs = array_filter(array_map('intval', $applicationIDs));
 
-        if (empty($application_ids)) {
+        if (empty($applicationIDs)) {
             $applications = $this->database->select('esn_membership_manager_applications', 'a')
                 ->fields('a', ['face_photo_fid', 'esncard_number'])
                 ->condition('approval_status', 'Paid')
@@ -424,7 +424,7 @@ class SubmissionController extends ControllerBase implements ContainerInjectionI
         } else {
             $applications = $this->database->select('esn_membership_manager_applications', 'a')
                 ->fields('a', ['face_photo_fid', 'esncard_number'])
-                ->condition('id', $application_ids, 'IN')
+                ->condition('id', $applicationIDs, 'IN')
                 ->isNotNull('face_photo_fid')
                 ->orderBy('esncard_number')
                 ->execute()

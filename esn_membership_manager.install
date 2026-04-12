@@ -15,29 +15,29 @@ use Drupal\user\Entity\Role;
  */
 function esn_membership_manager_install(): void
 {
-    /** @var FileSystemInterface $file_system */
-    $file_system = Drupal::service('file_system');
+    /** @var FileSystemInterface $fileSystem */
+    $fileSystem = Drupal::service('file_system');
 
     $directory = DRUPAL_ROOT . '/../../private/esn_membership_manager_storage';
 
-    if (!$file_system->prepareDirectory($directory, FileSystemInterface::CREATE_DIRECTORY | FileSystemInterface::MODIFY_PERMISSIONS)) {
+    if (!$fileSystem->prepareDirectory($directory, FileSystemInterface::CREATE_DIRECTORY | FileSystemInterface::MODIFY_PERMISSIONS)) {
         Drupal::logger('esn_membership_manager')->error('Failed to create or prepare directory: @dir', ['@dir' => $directory]);
         return;
     }
 
-    $htaccess_path = $directory . '/.htaccess';
-    if (!file_exists($htaccess_path)) {
+    $htaccessPath = $directory . '/.htaccess';
+    if (!file_exists($htaccessPath)) {
         $content = "Order deny,allow\nDeny from all\n";
         $content .= "<IfModule mod_authz_core.c>\n  Require all denied\n</IfModule>\n";
-        file_put_contents($htaccess_path, $content);
+        file_put_contents($htaccessPath, $content);
     }
 
-    $role_id = 'esn_membership_manager_admin';
-    $role = Role::load($role_id);
+    $roleID = 'esn_membership_manager_admin';
+    $role = Role::load($roleID);
 
     if (!$role) {
         $role = Role::create([
-            'id' => $role_id,
+            'id' => $roleID,
             'label' => 'ESN Membership Manager Administrator',
         ]);
         $role->save();
@@ -48,29 +48,29 @@ function esn_membership_manager_install(): void
     }
 
     $permissions = Drupal::service('user.permissions')->getPermissions();
-    $module_permissions = [];
+    $modulePermissions = [];
 
-    foreach ($permissions as $perm_name => $perm_def) {
-        if (isset($perm_def['provider']) && $perm_def['provider'] === 'esn_membership_manager') {
-            $module_permissions[] = $perm_name;
+    foreach ($permissions as $name => $definition) {
+        if (isset($definition['provider']) && $definition['provider'] === 'esn_membership_manager') {
+            $modulePermissions[] = $name;
         }
     }
 
-    if (!empty($module_permissions)) {
-        user_role_grant_permissions($role_id, $module_permissions);
+    if (!empty($modulePermissions)) {
+        user_role_grant_permissions($roleID, $modulePermissions);
     }
 
-    $scope_storage = Drupal::entityTypeManager()->getStorage('oauth2_scope');
-    $scope_name = 'esn_scanner';
-    $scope = $scope_storage->load($scope_name);
+    $scopeStorage = Drupal::entityTypeManager()->getStorage('oauth2_scope');
+    $scopeName = 'esn_scanner';
+    $scope = $scopeStorage->load($scopeName);
 
     if (!$scope) {
-        $scope_storage->create([
-            'name' => $scope_name,
+        $scopeStorage->create([
+            'name' => $scopeName,
             'description' => 'Grants permissions for the ESN Membership Scanner App',
             'granularity_id' => 'role',
             'granularity_configuration' => [
-                'role' => $role_id
+                'role' => $roleID
             ],
             'grant_types' => [
                 'authorization_code' => ['status' => TRUE, 'description' => ''],
@@ -79,17 +79,17 @@ function esn_membership_manager_install(): void
         ])->save();
     }
 
-    $consumer_storage = Drupal::entityTypeManager()->getStorage('consumer');
-    $client_uuid = '45534e20-5363-616e-6572-204f41757468';
+    $consumerStorage = Drupal::entityTypeManager()->getStorage('consumer');
+    $clientUUID = '45534e20-5363-616e-6572-204f41757468';
 
-    $exists = $consumer_storage->loadByProperties(['uuid' => $client_uuid]);
+    $exists = $consumerStorage->loadByProperties(['uuid' => $clientUUID]);
     if (empty($exists)) {
-        $consumer = $consumer_storage->create([
-            'uuid' => $client_uuid,
+        $consumer = $consumerStorage->create([
+            'uuid' => $clientUUID,
             'label' => 'ESN Scanner App',
             'machine_name' => 'esn_scanner_app',
             'description' => 'Authentication client for the ESN Scanner app.',
-            'client_id' => $client_uuid,
+            'client_id' => $clientUUID,
             'secret' => '',
             'confidential' => FALSE,
             'third_party' => FALSE,

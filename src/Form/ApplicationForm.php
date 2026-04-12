@@ -40,7 +40,7 @@ class ApplicationForm extends FormBase
         ConfigFactoryInterface        $configFactory,
         Connection                    $database,
         EmailManager                  $emailManager,
-        EntityTypeManagerInterface    $entity_type_manager,
+        EntityTypeManagerInterface $entityTypeManager,
         ModuleHandlerInterface        $moduleHandler,
         FileSystemInterface           $fileSystem,
         FileRepositoryInterface       $fileRepository,
@@ -50,7 +50,7 @@ class ApplicationForm extends FormBase
         $this->configFactory = $configFactory;
         $this->database = $database;
         $this->emailManager = $emailManager;
-        $this->entityTypeManager = $entity_type_manager;
+        $this->entityTypeManager = $entityTypeManager;
         $this->moduleHandler = $moduleHandler;
         $this->fileSystem = $fileSystem;
         $this->fileRepository = $fileRepository;
@@ -566,7 +566,7 @@ class ApplicationForm extends FormBase
     /**
      * Helper to move a file to a new directory.
      */
-    protected function moveFile($fid, $directory, $rename_to = null): void
+    protected function moveFile($fid, $directory, $renameTo = null): void
     {
         if (empty($fid)) {
             return;
@@ -578,9 +578,9 @@ class ApplicationForm extends FormBase
             if ($file) {
                 if ($this->fileSystem->prepareDirectory($directory, FileSystemInterface::CREATE_DIRECTORY | FileSystemInterface::MODIFY_PERMISSIONS)) {
                     $filename = $file->getFilename();
-                    if ($rename_to) {
+                    if ($renameTo) {
                         $extension = pathinfo($filename, PATHINFO_EXTENSION);
-                        $filename = $rename_to . '.' . $extension;
+                        $filename = $renameTo . '.' . $extension;
                     }
                     $this->fileRepository->move($file, $directory . '/' . $filename);
                 } else {

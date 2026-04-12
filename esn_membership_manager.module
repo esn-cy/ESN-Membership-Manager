@@ -14,7 +14,7 @@ use Drupal\user\Entity\User;
  */
 function esn_membership_manager_theme($existing, $type, $theme, $path): array
 {
-    $common_vars = [
+    $commonVars = [
         'name' => 'Student',
         'logo_location' => 'https://esn.org/sites/default/files/ESN_full-logo-Satellite.png',
         'custom_footer' => '',
@@ -24,7 +24,7 @@ function esn_membership_manager_theme($existing, $type, $theme, $path): array
     return [
         // 1. Pass Approval (QR Code only)
         'emm_pass_approval' => [
-            'variables' => array_merge($common_vars, [
+            'variables' => array_merge($commonVars, [
                 'pass_token' => '',
                 'google_wallet_link' => '',
                 'apple_wallet_link' => ''
@@ -33,7 +33,7 @@ function esn_membership_manager_theme($existing, $type, $theme, $path): array
 
         // 2. Both Approval (Pass + ESNcard)
         'emm_both_approval' => [
-            'variables' => array_merge($common_vars, [
+            'variables' => array_merge($commonVars, [
                 'pass_token' => '',
                 'payment_link' => '',
                 'google_wallet_link' => '',
@@ -65,12 +65,12 @@ function esn_membership_manager_theme($existing, $type, $theme, $path): array
 
         // 5. Denial (Both)
         'emm_both_denial' => [
-            'variables' => $common_vars,
+            'variables' => $commonVars,
         ],
 
         // 6. Pass Confirmation
         'emm_pass_confirmation' => [
-            'variables' => $common_vars,
+            'variables' => $commonVars,
         ],
 
         // 7. Card Confirmation
@@ -80,22 +80,22 @@ function esn_membership_manager_theme($existing, $type, $theme, $path): array
 
         // 8. Both Confirmation
         'emm_both_confirmation' => [
-            'variables' => $common_vars,
+            'variables' => $commonVars,
         ],
 
         // 9. Pass Blacklist
         'emm_both_blacklist' => [
-            'variables' => $common_vars,
+            'variables' => $commonVars,
         ],
 
         // 10. Card Issuance
         'emm_card_issuance' => [
-            'variables' => $common_vars,
+            'variables' => $commonVars,
         ],
 
         // 11. Authentication
         'emm_authentication' => [
-            'variables' => array_merge($common_vars, [
+            'variables' => array_merge($commonVars, [
                 'organization_name' => 'ESN',
                 'authentication_type' => '',
                 'authentication_code' => NULL
@@ -138,16 +138,16 @@ function esn_membership_manager_theme($existing, $type, $theme, $path): array
 function esn_membership_manager_mail($key, &$message, $params): void
 {
     $config = Drupal::config('esn_membership_manager.settings');
-    $from_email = $config->get('email_from_address');
-    $from_name = $config->get('email_from_name');
+    $fromEmail = $config->get('email_from_address');
+    $fromName = $config->get('email_from_name');
 
-    if ($from_email) {
-        if ($from_name) {
-            $message['from'] = "$from_name <$from_email>";
-            $message['headers']['From'] = "$from_name <$from_email>";
+    if ($fromEmail) {
+        if ($fromName) {
+            $message['from'] = "$fromName <$fromEmail>";
+            $message['headers']['From'] = "$fromName <$fromEmail>";
         } else {
-            $message['from'] = $from_email;
-            $message['headers']['From'] = $from_email;
+            $message['from'] = $fromEmail;
+            $message['headers']['From'] = $fromEmail;
         }
     }
 
@@ -237,13 +237,13 @@ function esn_membership_manager_file_download($uri): array|int|null
  */
 function esn_membership_preprocess_page(&$variables): void
 {
-    $route_name = Drupal::routeMatch()->getRouteName();
+    $routeName = Drupal::routeMatch()->getRouteName();
 
-    $routes_to_hide = [
+    $routesToHide = [
         'esn_membership_manager.apply',
     ];
 
-    if (in_array($route_name, $routes_to_hide)) {
+    if (in_array($routeName, $routesToHide)) {
         if (isset($variables['page']['breadcrumb'])) {
             unset($variables['page']['breadcrumb']);
         }
@@ -422,19 +422,19 @@ function esn_membership_manager_cron(): void
  */
 function esn_membership_manager_simple_oauth_private_claims_alter(&$private_claims, $token_entity): void
 {
-    $user_id = $token_entity->getUserIdentifier();
-    if (!$user_id) {
+    $userID = $token_entity->getUserIdentifier();
+    if (!$userID) {
         return;
     }
 
-    $user = User::load($user_id);
+    $user = User::load($userID);
 
     $permissions = Drupal::service('user.permissions')->getPermissions();
     $granted = [];
-    foreach ($permissions as $machine_name => $definition) {
+    foreach ($permissions as $name => $definition) {
         if (isset($definition['provider']) && $definition['provider'] === 'esn_membership_manager') {
-            if ($user->hasPermission($machine_name)) {
-                $granted[] = $machine_name;
+            if ($user->hasPermission($name)) {
+                $granted[] = $name;
             }
         }
     }
