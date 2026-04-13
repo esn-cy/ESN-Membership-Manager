@@ -405,15 +405,12 @@ class ApplicationForm extends FormBase
      */
     public function submitForm(array &$form, FormStateInterface $form_state): void
     {
-        $form['actions']['submit']['#attributes']['disabled'] = 'disabled';
-
         $values = $form_state->getValues();
         $hasESNcard = (bool)$values['has_esncard'];
 
         try {
             if (empty($values['proof_of_status'])) {
                 $this->messenger()->addError($this->t('Proof of status is missing. Please select your status again and re-upload the file.'));
-                $form['actions']['submit']['#attributes']['disabled'] = '';
                 return;
             }
 
@@ -430,7 +427,9 @@ class ApplicationForm extends FormBase
             if (!empty($facePhotoFID) && $hasESNcard) {
                 $this->deleteFile($facePhotoFID);
             }
-            $form['actions']['submit']['#attributes']['disabled'] = '';
+            if (!empty($idDocFID) && $hasESNcard) {
+                $this->deleteFile($idDocFID);
+            }
             return;
         }
 
@@ -489,7 +488,6 @@ class ApplicationForm extends FormBase
         } catch (Exception $e) {
             $this->messenger()->addError($this->t('Error saving application. Please try again.'));
             $this->logger->error($e->getMessage());
-            $form['actions']['submit']['#attributes']['disabled'] = '';
             return;
         }
 
@@ -500,7 +498,6 @@ class ApplicationForm extends FormBase
         else
             $this->emailManager->sendEmail($values['email'], 'pass_confirmation', $emailParams);
 
-        $form['actions']['submit']['#attributes']['disabled'] = '';
         $form_state->setRedirect('esn_membership_manager.apply_success');
     }
 
