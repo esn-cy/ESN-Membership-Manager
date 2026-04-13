@@ -14,7 +14,6 @@ use Drupal\Core\Plugin\ContainerFactoryPluginInterface;
 use Drupal\Core\Session\AccountInterface;
 use Drupal\Core\Url;
 use Drupal\esn_membership_manager\Service\EmailManager;
-use Drupal\esn_membership_manager\Service\GoogleService;
 use Drupal\esn_membership_manager\Service\StripeService;
 use Exception;
 use Stripe\Exception\ApiErrorException;
@@ -36,7 +35,6 @@ class ApproveSubmission extends ActionBase implements ContainerFactoryPluginInte
     protected Connection $database;
     protected StripeService $stripeService;
     protected EmailManager $emailManager;
-    protected GoogleService $googleService;
     protected LoggerChannelInterface $logger;
 
     public function __construct(
@@ -45,7 +43,6 @@ class ApproveSubmission extends ActionBase implements ContainerFactoryPluginInte
         Connection                    $database,
         StripeService $stripeService,
         EmailManager                  $emailManager,
-        GoogleService                 $googleService,
         LoggerChannelFactoryInterface $loggerFactory
     )
     {
@@ -54,7 +51,6 @@ class ApproveSubmission extends ActionBase implements ContainerFactoryPluginInte
         $this->database = $database;
         $this->stripeService = $stripeService;
         $this->emailManager = $emailManager;
-        $this->googleService = $googleService;
         $this->logger = $loggerFactory->get('esn_membership_manager');
     }
 
@@ -75,9 +71,6 @@ class ApproveSubmission extends ActionBase implements ContainerFactoryPluginInte
         /** @var EmailManager $emailManager */
         $emailManager = $container->get('esn_membership_manager.email_manager');
 
-        /** @var GoogleService $googleService */
-        $googleService = $container->get('esn_membership_manager.google_service');
-
         /** @var LoggerChannelFactoryInterface $loggerFactory */
         $loggerFactory = $container->get('logger.factory');
 
@@ -89,7 +82,6 @@ class ApproveSubmission extends ActionBase implements ContainerFactoryPluginInte
             $database,
             $stripeService,
             $emailManager,
-            $googleService,
             $loggerFactory
         );
     }
@@ -121,7 +113,7 @@ class ApproveSubmission extends ActionBase implements ContainerFactoryPluginInte
         }
 
         if ($application['approval_status'] != 'Pending') {
-            $this->logger->warning('Application @id cannot be marked as delivered because its current status is @status.', ['@id' => $id, '@status' => $application['status']]);
+            $this->logger->warning('Application @id cannot be marked as delivered because its current status is @status.', ['@id' => $id, '@status' => $application['approval_status']]);
             throw new Exception('This status cannot be applied');
         }
 
@@ -129,142 +121,98 @@ class ApproveSubmission extends ActionBase implements ContainerFactoryPluginInte
 
         $now = (new DrupalDateTime())->format('Y-m-d H:i:s');
 
-        if (empty($application['esncard'])) {
-            $token = strtoupper(md5(uniqid(rand(), true)));
+        $token = strtoupper(md5(uniqid(rand(), true)));
+
+        $updateFields = [
+            'pass_token' => $token,
+            'approval_status' => 'Approved',
+            'date_approved' => $now,
+        ];
+
+        $emailFields = [
+            'name' => $application['name'],
+            'pass_token' => $token,
+        ];
+
+        if ($application['esncard']) {
+            try {
+                $query = $this->database->select('esn_membership_manager_cards');
+                $query->addExpression('COUNT(*)', 'count');
+                $query->condition('assigned', 0);
+                $count = $query->execute()->fetchField();
+            } catch (Exception $e) {
+                $this->logger->error('Querying number of available ESNcards failed: @message.', ['@message' => $e->getMessage()]);
+                throw new Exception('Failed to check ESNcard availability');
+            }
+
+            if ($count == 0) {
+                $this->logger->warning(
+                    'Submission @id requested ESNcard but none are available.',
+                    ['@id' => $id]
+                );
+                throw new Exception('No available ESNcards');
+            }
 
             try {
-                $this->database->update('esn_membership_manager_applications')
-                    ->fields([
-                        'pass_token' => $token,
-                        'approval_status' => 'Approved',
-                        'date_approved' => $now,
-                    ])
-                    ->condition('id', $id)
-                    ->execute();
+                $isESNer = $application['mobility_status'] == 'ESN Volunteer' || $application['mobility_status'] == 'ESN Alumnus';
 
-                $application['pass_token'] = $token;
-
-                if ($moduleConfig->get('switch_google_wallet') ?? FALSE) {
-                    $googleWalletLink = Url::fromRoute(
-                        'esn_membership_manager.add_to_google_wallet',
-                        ['identifier' => $application['pass_token']],
-                        ['absolute' => TRUE]
-                    )->toString();
-                }
-
-                if ($moduleConfig->get('switch_apple_wallet') ?? FALSE) {
-                    $appleWalletLink = Url::fromRoute(
-                        'esn_membership_manager.download_apple_pass',
-                        ['identifier' => $application['pass_token']],
-                        ['absolute' => TRUE]
-                    )->toString();
-                }
-
-                $emailParams = [
-                    'name' => $application['name'],
-                    'pass_token' => $application['pass_token'],
-                    'google_wallet_link' => $googleWalletLink ?? '',
-                    'apple_wallet_link' => $appleWalletLink ?? '',
-                ];
-                $this->emailManager->sendEmail($application['email'], 'pass_approval', $emailParams);
-
-                $this->logger->notice('Approved submission @id (no ESNcard requested).', ['@id' => $id]);
-                return;
-            } catch (Exception $e) {
-                $this->logger->error('Updating Application @id failed: @message', ['@id' => $id, '@message' => $e->getMessage()]);
-                throw new Exception('Failed to update application');
+                $paymentLink = $this->stripeService->createPaymentLink($id, $isESNer);
+            } catch (ApiErrorException $e) {
+                $this->logger->error('Stripe API error for submission @id: @message', ['@id' => $id, '@message' => $e->getMessage()]);
+                throw new Exception('Stripe API Error');
             }
+
+            if (!$paymentLink) {
+                $this->logger->error('Failed to create payment link for submission @id.', ['@id' => $id]);
+                throw new Exception('Failed to create payment link');
+            }
+
+            $updateFields += [
+                'payment_link' => $paymentLink->url,
+                'payment_link_id' => $paymentLink->id,
+            ];
+
+            $emailFields += ['payment_link' => $paymentLink->url];
         }
 
         try {
-            $query = $this->database->select('esn_membership_manager_cards');
-            $query->addExpression('COUNT(*)', 'count');
-            $query->condition('assigned', 0);
-            $count = $query->execute()->fetchField();
-        } catch (Exception $e) {
-            $this->logger->error('Querying number of available ESNcards failed: @message.', ['@message' => $e->getMessage()]);
-            throw new Exception('Failed to check ESNcard availability');
-        }
-
-        if ($count == 0) {
-            $this->logger->warning(
-                'Submission @id requested ESNcard but none are available.',
-                ['@id' => $id]
-            );
-            throw new Exception('No available ESNcards');
-        }
-
-        try {
-            $isESNer = $application['mobility_status'] == 'ESN Volunteer' || $application['mobility_status'] == 'ESN Alumnus';
-
-            $paymentLink = $this->stripeService->createPaymentLink($id, $isESNer);
-        } catch (ApiErrorException $e) {
-            $this->logger->error('Stripe API error for submission @id: @message', ['@id' => $id, '@message' => $e->getMessage()]);
-            throw new Exception('Stripe API Error');
-        }
-
-        if (!$paymentLink) {
-            $this->logger->error('Failed to create payment link for submission @id.', ['@id' => $id]);
-            throw new Exception('Failed to create payment link');
-        }
-
-        try {
-            if ($application['pass'])
-                $token = strtoupper(md5(uniqid(rand(), true)));
-
             $this->database->update('esn_membership_manager_applications')
-                ->fields([
-                    'pass_token' => $token ?? NULL,
-                    'approval_status' => 'Approved',
-                    'date_approved' => $now,
-                    'payment_link' => $paymentLink->url,
-                    'payment_link_id' => $paymentLink->id,
-                ])
+                ->fields($updateFields)
                 ->condition('id', $id)
                 ->execute();
 
-            $application['pass_token'] = $token ?? NULL;
-            $application['payment_link'] = $paymentLink->url;
-
-            $emailParams = [
-                'name' => $application['name'],
-                'pass_token' => $application['pass_token'],
-                'payment_link' => $application['payment_link']
-            ];
-
-            if (!empty($application['pass'])) {
-                if ($moduleConfig->get('switch_google_wallet') ?? FALSE) {
-                    $googleWalletLink = Url::fromRoute(
-                        'esn_membership_manager.add_to_google_wallet',
-                        ['identifier' => $application['pass_token']],
-                        ['absolute' => TRUE]
-                    )->toString();
-                }
-                if ($moduleConfig->get('switch_apple_wallet') ?? FALSE) {
-                    $appleWalletLink = Url::fromRoute(
-                        'esn_membership_manager.download_apple_pass',
-                        ['identifier' => $application['pass_token']],
-                        ['absolute' => TRUE]
-                    )->toString();
-                }
-
-                $emailParams += [
-                    'google_wallet_link' => $googleWalletLink ?? '',
-                    'apple_wallet_link' => $appleWalletLink ?? '',
-                ];
-
-                $this->emailManager->sendEmail($application['email'], 'both_approval', $emailParams);
-            } else {
-                $this->emailManager->sendEmail($application['email'], 'card_approval', $emailParams);
+            if ($moduleConfig->get('switch_google_wallet') ?? FALSE) {
+                $googleWalletLink = Url::fromRoute(
+                    'esn_membership_manager.add_to_google_wallet',
+                    ['identifier' => $token],
+                    ['absolute' => TRUE]
+                )->toString();
             }
 
-            $this->logger->notice('Approved submission @id and created payment link.', ['@id' => $id]);
+            if ($moduleConfig->get('switch_apple_wallet') ?? FALSE) {
+                $appleWalletLink = Url::fromRoute(
+                    'esn_membership_manager.download_apple_pass',
+                    ['identifier' => $token],
+                    ['absolute' => TRUE]
+                )->toString();
+            }
+
+            $emailFields += [
+                'google_wallet_link' => $googleWalletLink ?? '',
+                'apple_wallet_link' => $appleWalletLink ?? '',
+            ];
+
+            if ($application['esncard']) {
+                $this->emailManager->sendEmail($application['email'], 'both_approval', $emailFields);
+            } else {
+                $this->emailManager->sendEmail($application['email'], 'pass_approval', $emailFields);
+            }
+
+            $this->logger->notice('Approved submission @id.', ['@id' => $id]);
+            return;
         } catch (Exception $e) {
-            $this->logger->error('Failed to save submission @id after creating payment link: @message.', [
-                '@id' => $id,
-                '@message' => $e->getMessage()
-            ]);
-            throw new Exception('Failed to complete approval process');
+            $this->logger->error('Updating Application @id failed: @message', ['@id' => $id, '@message' => $e->getMessage()]);
+            throw new Exception('Failed to update application');
         }
     }
 

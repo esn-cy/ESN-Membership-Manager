@@ -204,13 +204,6 @@ function esn_membership_manager_schema(): array
                 'type' => 'int',
                 'unsigned' => TRUE,
             ],
-            'pass' => [
-                'description' => 'Was ESN Pass selected.',
-                'type' => 'int',
-                'size' => 'tiny',
-                'not null' => TRUE,
-                'default' => 0,
-            ],
             'esncard' => [
                 'description' => 'Was ESNcard selected.',
                 'type' => 'int',

@@ -1,4 +1,4 @@
-<?php
+<?php /** @noinspection PhpUnused */
 
 namespace Drupal\esn_membership_manager\Controller;
 
@@ -187,8 +187,7 @@ class SubmissionController extends ControllerBase implements ContainerInjectionI
                 'face_photo_fid' => $this->t('Profile Photo')
             ];
         }
-        if ($application['pass'])
-            $labels += ['pass_token' => $this->t('Pass Token')];
+        $labels += ['pass_token' => $this->t('Pass Token')];
         if ($application['esncard']) {
             $labels += [
                 'esncard_number' => $this->t('ESNcard Number'),
@@ -226,10 +225,7 @@ class SubmissionController extends ControllerBase implements ContainerInjectionI
             if (!$application['esncard'] && in_array($key, ['id_document_fid', 'face_photo_fid', 'esncard_number', 'payment_link', 'date_paid']))
                 continue;
 
-            if (!$application['pass'] && $key == "pass_token")
-                continue;
-
-            if (in_array($key, ['pass', 'esncard'])) continue;
+            if ($key == 'esncard') continue;
 
             $label = $labels[$key] ?? $key;
             $displayValue = $value;

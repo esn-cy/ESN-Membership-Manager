@@ -272,32 +272,27 @@ class ApplicationForm extends FormBase
             ];
         }
 
-        $form['services'] = [
+        $form['esncard'] = [
             '#type' => 'fieldset',
-            '#title' => $this->t('Services'),
+            '#title' => $this->t('ESNcard'),
         ];
 
-        $form['services']['choices'] = [
-            '#type' => 'checkboxes',
-            '#title' => $this->t('Which option(s) would you like?'),
-            '#options' => [
-                'pass' => $this->t($schemeName . ' (Free)'),
-                'esncard' => $this->t('ESNcard (Paid)'),
-            ],
-            '#required' => TRUE,
+        $form['esncard']['has_esncard'] = [
+            '#type' => 'checkbox',
+            '#title' => $this->t('Would you like to include an ESNcard in your application?'),
+            '#required' => FALSE,
         ];
 
-        $form['esncard_requirements'] = [
-            '#type' => 'fieldset',
-            '#title' => $this->t('ESNcard Requirements'),
+        $form['esncard']['esncard_requirements'] = [
+            '#type' => 'container',
             '#states' => [
                 'visible' => [
-                    ':input[name="choices[esncard]"]' => ['checked' => TRUE],
+                    ':input[name="has_esncard"]' => ['checked' => TRUE],
                 ],
             ],
         ];
 
-        $form['esncard_requirements']['face_photo'] = [
+        $form['esncard']['esncard_requirements']['face_photo'] = [
             '#type' => 'managed_file',
             '#title' => $this->t('Passport Style Photo'),
             '#description' => $this->t('Requirements: Full color, 4:5 aspect ratio, Face clearly visible, Min height 500px.'),
@@ -308,12 +303,12 @@ class ApplicationForm extends FormBase
             ],
             '#states' => [
                 'required' => [
-                    ':input[name="choices[esncard]"]' => ['checked' => TRUE],
+                    ':input[name="has_esncard"]' => ['checked' => TRUE],
                 ],
             ],
         ];
 
-        $form['esncard_requirements']['id_document'] = [
+        $form['esncard']['esncard_requirements']['id_document'] = [
             '#type' => 'managed_file',
             '#title' => $this->t('Copy of ID or Passport'),
             '#description' => $this->t('Upload a scan of your ID or Passport for verification.'),
@@ -323,7 +318,7 @@ class ApplicationForm extends FormBase
             ],
             '#states' => [
                 'required' => [
-                    ':input[name="choices[esncard]"]' => ['checked' => TRUE],
+                    ':input[name="has_esncard"]' => ['checked' => TRUE],
                 ],
             ],
         ];
@@ -392,15 +387,14 @@ class ApplicationForm extends FormBase
         parent::validateForm($form, $form_state);
 
         $values = $form_state->getValues();
-        $choices = array_filter($values['choices'] ?? []);
-        $hasESNcard = in_array('esncard', $choices);
+        $hasESNcard = (bool)$values['has_esncard'];
 
         if ($hasESNcard) {
             if (empty($values['id_document'])) {
-                $form_state->setError($form['esncard_requirements']['id_document'], $this->t('A copy of your ID or Passport is required for verification.'));
+                $form_state->setError($form['esncard']['esncard_requirements']['id_document'], $this->t('A copy of your ID or Passport is required for verification.'));
             }
             if (empty($values['face_photo'])) {
-                $form_state->setError($form['esncard_requirements']['face_photo'], $this->t('A passport style photo is required for the ESNcard.'));
+                $form_state->setError($form['esncard']['esncard_requirements']['face_photo'], $this->t('A passport style photo is required for the ESNcard.'));
             }
         }
     }
@@ -414,10 +408,7 @@ class ApplicationForm extends FormBase
         $form['actions']['submit']['#attributes']['disabled'] = 'disabled';
 
         $values = $form_state->getValues();
-
-        $choices = array_filter($values['choices']);
-        $hasESNcard = in_array('esncard', $choices);
-        $hasPass = in_array('pass', $choices);
+        $hasESNcard = (bool)$values['has_esncard'];
 
         try {
             if (empty($values['proof_of_status'])) {
@@ -479,13 +470,9 @@ class ApplicationForm extends FormBase
         ];
 
         if ($hasESNcard) {
+            $fields['esncard'] = TRUE;
             $fields['face_photo_fid'] = $facePhotoFID;
             $fields['id_document_fid'] = $idDocFID;
-            $fields['esncard'] = TRUE;
-        }
-
-        if ($hasPass) {
-            $fields['pass'] = TRUE;
         }
 
         try {
@@ -506,14 +493,12 @@ class ApplicationForm extends FormBase
             return;
         }
 
-        $email_params = ['name' => $values['name']];
+        $emailParams = ['name' => $values['name']];
 
-        if ($hasESNcard && $hasPass)
-            $this->emailManager->sendEmail($values['email'], 'both_confirmation', $email_params);
-        else if ($hasESNcard)
-            $this->emailManager->sendEmail($values['email'], 'card_confirmation', $email_params);
+        if ($hasESNcard)
+            $this->emailManager->sendEmail($values['email'], 'both_confirmation', $emailParams);
         else
-            $this->emailManager->sendEmail($values['email'], 'pass_confirmation', $email_params);
+            $this->emailManager->sendEmail($values['email'], 'pass_confirmation', $emailParams);
 
         $form['actions']['submit']['#attributes']['disabled'] = '';
         $form_state->setRedirect('esn_membership_manager.apply_success');

@@ -61,43 +61,37 @@ class StatusController extends ControllerBase
             'name' => 'Approved',
             'action' => 'esn_membership_manager_approve',
             'passAllowed' => TRUE,
-            'cardAllowed' => TRUE,
-            'bothAllowed' => TRUE
+            'cardAllowed' => TRUE
         ],
         [
             'name' => 'Declined',
             'action' => 'esn_membership_manager_decline',
             'passAllowed' => TRUE,
-            'cardAllowed' => TRUE,
-            'bothAllowed' => TRUE
+            'cardAllowed' => TRUE
         ],
         [
             'name' => 'Paid',
             'action' => 'esn_membership_manager_mark_paid',
             'passAllowed' => TRUE,
-            'cardAllowed' => FALSE,
-            'bothAllowed' => TRUE
+            'cardAllowed' => TRUE
         ],
         [
             'name' => 'Issued',
             'action' => 'esn_membership_manager_issue',
             'passAllowed' => FALSE,
-            'cardAllowed' => TRUE,
-            'bothAllowed' => TRUE
+            'cardAllowed' => TRUE
         ],
         [
             'name' => 'Delivered',
             'action' => 'esn_membership_manager_deliver',
             'passAllowed' => FALSE,
-            'cardAllowed' => TRUE,
-            'bothAllowed' => TRUE
+            'cardAllowed' => TRUE
         ],
         [
             'name' => 'Blacklisted',
             'action' => 'esn_membership_manager_blacklist',
             'passAllowed' => TRUE,
-            'cardAllowed' => FALSE,
-            'bothAllowed' => FALSE
+            'cardAllowed' => FALSE
         ]
     ];
 
@@ -136,7 +130,7 @@ class StatusController extends ControllerBase
 
             try {
                 $query = $this->database->select('esn_membership_manager_applications', 'a')
-                    ->fields('a', ['id', 'pass', 'esncard']);
+                    ->fields('a', ['id', 'esncard']);
                 if ($isESNcard)
                     $query->condition('esncard_number', $cardNumber);
                 else
@@ -152,7 +146,7 @@ class StatusController extends ControllerBase
 
             try {
                 $application = $this->database->select('esn_membership_manager_applications', 'a')
-                    ->fields('a', ['id', 'pass', 'esncard'])
+                    ->fields('a', ['id', 'esncard'])
                     ->condition('id', $applicationID)
                     ->execute()
                     ->fetchAssoc();
@@ -165,7 +159,7 @@ class StatusController extends ControllerBase
             return new JsonResponse(['status' => 'error', 'message' => 'Application not found.'], 404);
         }
 
-        if (($application['esncard'] && $application['pass']) && !$selectedAction['bothAllowed']) {
+        if (($application['esncard'] && !$selectedAction['cardAllowed']) || (!$application['esncard'] && !$selectedAction['passAllowed'])) {
             return new JsonResponse(['status' => 'error', 'message' => 'Action not allowed for this application.'], 400);
         }
 

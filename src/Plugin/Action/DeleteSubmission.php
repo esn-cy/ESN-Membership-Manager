@@ -175,9 +175,7 @@ class DeleteSubmission extends ActionBase implements ContainerFactoryPluginInter
                 if ($application['esncard']) {
                     $this->googleService->deleteObject($application['id'], 'card');
                 }
-                if ($application['pass']) {
-                    $this->googleService->deleteObject($application['id'], 'pass');
-                }
+                $this->googleService->deleteObject($application['id'], 'pass');
             }
 
             $this->database->delete('esn_membership_manager_applications')

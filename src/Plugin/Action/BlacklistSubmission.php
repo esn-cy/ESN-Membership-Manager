@@ -117,7 +117,7 @@ class BlacklistSubmission extends ActionBase implements ContainerFactoryPluginIn
                 ->condition('id', $id)
                 ->execute();
 
-            $this->emailManager->sendEmail($application['email'], 'both_blacklist', ['name' => $application['name']]);
+            $this->emailManager->sendEmail($application['email'], 'pass_blacklist', ['name' => $application['name']]);
 
             $this->logger->notice('Blacklisted submission @id', ['@id' => $id]);
         } catch (Exception $e) {

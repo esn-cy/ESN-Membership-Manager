@@ -231,7 +231,6 @@ class SubmissionsForm extends FormBase
             'nationality' => $this->t('Nationality'),
             'email' => $this->t('Email'),
             'esncard' => $this->t('ESNcard'),
-            'pass' => $this->t('Pass'),
             'proof' => $this->t('Proof'),
             'id_doc' => $this->t('ID'),
             'profile_img' => $this->t('Image'),
@@ -259,10 +258,8 @@ class SubmissionsForm extends FormBase
 
         if (!empty($esncard)) {
             $andGroup->condition('esncard', 1);
-        }
-
-        if (!empty($pass)) {
-            $andGroup->condition('pass', 1);
+        } else if (!empty($pass)) {
+            $andGroup->condition('esncard', 0);
         }
 
         if (!empty($search) || !empty($status) || !empty($esncard) || !empty($pass)) {
@@ -299,11 +296,6 @@ class SubmissionsForm extends FormBase
                 'esncard' => [
                     'data' => [
                         '#markup' => Markup::create('<input type="checkbox" onclick="return false;" style="cursor: default;" ' . ($row->esncard ? 'checked' : '') . '>'),
-                    ],
-                ],
-                'pass' => [
-                    'data' => [
-                        '#markup' => Markup::create('<input type="checkbox" onclick="return false;" style="cursor: default;" ' . ($row->pass ? 'checked' : '') . '>'),
                     ],
                 ],
                 'proof' => $this->generateFilePreview($row->proof_fid),

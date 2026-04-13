@@ -22,7 +22,6 @@ function esn_membership_manager_theme($existing, $type, $theme, $path): array
     ];
 
     return [
-        // 1. Pass Approval (QR Code only)
         'emm_pass_approval' => [
             'variables' => array_merge($commonVars, [
                 'pass_token' => '',
@@ -31,7 +30,6 @@ function esn_membership_manager_theme($existing, $type, $theme, $path): array
             ])
         ],
 
-        // 2. Both Approval (Pass + ESNcard)
         'emm_both_approval' => [
             'variables' => array_merge($commonVars, [
                 'pass_token' => '',
@@ -41,59 +39,34 @@ function esn_membership_manager_theme($existing, $type, $theme, $path): array
             ]),
         ],
 
-        // 3. ESNcard Assignment (Card issued/Created)
         'emm_card_assignment' => [
             'variables' => [
-                'name' => 'Student',
-                'logo_location' => 'https://esn.org/sites/default/files/ESN_full-logo-Satellite.png',
-                'custom_footer' => '',
                 'esncard_number' => NULL,
                 'google_wallet_link' => '',
                 'apple_wallet_link' => ''
             ],
         ],
 
-        // 4. ESNcard Approval (Payment request)
-        'emm_card_approval' => [
-            'variables' => [
-                'name' => 'Student',
-                'logo_location' => 'https://esn.org/sites/default/files/ESN_full-logo-Satellite.png',
-                'custom_footer' => '',
-                'payment_link' => NULL,
-            ],
-        ],
-
-        // 5. Denial (Both)
         'emm_both_denial' => [
             'variables' => $commonVars,
         ],
 
-        // 6. Pass Confirmation
         'emm_pass_confirmation' => [
             'variables' => $commonVars,
         ],
 
-        // 7. Card Confirmation
-        'emm_card_confirmation' => [
-            'variables' => $common_vars,
-        ],
-
-        // 8. Both Confirmation
         'emm_both_confirmation' => [
             'variables' => $commonVars,
         ],
 
-        // 9. Pass Blacklist
-        'emm_both_blacklist' => [
+        'emm_pass_blacklist' => [
             'variables' => $commonVars,
         ],
 
-        // 10. Card Issuance
         'emm_card_issuance' => [
             'variables' => $commonVars,
         ],
 
-        // 11. Authentication
         'emm_authentication' => [
             'variables' => array_merge($commonVars, [
                 'organization_name' => 'ESN',
@@ -170,10 +143,6 @@ function esn_membership_manager_mail($key, &$message, $params): void
             $message['subject'] = t('@scheme and ESNcard Approval', ['@scheme' => $scheme], $options);
             break;
 
-        case 'card_approval':
-            $message['subject'] = t('ESNcard Application Approved', [], $options);
-            break;
-
         case 'card_assignment':
             $message['subject'] = t('Your ESNcard Details', [], $options);
             break;
@@ -186,15 +155,11 @@ function esn_membership_manager_mail($key, &$message, $params): void
             $message['subject'] = t('@scheme Application Received', ['@scheme' => $scheme], $options);
             break;
 
-        case 'card_confirmation':
-            $message['subject'] = t('ESNcard Application Received', [], $options);
-            break;
-
         case 'both_confirmation':
             $message['subject'] = t('@scheme and ESNcard Application Received', ['@scheme' => $scheme], $options);
             break;
 
-        case 'both_blacklist':
+        case 'pass_blacklist':
             $message['subject'] = t('@scheme Blacklisted', ['@scheme' => $scheme], $options);
             break;
 
