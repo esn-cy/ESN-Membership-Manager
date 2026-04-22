@@ -96,9 +96,9 @@ function esn_membership_manager_theme($existing, $type, $theme, $path): array
                 'dob_year' => '',
                 'host_institution' => '',
                 'section' => '',
-                'doe_day' => '',
-                'doe_month' => '',
-                'doe_year' => '',
+                'valid_since_day' => '',
+                'valid_since_month' => '',
+                'valid_since_year' => '',
                 'esncard_number' => ''
             ],
         ]

@@ -2,7 +2,6 @@
 
 namespace Drupal\esn_membership_manager\Controller;
 
-use DateInterval;
 use DateTime;
 use Drupal\Core\Config\ConfigFactoryInterface;
 use Drupal\Core\Controller\ControllerBase;
@@ -191,7 +190,8 @@ class SubmissionController extends ControllerBase implements ContainerInjectionI
         if ($application['esncard']) {
             $labels += [
                 'esncard_number' => $this->t('ESNcard Number'),
-                'payment_link' => $this->t('Stripe Payment Link')
+                'payment_link' => $this->t('Stripe Payment Link'),
+                'payment_link_id' => $this->t('Stripe Payment Link ID')
             ];
         }
         $labels += [
@@ -368,8 +368,7 @@ class SubmissionController extends ControllerBase implements ContainerInjectionI
 
         $paidDate = new DateTime($application['date_paid']);
         $paidDate->setTime(0, 0);
-        $expiryDate = (clone $paidDate)->add(new DateInterval("P1Y"))->format('Y-m-d');
-        $doe = explode('-', $expiryDate);
+        $validSince = explode('-', $paidDate->format('Y-m-d'));
 
         $section = preg_replace('/^' . preg_quote('ESN ', '/') . '/', '', $moduleConfig->get('organization_name') ?? 'ESN');
 
@@ -383,9 +382,9 @@ class SubmissionController extends ControllerBase implements ContainerInjectionI
             '#dob_year' => substr($dob[0], -2, 2),
             '#host_institution' => $application['host_institution'],
             '#section' => $section,
-            '#doe_day' => $doe[2],
-            '#doe_month' => $doe[1],
-            '#doe_year' => substr($doe[0], -2, 2),
+            '#valid_since_day' => $validSince[2],
+            '#valid_since_month' => $validSince[1],
+            '#valid_since_year' => substr($validSince[0], -2, 2),
             '#esncard_number' => $application['esncard_number'] ?? '',
         ];
     }
