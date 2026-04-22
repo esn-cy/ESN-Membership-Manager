@@ -303,13 +303,13 @@
                 <button type="button" id="btn-decline" class="button button--danger"
                         data-has-permission="{{ permissions.decline ? 'true' : 'false' }}"
                         {% if not permissions.decline %} disabled style="opacity:0.5;" {% else %}
-                    onclick="doStatus('Declined')" {% endif %}>
+                    onclick="doStatus('Declined', {{ id }})" {% endif %}>
                     Decline
                 </button>
                 <button type="button" id="btn-approve" class="button button--action"
                         data-has-permission="{{ permissions.approve ? 'true' : 'false' }}"
                         {% if not permissions.approve %} disabled style="opacity:0.5;" {% else %}
-                    onclick="doStatus('Approved')" {% endif %}>
+                    onclick="doStatus('Approved', {{ id }})" {% endif %}>
                     Approve
                 </button>
             </div>
@@ -526,13 +526,13 @@
         }
     }
 
-    async function doStatus(status) {
+    async function doStatus(status, id) {
         const request = await fetch("{{ apiURLs.status }}", {
             method: "POST",
             headers: {"Content-Type": "application/json"},
             body: JSON.stringify({
                 "status": status,
-                "id": {{ id }}
+                "id": id
             })
         });
 
