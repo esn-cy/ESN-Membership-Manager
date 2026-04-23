@@ -41,33 +41,17 @@ class StripeService
         if (!$this->getClient())
             throw new Exception('Stripe Secret Key not set in the module configuration.');
 
-        $moduleConfig = $this->configFactory->get('esn_membership_manager.settings');
+        $priceIDs = $this->getPriceIDs($isESNer);
 
-        if (!$isESNer) {
-            $esnCardPriceID = $moduleConfig->get('stripe_price_id_esncard');
-            $processingFeePriceID = $moduleConfig->get('stripe_price_id_processing');
-        } else {
-            $esnCardPriceID = $moduleConfig->get('stripe_price_id_esncard_esner');
-            $processingFeePriceID = $moduleConfig->get('stripe_price_id_processing_esner');
-
-            if (empty($esnCardPriceID)) {
-                $esnCardPriceID = $moduleConfig->get('stripe_price_id_esncard');
-            }
-
-            if (empty($processingFeePriceID)) {
-                $processingFeePriceID = $moduleConfig->get('stripe_price_id_processing');
-            }
-        }
-
-        if (empty($esnCardPriceID)) {
+        if (empty($priceIDs['esncard'])) {
             $this->logger->error('Stripe Price ID for ESNcard is not configured.');
             return null;
         }
 
-        $prices = [['price' => $esnCardPriceID, 'quantity' => 1]];
+        $prices = [['price' => $priceIDs['esncard'], 'quantity' => 1]];
 
-        if (!empty($processingFeePriceID)) {
-            $prices[] = ['price' => $processingFeePriceID, 'quantity' => 1];
+        if (!empty($priceIDs['processing'])) {
+            $prices[] = ['price' => $priceIDs['processing'], 'quantity' => 1];
         }
 
         $paymentLink = $this->client->paymentLinks->create([
@@ -139,5 +123,55 @@ class StripeService
             $this->logger->error('Unable to construct webhook event: @message', ['@message' => $e->getMessage()]);
             throw new Exception('Unable to construct webhook event.');
         }
+    }
+
+    protected function getPriceIDs(bool $isESNer): array
+    {
+        $moduleConfig = $this->configFactory->get('esn_membership_manager.settings');
+
+        if (!$isESNer) {
+            $esnCardPriceID = $moduleConfig->get('stripe_price_id_esncard');
+            $processingFeePriceID = $moduleConfig->get('stripe_price_id_processing');
+        } else {
+            $esnCardPriceID = $moduleConfig->get('stripe_price_id_esncard_esner');
+            $processingFeePriceID = $moduleConfig->get('stripe_price_id_processing_esner');
+
+            if (empty($esnCardPriceID)) {
+                $esnCardPriceID = $moduleConfig->get('stripe_price_id_esncard');
+            }
+
+            if (empty($processingFeePriceID)) {
+                $processingFeePriceID = $moduleConfig->get('stripe_price_id_processing');
+            }
+        }
+
+        return ['esncard' => $esnCardPriceID, 'processing' => $processingFeePriceID];
+    }
+
+    /**
+     * Gets price amount from a given price ID.
+     *
+     * @param bool $isESNer If the applicant deserves the ESNer price.
+     *
+     * @throws Exception
+     */
+    public function getPriceAmount(bool $isESNer): float
+    {
+        if (!$this->getClient())
+            throw new Exception('Stripe Secret Key not set in the module configuration.');
+
+        $priceIDs = $this->getPriceIDs($isESNer);
+
+        $esncardPrice = $this->client->prices->retrieve($priceIDs['esncard']);
+
+        $totalPrice = $esncardPrice->unit_amount / 100;
+
+        if (!empty($priceIDs['processing'])) {
+            $processingPrice = $this->client->prices->retrieve($priceIDs['processing']);
+
+            $totalPrice += $processingPrice->unit_amount / 100;
+        }
+
+        return $totalPrice;
     }
 }

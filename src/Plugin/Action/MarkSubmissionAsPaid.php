@@ -212,6 +212,17 @@ class MarkSubmissionAsPaid extends ActionBase implements ContainerFactoryPluginI
         }
 
         if ($moduleConfig->get('switch_google_sheets') ?? FALSE) {
+            if (!empty($linkID)) {
+                $paymentMethod = 'Stripe';
+
+                $isESNer = $application['mobility_status'] == 'ESN Volunteer' || $application['mobility_status'] == 'ESN Alumnus';
+                $priceFloat = $this->stripeService->getPriceAmount($isESNer);
+                $price = number_format($priceFloat, 2, '.', '');
+            } else {
+                $paymentMethod = 'Manual';
+                $price = 'Unknown';
+            }
+
             $this->googleService->appendRow(
                 [
                     'date' => str_replace('-', '/', date('d-m-y')),
@@ -220,8 +231,8 @@ class MarkSubmissionAsPaid extends ActionBase implements ContainerFactoryPluginI
                     'pos' => 'ESN Membership Manager',
                     'host' => $application['host_institution'],
                     'nationality' => $application['nationality'],
-                    'mop' => 'Stripe',
-                    'amount' => 16,
+                    'mop' => $paymentMethod,
+                    'amount' => $price,
                 ]
             );
         }

@@ -456,13 +456,13 @@ class ApplicationForm extends FormBase
         ];
 
         $fields = [
-            'name' => $values['name'],
-            'surname' => $values['surname'],
-            'email' => $values['email'],
+            'name' => trim($values['name']),
+            'surname' => trim($values['surname']),
+            'email' => trim($values['email']),
             'nationality' => $values['nationality'],
             'dob' => (new DateTime($values['dob']))->format('Y-m-d'),
             'mobility_status' => $statuses[$values['status']],
-            'host_institution' => $values['host'] ?? '',
+            'host_institution' => trim($values['host']),
             'proof_fid' => $proofFID,
             'approval_status' => 'Pending',
             'date_created' => (new DrupalDateTime())->format('Y-m-d H:i:s'),
