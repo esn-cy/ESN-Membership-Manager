@@ -2,11 +2,15 @@
 
 namespace Drupal\esn_membership_manager\Service;
 
+use DateInterval;
 use DateTime;
 use Drupal\Core\Config\ConfigFactoryInterface;
+use Drupal\Core\Entity\EntityTypeManagerInterface;
 use Drupal\Core\Extension\ModuleHandlerInterface;
+use Drupal\Core\File\FileSystemInterface;
 use Drupal\Core\Logger\LoggerChannelFactoryInterface;
 use Drupal\Core\Logger\LoggerChannelInterface;
+use Drupal\file\FileInterface;
 use Exception;
 use PKPass\PKPass;
 use PKPass\PKPassException;
@@ -15,16 +19,22 @@ class AppleWalletService
 {
     protected ConfigFactoryInterface $configFactory;
     protected ModuleHandlerInterface $moduleHandler;
+    protected EntityTypeManagerInterface $entityTypeManager;
+    protected FileSystemInterface $fileSystem;
     protected LoggerChannelInterface $logger;
 
     public function __construct(
         ConfigFactoryInterface        $config_factory,
         ModuleHandlerInterface        $moduleHandler,
+        EntityTypeManagerInterface $entityTypeManager,
+        FileSystemInterface        $fileSystem,
         LoggerChannelFactoryInterface $logger_factory
     )
     {
         $this->configFactory = $config_factory;
         $this->moduleHandler = $moduleHandler;
+        $this->entityTypeManager = $entityTypeManager;
+        $this->fileSystem = $fileSystem;
         $this->logger = $logger_factory->get('esn_membership_manager');
     }
 
@@ -64,11 +74,6 @@ class AppleWalletService
                             'value' => $data['nationality'],
                         ],
                         [
-                            'key' => 'mobility_status',
-                            'label' => 'Mobility Status',
-                            'value' => $data['mobility_status']
-                        ],
-                        [
                             'key' => 'dob',
                             'label' => 'Date of Birth',
                             'value' => (new DateTime($data['dob']))->format('d/m/Y')
@@ -76,9 +81,14 @@ class AppleWalletService
                     ],
                     'auxiliaryFields' => [
                         [
-                            'key' => 'host_institution',
-                            'label' => 'Host Institution',
+                            'key' => 'studies_at',
+                            'label' => 'Studies at',
                             'value' => $data['host_institution']
+                        ],
+                        [
+                            'key' => 'esn_section',
+                            'label' => 'ESN Section',
+                            'value' => $moduleConfig->get('organization_name')
                         ],
                         [
                             'key' => 'valid_since',
@@ -107,6 +117,24 @@ class AppleWalletService
         $pass->setData($passData);
 
         $imagesPath = $this->moduleHandler->getModule('esn_membership_manager')->getPath() . '/assets/images/apple_wallet/color/';
+
+        $thumbnailPath = "membership://{$data['id']}/apple_face_photo.png";
+        $targetPath = $this->fileSystem->realpath($thumbnailPath);
+
+        if (!file_exists($thumbnailPath)) {
+            /** @var FileInterface $faceFile */
+            $faceFile = $this->entityTypeManager->getStorage('file')->load($data['face_photo_fid']);
+            if ($faceFile) {
+                $uri = $faceFile->getFileUri();
+                $path = $this->fileSystem->realpath($uri);
+
+                if (imagepng(imagecreatefromstring(file_get_contents($path)), $targetPath)) {
+                    $pass->addFile($targetPath, 'thumbnail.png');
+                }
+            }
+        } else {
+            $pass->addFile($targetPath, 'thumbnail.png');
+        }
 
         $pass->addFile($imagesPath . 'logo.png', 'logo.png');
         $pass->addFile($imagesPath . 'logo@2x.png', 'logo@2x.png');

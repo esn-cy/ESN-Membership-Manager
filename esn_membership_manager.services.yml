@@ -31,6 +31,8 @@ services:
     arguments:
       - '@config.factory'
       - '@module_handler'
+      - '@entity_type.manager'
+      - '@file_system'
       - '@logger.factory'
 
   esn_membership_manager.email_manager:
