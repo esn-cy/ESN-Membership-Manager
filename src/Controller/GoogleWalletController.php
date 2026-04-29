@@ -59,9 +59,14 @@ class GoogleWalletController extends ControllerBase
 
         $isESNcard = preg_match("/^\d\d\d\d\d\d\d[A-Z][A-Z][A-Z][A-Z0-9]$/", $identifier) == 1;
         $isPass = preg_match("/^[A-F0-9]{32}$/", $identifier) == 1;
+        $isGuest = preg_match("/^GUEST[A-F0-9]{27}$/", $identifier) == 1;
 
-        if (!$isESNcard && !$isPass) {
+        if (!$isESNcard && !$isPass && !$isGuest) {
             throw new BadRequestHttpException('An invalid identifier was provided.', null, 400);
+        }
+
+        if ($isGuest) {
+            return $this->addGuest($identifier);
         }
 
         try {
@@ -75,14 +80,13 @@ class GoogleWalletController extends ControllerBase
             }
 
             $application = $query->execute()->fetchAssoc();
-
         } catch (Exception $e) {
             $this->logger->error('Creation of Google Wallet Pass failed: @message', ['@message' => $e->getMessage()]);
             throw new HttpException(500, 'There was a problem getting the card/pass.');
         }
 
         if (empty($application)) {
-            throw new NotFoundHttpException('No application was provided.', null, 404);
+            throw new NotFoundHttpException('No application was found.', null, 404);
         }
 
         try {
@@ -95,6 +99,42 @@ class GoogleWalletController extends ControllerBase
                 throw new Exception();
             }
         } catch (Exception|GuzzleException $e) {
+            $this->logger->error('Creation of Google Wallet Pass failed: @message', ['@message' => $e->getMessage()]);
+            throw new HttpException(500, 'Unable to generate your Google Wallet Pass.');
+        }
+
+        return new TrustedRedirectResponse($walletLink);
+    }
+
+    protected function addGuest(string $identifier): TrustedRedirectResponse
+    {
+        try {
+            $query = $this->database->select('esn_membership_manager_guest_passes', 'g');
+            $query->addField('g', 'id', 'id');
+            $query->addField('g', 'name', 'guest_name');
+            $query->addField('g', 'surname', 'guest_surname');
+            $query->addField('g', 'date_approved', 'date_approved');
+            $query->addField('a', 'name', 'referer_name');
+            $query->addField('a', 'surname', 'referer_surname');
+            $query->addField('a', 'mobility_status', 'referer_mobility_status');
+            $query->condition('g.guest_pass_token', $identifier);
+            $query->join('esn_membership_manager_applications', 'a', 'a.id = g.referrer_id');
+            $application = $query->execute()->fetchAssoc();
+        } catch (Exception $e) {
+            $this->logger->error('Scan query failed: @message', ['@message' => $e->getMessage()]);
+            throw new HttpException(500, 'There was a problem getting the guest pass.');
+        }
+
+        if (empty($application)) {
+            throw new NotFoundHttpException('Guest Pass not found.', null, 404);
+        }
+
+        try {
+            $walletLink = $this->googleService->getGuestPassObject($application);
+            if (empty($walletLink)) {
+                throw new Exception();
+            }
+        } catch (Exception $e) {
             $this->logger->error('Creation of Google Wallet Pass failed: @message', ['@message' => $e->getMessage()]);
             throw new HttpException(500, 'Unable to generate your Google Wallet Pass.');
         }

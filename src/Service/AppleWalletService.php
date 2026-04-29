@@ -261,4 +261,96 @@ class AppleWalletService
             return NULL;
         }
     }
+
+    /**
+     * @throws Exception
+     */
+    public function createGuestPass(array $data): ?string
+    {
+        $moduleConfig = $this->configFactory->get('esn_membership_manager.settings');
+
+        $pass = new PKPass();
+
+        $pass->setCertificateString($moduleConfig->get('apple_certificate_string'));
+        $pass->setCertificatePassword($moduleConfig->get('apple_certificate_password'));
+
+        $approvedDate = new DateTime($data['date_approved']);
+        $approvedDate->setTime(0, 0);
+        $expiryDate = (clone $approvedDate)->add(new DateInterval("P7D"));
+
+        $passData = $this->getCommonAttributes() +
+            [
+                'description' => $moduleConfig->get('guest_scheme_name'),
+                'logoText' => $moduleConfig->get('guest_scheme_name'),
+                'backgroundColor' => 'rgb(236, 0, 140)',
+                'serialNumber' => $data['guest_pass_token'],
+                'generic' => [
+                    'primaryFields' => [
+                        [
+                            'key' => 'name',
+                            'label' => 'Name & Surname',
+                            'value' => "{$data['name']} {$data['surname']}",
+                        ]
+                    ],
+                    'secondaryFields' => [
+                        [
+                            'key' => 'referer_name',
+                            'label' => 'Referer Name',
+                            'value' => "{$data['referer_name']} {$data['referer_surname']}",
+                        ]
+                    ],
+                    'auxiliaryFields' => [
+                        [
+                            'key' => 'referer_mobility_status',
+                            'label' => 'Referer Mobility Status',
+                            'value' => $data['referer_mobility_status']
+                        ],
+                        [
+                            'key' => 'valid_until',
+                            'label' => 'Valid Until',
+                            'value' => $expiryDate->format('d/m/Y')
+                        ]
+                    ],
+                    'backFields' => [
+                        [
+                            'key' => 'local_disclaimer',
+                            'label' => 'Local Disclaimer',
+                            'value' => 'This pass can only be used in local events.'
+                        ],
+                        [
+                            'key' => 'guest_disclaimer',
+                            'label' => 'Guest Disclaimer',
+                            'value' => 'To redeem this pass you will need to present valid ID at the door as well as arrive at the venue with the person that invited you.'
+                        ]
+                    ]
+                ],
+                'barcodes' => [
+                    [
+                        'format' => 'PKBarcodeFormatAztec',
+                        'messageEncoding' => 'iso-8859-1',
+                        'message' => $data['guest_pass_token'],
+                        'altText' => $data['guest_pass_token'],
+                    ]
+                ],
+            ];
+
+        $pass->setData($passData);
+
+        $imagesPath = $this->moduleHandler->getModule('esn_membership_manager')->getPath() . '/assets/images/apple_wallet/white/';
+
+        $pass->addFile($imagesPath . 'logo.png', 'logo.png');
+        $pass->addFile($imagesPath . 'logo@2x.png', 'logo@2x.png');
+        $pass->addFile($imagesPath . 'logo@3x.png', 'logo@3x.png');
+
+        $pass->addFile($imagesPath . 'icon.png', 'icon.png');
+        $pass->addFile($imagesPath . 'icon@2x.png', 'icon@2x.png');
+        $pass->addFile($imagesPath . 'icon@3x.png', 'icon@3x.png');
+
+        try {
+            return $pass->create();
+        } catch (PKPassException $e) {
+            $this->logger->error('Apple Wallet Pass creation failed: ' . $e->getMessage());
+            return NULL;
+        }
+    }
 }

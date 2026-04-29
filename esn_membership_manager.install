@@ -304,5 +304,72 @@ function esn_membership_manager_schema(): array
         ],
     ];
 
+    $schema['esn_membership_manager_guest_passes'] = [
+        'description' => 'Stores Guest Passes.',
+        'fields' => [
+            'id' => [
+                'description' => 'Guest Pass ID.',
+                'type' => 'serial',
+                'unsigned' => TRUE,
+                'not null' => TRUE,
+            ],
+            'referrer_id' => [
+                'description' => 'Referrer Application ID.',
+                'type' => 'int',
+                'unsigned' => TRUE,
+                'not null' => TRUE,
+            ],
+            'name' => [
+                'description' => 'First Name.',
+                'type' => 'varchar',
+                'length' => 255,
+                'not null' => TRUE,
+            ],
+            'surname' => [
+                'description' => 'Surname.',
+                'type' => 'varchar',
+                'length' => 255,
+                'not null' => TRUE,
+            ],
+            'email' => [
+                'description' => 'Pass holder email.',
+                'type' => 'varchar',
+                'length' => 255,
+                'not null' => TRUE,
+            ],
+            'guest_pass_token' => [
+                'description' => 'Unique guest pass token for QR code.',
+                'type' => 'varchar',
+                'length' => 64,
+            ],
+            'date_created' => [
+                'description' => 'Timestamp when the guest pass was requested.',
+                'type' => 'varchar',
+                'length' => 64,
+                'not null' => TRUE,
+            ],
+            'date_approved' => [
+                'description' => 'Timestamp when the guest pass was approved.',
+                'type' => 'varchar',
+                'length' => 64,
+            ],
+            'date_redeemed' => [
+                'description' => 'Timestamp when the guest pass was redeemed.',
+                'type' => 'varchar',
+                'length' => 64,
+            ],
+        ],
+        'primary key' => ['id'],
+        'foreign keys' => [
+            'referrer_id' => ['table' => 'esn_membership_manager_applications', 'columns' => ['referrer_id' => 'id']],
+        ],
+        'unique keys' => [
+            'pass_token' => ['guest_pass_token'],
+        ],
+        'indexes' => [
+            'email' => ['email'],
+        ],
+    ];
+
     return $schema;
 }

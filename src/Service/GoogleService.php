@@ -37,6 +37,7 @@ class GoogleService
     protected ?Walletobjects $walletService = NULL;
     protected string $cardClassID = '';
     protected string $passClassID = '';
+    protected string $guestClassID = '';
 
     public function __construct(
         ConfigFactoryInterface        $configFactory,
@@ -164,6 +165,11 @@ class GoogleService
                     return $this->passClassID;
                 }
                 break;
+            case 'guest':
+                if (!empty($this->guestClassID)) {
+                    return $this->guestClassID;
+                }
+                break;
             default:
                 throw new Exception("Unsupported class type");
         }
@@ -184,6 +190,9 @@ class GoogleService
                     break;
                 case 'pass':
                     $this->passClassID = $classID;
+                    break;
+                case 'guest':
+                    $this->guestClassID = $classID;
                     break;
             }
             return $classID;
@@ -305,8 +314,99 @@ class GoogleService
                 'viewUnlockRequirement' => 'UNLOCK_NOT_REQUIRED'
             ]);
 
-            $response = $this->walletService->genericclass->update($classID, $class);
+            $response = $this->walletService->genericclass->insert($class);
             $this->passClassID = $response->id;
+            return $response->id;
+        } else {
+            return $classID;
+        }
+    }
+
+    /**
+     * @throws \Google\Service\Exception
+     * @throws Exception
+     */
+    private function getGuestPassClass(): string
+    {
+        $classID = $this->getClass('guest');
+        if (str_starts_with($classID, 'CLASS_NOT_FOUND_')) {
+            $classID = str_replace('CLASS_NOT_FOUND_', '', $classID);
+            $class = new GenericClass([
+                'id' => $classID,
+                'classTemplateInfo' => [
+                    'cardBarcodeSectionDetails' => [
+                        'firstTopDetail' => [
+                            'fieldSelector' => [
+                                'fields' => [
+                                    ['fieldPath' => 'class.imageModulesData[\'id_required\']']
+                                ]
+                            ]
+                        ]
+                    ],
+                    'cardTemplateOverride' => [
+                        'cardRowTemplateInfos' => [
+                            [
+                                'oneItem' => [
+                                    'item' => ['firstValue' => ['fields' => [['fieldPath' => 'object.textModulesData[\'referer_name\']']]]],
+                                ]
+                            ],
+                            [
+                                'twoItems' => [
+                                    'startItem' => ['firstValue' => ['fields' => [['fieldPath' => 'object.textModulesData[\'referer_mobility_status\']']]]],
+                                    'endItem' => ['firstValue' => ['fields' => [['fieldPath' => 'object.textModulesData[\'valid_until\']', 'date_format' => 'DATE_YEAR']]]]
+                                ]
+                            ]
+                        ]
+                    ],
+                    'detailsTemplateOverride' => [
+                        'detailsItemInfos' => [
+                            [
+                                'item' => [
+                                    'firstValue' => ['fields' => [['fieldPath' => 'class.textModulesData[\'local_disclaimer\']']]]
+                                ]
+                            ],
+                            [
+                                'item' => [
+                                    'firstValue' => ['fields' => [['fieldPath' => 'class.textModulesData[\'guest_disclaimer\']']]]
+                                ]
+                            ]
+                        ]
+                    ]
+                ],
+                'textModulesData' => [
+                    [
+                        'id' => 'local_disclaimer',
+                        'header' => 'Disclaimer',
+                        'body' => 'This pass can only be used in local events.'
+                    ],
+                    [
+                        'id' => 'guest_disclaimer',
+                        'header' => 'Disclaimer',
+                        'body' => 'To redeem this pass you will need to present valid ID at the door as well as arrive at the venue with the person that invited you.'
+                    ]
+                ],
+                'imageModulesData' => [
+                    [
+                        'id' => 'id_required',
+                        'mainImage' => [
+                            'sourceUri' => [
+                                'uri' => 'https://esncy.org/sites/default/files/2026-04/guest-pass-id.png'
+                            ],
+                            'contentDescription' => new LocalizedString([
+                                'defaultValue' => new TranslatedString([
+                                    'language' => 'en-US',
+                                    'value' => 'Valid ID Required'
+                                ])
+                            ])
+                        ]
+                    ]
+                ],
+                'multipleDevicesAndHoldersAllowedStatus' => 'MULTIPLE_HOLDERS',
+                'viewUnlockRequirement' => 'UNLOCK_NOT_REQUIRED'
+            ]);
+
+            $response = $this->walletService->genericclass->insert($class);
+            $this->guestClassID = $response->id;
             return $response->id;
         } else {
             return $classID;
@@ -354,6 +454,9 @@ class GoogleService
      */
     public function getESNcardObject(array $data): string
     {
+        if (!$this->getClient())
+            throw new Exception('Google Service Account credentials were not configured.');
+
         $config = $this->configFactory->get('esn_membership_manager.settings');
         $issuerID = $config->get('google_issuer_id');
 
@@ -460,7 +563,7 @@ class GoogleService
                 [
                     'id' => 'esn_section',
                     'header' => 'ESN Section',
-                    'body' => "{$config->get('organization_name')}"
+                    'body' => $config->get('organization_name')
                 ],
                 [
                     'id' => 'valid_since',
@@ -482,6 +585,9 @@ class GoogleService
      */
     public function getFreePassObject(array $data): string
     {
+        if (!$this->getClient())
+            throw new Exception('Google Service Account credentials were not configured.');
+
         $config = $this->configFactory->get('esn_membership_manager.settings');
         $issuerID = $config->get('google_issuer_id');
 
@@ -585,6 +691,111 @@ class GoogleService
     }
 
     /**
+     * @throws \Google\Service\Exception
+     * @throws Exception
+     */
+    public function getGuestPassObject(array $data): string
+    {
+        if (!$this->getClient())
+            throw new Exception('Google Service Account credentials were not configured.');
+
+        $config = $this->configFactory->get('esn_membership_manager.settings');
+        $issuerID = $config->get('google_issuer_id');
+
+        try {
+            $objectID = "$issuerID.guest_pass-{$data['id']}";
+            $this->walletService->genericobject->get($objectID);
+            return $this->getLink($objectID);
+        } catch (\Google\Service\Exception $error) {
+            if (empty($error->getErrors()) || $error->getErrors()[0]['reason'] != 'resourceNotFound') {
+                throw $error;
+            }
+        }
+
+        $classID = $this->getGuestPassClass();
+        $approvedDate = new DateTime($data['date_approved']);
+        $approvedDate->setTime(0, 0);
+        $expiryDate = (clone $approvedDate)->add(new DateInterval("P7D"));
+
+        $object = new GenericObject([
+            'genericType' => 'GENERIC_OTHER',
+            'cardTitle' => new LocalizedString([
+                'defaultValue' => new TranslatedString([
+                    'language' => 'en-US',
+                    'value' => $config->get('guest_scheme_name')
+                ])
+            ]),
+            'subheader' => new LocalizedString([
+                'defaultValue' => new TranslatedString([
+                    'language' => 'en-US',
+                    'value' => 'Approved Guest'
+                ])
+            ]),
+            'header' => new LocalizedString([
+                'defaultValue' => new TranslatedString([
+                    'language' => 'en-US',
+                    'value' => "{$data['name']} {$data['surname']}"
+                ])
+            ]),
+            'logo' => new Image([
+                'sourceUri' => new ImageUri([
+                    'uri' => 'https://esncy.org/sites/default/files/2025-12/ESN_Logo.png'
+                ]),
+                'contentDescription' => new LocalizedString([
+                    'defaultValue' => new TranslatedString([
+                        'language' => 'en-US',
+                        'value' => 'ESN Logo'
+                    ])
+                ])
+            ]),
+            'hexBackgroundColor' => '#ec008c',
+            'id' => $objectID,
+            'classId' => $classID,
+            'barcode' => new Barcode([
+                'type' => 'AZTEC',
+                'value' => $data['guest_pass_token'],
+                'alternateText' => strtoupper($data['guest_pass_token']),
+            ]),
+            'heroImage' => new Image([
+                'sourceUri' => new ImageUri([
+                    'uri' => 'https://esncy.org/sites/default/files/2026-01/emm-hero.png'
+                ]),
+                'contentDescription' => new LocalizedString([
+                    'defaultValue' => new TranslatedString([
+                        'language' => 'en-US',
+                        'value' => 'ESN Membership Manager'
+                    ])
+                ])
+            ]),
+            'validTimeInterval' => new TimeInterval([
+                'start' => ['date' => $approvedDate->format(DateTimeInterface::ATOM)],
+                'end' => ['date' => $expiryDate->format(DateTimeInterface::ATOM)]
+            ]),
+            'textModulesData' => [
+                [
+                    'id' => 'referer_name',
+                    'header' => 'Referer Name',
+                    'body' => "{$data['referer_name']} {$data['referer_surname']}"
+                ],
+                [
+                    'id' => 'referer_mobility_status',
+                    'header' => 'Referer Mobility Status',
+                    'body' => $data['referer_mobility_status']
+                ],
+                [
+                    'id' => 'valid_until',
+                    'header' => 'Valid Until',
+                    'body' => $expiryDate->format('d/m/Y')
+                ]
+            ],
+            'state' => 'ACTIVE',
+        ]);
+
+        $this->walletService->genericobject->insert($object);
+        return $this->getLink($objectID);
+    }
+
+    /**
      * @throws Exception
      */
     public function deleteObject(string $applicationID, string $type): bool
@@ -599,6 +810,7 @@ class GoogleService
         $objectID = match ($type) {
             'card' => "$issuerID.esncard-$applicationID",
             'pass' => "$issuerID.free_pass-$applicationID",
+            'guest' => "$issuerID.guest_pass-$applicationID",
             default => throw new Exception('Unsupported application type.'),
         };
 

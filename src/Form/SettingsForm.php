@@ -120,8 +120,16 @@ class SettingsForm extends ConfigFormBase
         $form['general']['scheme_name'] = [
             '#type' => 'textfield',
             '#title' => $this->t('Free Pass Scheme Name'),
-            '#description' => $this->t('Enter the Webform ID where the applications are made.'),
+            '#description' => $this->t('Enter the name of the Free Pass Scheme.'),
             '#default_value' => $config->get('scheme_name') ?? 'ESN Pass',
+            '#required' => TRUE
+        ];
+
+        $form['general']['guest_scheme_name'] = [
+            '#type' => 'textfield',
+            '#title' => $this->t('Guest Pass Scheme Name'),
+            '#description' => $this->t('Enter the name of the Guest Pass Scheme.'),
+            '#default_value' => $config->get('guest_scheme_name') ?? 'ESN Guest Pass',
             '#required' => TRUE
         ];
 
@@ -466,6 +474,7 @@ class SettingsForm extends ConfigFormBase
             ->set('switch_apple_wallet', $form_state->getValue('switch_apple_wallet'))
             ->set('organization_name', $form_state->getValue('organization_name'))
             ->set('scheme_name', $form_state->getValue('scheme_name'))
+            ->set('guest_scheme_name', $form_state->getValue('guest_scheme_name'))
             ->set('logo_url', $form_state->getValue('logo_url'))
             ->set('email_from_address', $form_state->getValue('email_from_address'))
             ->set('email_from_name', $form_state->getValue('email_from_name'))
