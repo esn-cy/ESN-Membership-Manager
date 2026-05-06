@@ -7,6 +7,7 @@ use Drupal\Core\Form\FormBase;
 use Drupal\Core\Form\FormStateInterface;
 use Drupal\Core\Logger\LoggerChannelFactoryInterface;
 use Drupal\Core\Logger\LoggerChannelInterface;
+use Drupal\esn_membership_manager\Service\ESNcardService;
 use Exception;
 use Symfony\Component\DependencyInjection\ContainerInterface;
 
@@ -14,11 +15,17 @@ class ESNcardNumberForm extends FormBase
 {
     protected Connection $database;
     protected LoggerChannelInterface $logger;
+    protected ESNcardService $esncardService;
 
-    public function __construct(Connection $database, LoggerChannelFactoryInterface $logger_factory)
+    public function __construct(
+        Connection                    $database,
+        LoggerChannelFactoryInterface $logger_factory,
+        ESNcardService                $esncardService,
+    )
     {
         $this->database = $database;
         $this->logger = $logger_factory->get('esn_membership_manager');
+        $this->esncardService = $esncardService;
     }
 
     public static function create(ContainerInterface $container): self
@@ -29,9 +36,13 @@ class ESNcardNumberForm extends FormBase
         /** @var LoggerChannelFactoryInterface $logger */
         $logger = $container->get('logger.factory');
 
+        /** @var ESNcardService $esncardService */
+        $esncardService = $container->get('esn_membership_manager.esncard_service');
+
         return new static(
             $database,
-            $logger
+            $logger,
+            $esncardService,
         );
     }
 
@@ -149,50 +160,26 @@ class ESNcardNumberForm extends FormBase
             return;
         }
 
-        $inserted = 0;
+        $issues = $this->esncardService->addESNcards($codes);
+        foreach ($issues as $issue) {
+            switch ($issue['issue']) {
+                case 'invalid':
+                    $this->messenger()->addWarning($this->t('ESNcard number @cardNumber is not a valid ESNcard number.', ['@cardNumber' => $issue['number']]));
+                    break;
+                case 'duplicate':
+                    $this->messenger()->addWarning($this->t('ESNcard number @cardNumber already exists.', ['@cardNumber' => $issue['number']]));
+                    break;
+                case 'database':
+                    $this->messenger()->addError($this->t('ESNcard number @cardNumber failed to insert into the database.', ['@cardNumber' => $issue['number']]));
+                    break;
+            }
+        }
 
-        try {
-            $existingCards = $this->database->select('esn_membership_manager_cards', 'e')
-                ->fields('e', ['id', 'number'])
-                ->execute()
-                ->fetchAll();
-        } catch (Exception $e) {
-            $this->messenger()->addError($e->getMessage());
-            $this->logger->error('Failed to insert ESNcard numbers: ' . $e->getMessage());
+        if (count($codes) == count($issues)) {
             return;
         }
 
-        $existingCardMap = array_flip(array_column($existingCards, 'number'));
-
-        $transaction = $this->database->startTransaction();
-        try {
-            foreach ($codes as $code) {
-                $trimmedCode = trim($code);
-
-                if (!empty($trimmedCode)) {
-                    if (!isset($existingCardMap[$trimmedCode])) {
-                        $this->database->insert('esn_membership_manager_cards')
-                            ->fields([
-                                'number' => $trimmedCode,
-                                'assigned' => 0,
-                            ])
-                            ->execute();
-
-                        $inserted++;
-
-                        $existingCardMap[$trimmedCode] = true;
-                    } else {
-                        $this->messenger()->addWarning($this->t('Card @cardNumber already exists.', ['@cardNumber' => $trimmedCode]));
-                    }
-                }
-            }
-        } catch (Exception $e) {
-            $transaction->rollBack();
-            $this->logger->error('Bulk insert failed: @message', ['@message' => $e->getMessage()]);
-            $this->messenger()->addError($this->t('An error occurred during the bulk insert. No cards were added.'));
-        }
-
-        $this->messenger()->addStatus($this->t('Inserted @count ESNcard numbers.', ['@count' => $inserted]));
+        $this->messenger()->addStatus($this->t('Inserted @count ESNcard numbers.', ['@count' => (count($codes) - count($issues))]));
         $form_state->setRebuild();
     }
 

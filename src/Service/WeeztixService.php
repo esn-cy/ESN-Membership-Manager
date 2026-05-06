@@ -10,7 +10,7 @@ use Drupal\Core\State\StateInterface;
 use GuzzleHttp\ClientInterface;
 use GuzzleHttp\Exception\GuzzleException;
 
-class WeeztixApiService
+class WeeztixService
 {
     protected ConfigFactoryInterface $configFactory;
     protected ClientInterface $httpClient;

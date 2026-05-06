@@ -8,7 +8,7 @@ use Drupal\Core\Form\ConfigFormBase;
 use Drupal\Core\Form\FormStateInterface;
 use Drupal\Core\State\StateInterface;
 use Drupal\Core\Url;
-use Drupal\esn_membership_manager\Service\WeeztixApiService;
+use Drupal\esn_membership_manager\Service\WeeztixService;
 use Symfony\Component\DependencyInjection\ContainerInterface;
 use Symfony\Component\HttpFoundation\File\UploadedFile;
 use Symfony\Component\HttpFoundation\RequestStack;
@@ -18,19 +18,19 @@ use Symfony\Component\HttpFoundation\RequestStack;
  */
 class SettingsForm extends ConfigFormBase
 {
-    protected WeeztixApiService $weeztixApiService;
+    protected WeeztixService $weeztixService;
     protected StateInterface $state;
     protected $requestStack;
 
     public function __construct(
         ConfigFactoryInterface $config_factory,
-        WeeztixApiService $weeztixApiService,
+        WeeztixService $weeztixService,
         StateInterface         $state,
-        RequestStack      $requestStack
+        RequestStack   $requestStack
     )
     {
         parent::__construct($config_factory);
-        $this->weeztixApiService = $weeztixApiService;
+        $this->weeztixService = $weeztixService;
         $this->state = $state;
         $this->requestStack = $requestStack;
     }
@@ -40,8 +40,8 @@ class SettingsForm extends ConfigFormBase
         /** @var ConfigFactoryInterface $configFactory */
         $configFactory = $container->get('config.factory');
 
-        /** @var WeeztixApiService $weeztixApiService */
-        $weeztixApiService = $container->get('esn_membership_manager.weeztix_api_service');
+        /** @var WeeztixService $weeztixService */
+        $weeztixService = $container->get('esn_membership_manager.weeztix_service');
 
         /** @var StateInterface $state */
         $state = $container->get('state');
@@ -51,7 +51,7 @@ class SettingsForm extends ConfigFormBase
 
         return new static(
             $configFactory,
-            $weeztixApiService,
+            $weeztixService,
             $state,
             $requestStack
         );
@@ -172,6 +172,14 @@ class SettingsForm extends ConfigFormBase
             '#required' => FALSE
         ];
 
+        $form['email']['email_admin_address'] = [
+            '#type' => 'textfield',
+            '#title' => $this->t('Administrator Email Address'),
+            '#description' => $this->t('Enter the email address of the administrator of the platform.'),
+            '#default_value' => $config->get('email_admin_address'),
+            '#required' => TRUE
+        ];
+
         $form['stripe'] = [
             '#type' => 'details',
             '#title' => $this->t('Stripe Settings'),
@@ -280,7 +288,7 @@ class SettingsForm extends ConfigFormBase
             $session = $this->requestStack->getCurrentRequest()->getSession();
             $session->set('weeztix_oauth_state', $state);
 
-            $authURL = $this->weeztixApiService->getAuthorizationUrl($redirectURI, $state);
+            $authURL = $this->weeztixService->getAuthorizationUrl($redirectURI, $state);
 
             if ($authURL) {
                 $form['weeztix']['auth_link'] = [
@@ -479,6 +487,7 @@ class SettingsForm extends ConfigFormBase
             ->set('email_from_address', $form_state->getValue('email_from_address'))
             ->set('email_from_name', $form_state->getValue('email_from_name'))
             ->set('email_footer', $form_state->getValue('email_footer'))
+            ->set('email_admin_address', $form_state->getValue('email_admin_address'))
             ->set('stripe_secret_key', $form_state->getValue('stripe_secret_key'))
             ->set('stripe_webhook_secret', $form_state->getValue('stripe_webhook_secret'))
             ->set('stripe_price_id_esncard', $form_state->getValue('stripe_price_id_esncard'))

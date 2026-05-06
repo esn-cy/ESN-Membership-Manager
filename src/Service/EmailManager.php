@@ -32,11 +32,15 @@ class EmailManager
     /**
      * Send an email using a Twig template.
      */
-    public function sendEmail($to, $key, $data): void
+    public function sendEmail(string $to, string $key, array $data): void
     {
         $moduleConfig = $this->configFactory->get('esn_membership_manager.settings');
         $schemeName = $moduleConfig->get('scheme_name');
         $organizationName = $moduleConfig->get('organization_name');
+
+        if (str_starts_with($key, 'admin_')) {
+            $to = $moduleConfig->get('email_admin_address');
+        }
 
         $renderArray = [
             '#theme' => 'emm_' . $key,

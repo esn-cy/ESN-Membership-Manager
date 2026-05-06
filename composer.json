@@ -34,7 +34,8 @@
     "google/apiclient-services": "^0.426",
     "pkpass/pkpass": "^2.5.1",
     "tecnickcom/tcpdf": "^6.11",
-    "ext-gd": "*"
+    "ext-gd": "*",
+    "ext-pdo": "*"
   },
   "require-dev": {
     "drupal/core": "^10"

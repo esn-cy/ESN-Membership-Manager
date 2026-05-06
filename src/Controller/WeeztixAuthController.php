@@ -4,27 +4,27 @@ namespace Drupal\esn_membership_manager\Controller;
 
 use Drupal\Core\Controller\ControllerBase;
 use Drupal\Core\Url;
-use Drupal\esn_membership_manager\Service\WeeztixApiService;
+use Drupal\esn_membership_manager\Service\WeeztixService;
 use Symfony\Component\DependencyInjection\ContainerInterface;
 use Symfony\Component\HttpFoundation\RedirectResponse;
 use Symfony\Component\HttpFoundation\Request;
 
 class WeeztixAuthController extends ControllerBase
 {
-    protected WeeztixApiService $apiService;
+    protected WeeztixService $weeztixService;
 
-    public function __construct(WeeztixApiService $api_service)
+    public function __construct(WeeztixService $weeztixService)
     {
-        $this->apiService = $api_service;
+        $this->weeztixService = $weeztixService;
     }
 
     public static function create(ContainerInterface $container): self
     {
-        /** @var WeeztixApiService $apiService */
-        $apiService = $container->get('esn_membership_manager.weeztix_api_service');
+        /** @var WeeztixService $weeztixService */
+        $weeztixService = $container->get('esn_membership_manager.weeztix_service');
 
         return new static(
-            $apiService
+            $weeztixService
         );
     }
 
@@ -47,7 +47,7 @@ class WeeztixAuthController extends ControllerBase
 
         $redirectURI = Url::fromRoute('esn_membership_manager.weeztix_oauth_callback', [], ['absolute' => TRUE])->toString();
 
-        $success = $this->apiService->authorizeWithCode($code, $redirectURI);
+        $success = $this->weeztixService->authorizeWithCode($code, $redirectURI);
 
         if ($success) {
             $this->messenger()->addStatus($this->t('Successfully connected to Weeztix!'));

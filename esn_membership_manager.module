@@ -67,6 +67,10 @@ function esn_membership_manager_theme($existing, $type, $theme, $path): array
             'variables' => $commonVars,
         ],
 
+        'emm_admin_backlogged' => [
+            'variables' => [],
+        ],
+
         'emm_authentication' => [
             'variables' => array_merge($commonVars, [
                 'organization_name' => 'ESN',
@@ -165,6 +169,10 @@ function esn_membership_manager_mail($key, &$message, $params): void
 
         case 'card_issuance':
             $message['subject'] = t('ESNcard Issued', [], $options);
+            break;
+
+        case 'admin_backlogged':
+            $message['subject'] = t('ESNcard Backlogged', [], $options);
             break;
 
         case 'authentication':

@@ -5,7 +5,6 @@ namespace Drupal\esn_membership_manager\Plugin\Action;
 use Drupal\Core\Access\AccessResult;
 use Drupal\Core\Access\AccessResultInterface;
 use Drupal\Core\Action\ActionBase;
-use Drupal\Core\Config\ConfigFactoryInterface;
 use Drupal\Core\Database\Connection;
 use Drupal\Core\Datetime\DrupalDateTime;
 use Drupal\Core\Lock\LockBackendInterface;
@@ -13,11 +12,8 @@ use Drupal\Core\Logger\LoggerChannelFactoryInterface;
 use Drupal\Core\Logger\LoggerChannelInterface;
 use Drupal\Core\Plugin\ContainerFactoryPluginInterface;
 use Drupal\Core\Session\AccountInterface;
-use Drupal\Core\Url;
-use Drupal\esn_membership_manager\Service\EmailManager;
-use Drupal\esn_membership_manager\Service\GoogleService;
+use Drupal\esn_membership_manager\Service\ESNcardService;
 use Drupal\esn_membership_manager\Service\StripeService;
-use Drupal\esn_membership_manager\Service\WeeztixApiService;
 use Exception;
 use Symfony\Component\DependencyInjection\ContainerInterface;
 
@@ -33,37 +29,27 @@ use Symfony\Component\DependencyInjection\ContainerInterface;
  */
 class MarkSubmissionAsPaid extends ActionBase implements ContainerFactoryPluginInterface
 {
-    protected ConfigFactoryInterface $configFactory;
-
     protected Connection $database;
     protected LockBackendInterface $lock;
     protected LoggerChannelInterface $logger;
+    protected ESNcardService $esncardService;
     protected StripeService $stripeService;
-    protected EmailManager $emailManager;
-    protected WeeztixApiService $weeztixService;
-    protected GoogleService $googleService;
 
     public function __construct(
         array                         $configuration, $plugin_id, $plugin_definition,
-        ConfigFactoryInterface        $configFactory,
         Connection                    $database,
         LockBackendInterface          $lock,
         LoggerChannelFactoryInterface $loggerFactory,
-        StripeService $stripeService,
-        EmailManager                  $emailManager,
-        WeeztixApiService             $weeztixService,
-        GoogleService                 $googleService
+        ESNcardService $esncardService,
+        StripeService  $stripeService,
     )
     {
         parent::__construct($configuration, $plugin_id, $plugin_definition);
-        $this->configFactory = $configFactory;
         $this->database = $database;
         $this->logger = $loggerFactory->get('esn_membership_manager');
         $this->lock = $lock;
+        $this->esncardService = $esncardService;
         $this->stripeService = $stripeService;
-        $this->emailManager = $emailManager;
-        $this->weeztixService = $weeztixService;
-        $this->googleService = $googleService;
     }
 
     public static function create(
@@ -71,9 +57,6 @@ class MarkSubmissionAsPaid extends ActionBase implements ContainerFactoryPluginI
         array              $configuration, $plugin_id, $plugin_definition
     ): self
     {
-        /** @var ConfigFactoryInterface $configFactory */
-        $configFactory = $container->get('config.factory');
-
         /** @var Connection $database */
         $database = $container->get('database');
 
@@ -83,30 +66,21 @@ class MarkSubmissionAsPaid extends ActionBase implements ContainerFactoryPluginI
         /** @var LoggerChannelFactoryInterface $loggerFactory */
         $loggerFactory = $container->get('logger.factory');
 
+        /** @var ESNcardService $esncardService */
+        $esncardService = $container->get('esn_membership_manager.esncard_service');
+
         /** @var StripeService $stripeService */
         $stripeService = $container->get('esn_membership_manager.stripe_service');
-
-        /** @var EmailManager $emailManager */
-        $emailManager = $container->get('esn_membership_manager.email_manager');
-
-        /** @var WeeztixApiService $weeztixService */
-        $weeztixService = $container->get('esn_membership_manager.weeztix_api_service');
-
-        /** @var GoogleService $googleService */
-        $googleService = $container->get('esn_membership_manager.google_service');
 
         return new static(
             $configuration,
             $plugin_id,
             $plugin_definition,
-            $configFactory,
             $database,
             $lock,
             $loggerFactory,
+            $esncardService,
             $stripeService,
-            $emailManager,
-            $weeztixService,
-            $googleService
         );
     }
 
@@ -114,18 +88,16 @@ class MarkSubmissionAsPaid extends ActionBase implements ContainerFactoryPluginI
      * {@inheritdoc}
      * @throws Exception
      */
-    public function execute($applicationID = NULL, $linkID = NULL): void
+    public function execute($applicationID = NULL, $linkID = NULL): string
     {
         if (empty($applicationID)) {
             $this->logger->warning('MarkSubmissionAsPaid executed without a valid Application ID.');
-            return;
+            return 'Did not run due to an empty Application ID';
         }
-
-        $moduleConfig = $this->configFactory->get('esn_membership_manager.settings');
 
         if (!$this->lock->acquire('process_application_' . $applicationID)) {
             $this->logger->warning('Could not acquire lock for application @id. Another process may be running.', ['@id' => $applicationID]);
-            return;
+            return 'Did not run due to an error acquiring a lock';
         }
 
         try {
@@ -146,19 +118,24 @@ class MarkSubmissionAsPaid extends ActionBase implements ContainerFactoryPluginI
             throw new Exception('Application not found');
         }
 
-        if (!empty($application['esncard_number'] && $application['approval_status'] == 'Paid')) {
+        if (!empty($application['esncard_number']) && $application['approval_status'] == 'Paid') {
             $this->logger->warning(
                 'Application @id was already paid. Duplicate payment event detected.',
                 ['@id' => $applicationID]
             );
             $this->lock->release('process_application_' . $applicationID);
-            return;
+            return 'Duplicate payment event detected';
         }
 
+        $isManual = empty($linkID);
+
+        $transaction = $this->database->startTransaction();
+
         try {
-            $esnCard = $this->assignESNcardNumber($applicationID);
+            $cardNumber = $this->esncardService->assignESNcardNumber($applicationID, $isManual);
         } catch (Exception $e) {
             $this->logger->error('Failed to assign an ESNcard number to application @id: @message', ['@id' => $applicationID, '@message' => $e->getMessage()]);
+            $transaction->rollBack();
             $this->lock->release('process_application_' . $applicationID);
             throw new Exception('Failed to assign an ESNcard number');
         }
@@ -169,17 +146,18 @@ class MarkSubmissionAsPaid extends ActionBase implements ContainerFactoryPluginI
                 ->fields([
                     'approval_status' => 'Paid',
                     'date_paid' => $datePaid,
-                    'esncard_number' => $esnCard
+                    'esncard_number' => $cardNumber
                 ])
                 ->condition('id', $applicationID)
                 ->execute();
         } catch (Exception $e) {
             $this->logger->error('Failed to update application @id: @message', ['@id' => $applicationID, '@message' => $e->getMessage()]);
+            $transaction->rollBack();
             $this->lock->release('process_application_' . $applicationID);
             throw new Exception('Failed to update application');
         }
 
-        $application['esncard_number'] = $esnCard;
+        $application['esncard_number'] = $cardNumber;
 
         if (empty($linkID) && !empty($application['payment_link_id'])) {
             $linkID = $application['payment_link_id'];
@@ -187,11 +165,6 @@ class MarkSubmissionAsPaid extends ActionBase implements ContainerFactoryPluginI
 
         if (!empty($linkID)) {
             try {
-                $stripeSecretKey = $moduleConfig->get('stripe_secret_key');
-                if (empty($stripeSecretKey)) {
-                    $this->logger->error('Stripe Secret Key not set in the module configuration.');
-                    throw new Exception('Stripe Secret Key not set');
-                }
                 $this->stripeService->disablePaymentLink($linkID);
             } catch (Exception $e) {
                 $this->logger->error(
@@ -205,104 +178,15 @@ class MarkSubmissionAsPaid extends ActionBase implements ContainerFactoryPluginI
             }
         }
 
+        unset($transaction);
+
         $this->logger->notice('Application @id marked as Paid and assigned ESNcard number.', ['@id' => $applicationID]);
 
-        if ($moduleConfig->get('switch_weeztix') ?? FALSE) {
-            $this->weeztixService->addCoupon($esnCard, ['applies_to_count' => 1, 'usage_count' => 5]);
-        }
-
-        if ($moduleConfig->get('switch_google_sheets') ?? FALSE) {
-            if (!empty($linkID)) {
-                $paymentMethod = 'Stripe';
-
-                $isESNer = $application['mobility_status'] == 'ESN Volunteer' || $application['mobility_status'] == 'ESN Alumnus';
-                $priceFloat = $this->stripeService->getPriceAmount($isESNer);
-                $price = number_format($priceFloat, 2, '.', '');
-            } else {
-                $paymentMethod = 'Manual';
-                $price = 'Unknown';
-            }
-
-            $this->googleService->appendRow(
-                [
-                    'date' => str_replace('-', '/', date('d-m-y')),
-                    'name' => $application['name'] . ' ' . $application['surname'],
-                    'card_number' => $esnCard,
-                    'pos' => 'ESN Membership Manager',
-                    'host' => $application['host_institution'],
-                    'nationality' => $application['nationality'],
-                    'mop' => $paymentMethod,
-                    'amount' => $price,
-                ]
-            );
-        }
-
-        if ($moduleConfig->get('switch_google_wallet') ?? FALSE) {
-            $googleWalletLink = Url::fromRoute(
-                'esn_membership_manager.add_to_google_wallet',
-                ['identifier' => $esnCard],
-                ['absolute' => TRUE]
-            )->toString();
-        }
-
-        if ($moduleConfig->get('switch_apple_wallet') ?? FALSE) {
-            $appleWalletLink = Url::fromRoute(
-                'esn_membership_manager.download_apple_pass',
-                ['identifier' => $application['esncard_number']],
-                ['absolute' => TRUE]
-            )->toString();
-        }
-
-        $emailParams = [
-            'name' => $application['name'],
-            'esncard_number' => $esnCard,
-            'google_wallet_link' => $googleWalletLink ?? '',
-            'apple_wallet_link' => $appleWalletLink ?? '',
-        ];
-        $this->emailManager->sendEmail($application['email'], 'card_assignment', $emailParams);
+        $this->esncardService->postAssignment($application, $isManual);
 
         $this->lock->release('process_application_' . $applicationID);
-    }
 
-    /**
-     * Assigns the next available ESNcard number to a submission.
-     * @throws Exception
-     */
-    private function assignESNcardNumber($applicationID): string
-    {
-        $transaction = $this->database->startTransaction();
-
-        try {
-            $query = $this->database->select('esn_membership_manager_cards', 'e')
-                ->fields('e', ['number'])
-                ->condition('assigned', 0)
-                ->orderBy('id')
-                ->range(0, 1)
-                ->forUpdate();
-
-            /** @noinspection PhpPossiblePolymorphicInvocationInspection */
-            $nextNumber = $query->execute()->fetchField();
-
-            if ($nextNumber) {
-                $this->database->update('esn_membership_manager_cards')
-                    ->fields(['assigned' => 1])
-                    ->condition('number', $nextNumber)
-                    ->execute();
-
-                $this->logger->notice('Assigned ESNcard number @num to application @id.', [
-                    '@num' => $nextNumber,
-                    '@id' => $applicationID,
-                ]);
-                return $nextNumber;
-            } else {
-                $this->logger->warning('No available ESNcard numbers left to assign.');
-                throw new Exception('Failed to assign ESNcard number: No available ESNcard numbers left to assign.');
-            }
-        } catch (Exception $e) {
-            $transaction->rollBack();
-            $this->logger->error('Failed to assign ESNcard number: @message', ['@message' => $e->getMessage()]);
-            throw $e;
-        }
+        return 'ESNcard payment was processed successfully';
     }
 
     /**

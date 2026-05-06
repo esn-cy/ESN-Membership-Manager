@@ -3,36 +3,27 @@
 namespace Drupal\esn_membership_manager\Controller;
 
 use Drupal\Core\Controller\ControllerBase;
-use Drupal\Core\Database\Connection;
-use Drupal\Core\Logger\LoggerChannelFactoryInterface;
-use Drupal\Core\Logger\LoggerChannelInterface;
-use Exception;
+use Drupal\esn_membership_manager\Service\ESNcardService;
 use Symfony\Component\DependencyInjection\ContainerInterface;
 use Symfony\Component\HttpFoundation\JsonResponse;
 use Symfony\Component\HttpFoundation\Request;
 
 class AddController extends ControllerBase
 {
-    protected Connection $database;
-    protected LoggerChannelInterface $logger;
+    protected ESNcardService $esncardService;
 
-    public function __construct(Connection $database, LoggerChannelFactoryInterface $logger_factory)
+    public function __construct(ESNcardService $esncardService)
     {
-        $this->database = $database;
-        $this->logger = $logger_factory->get('esn_membership_manager');
+        $this->esncardService = $esncardService;
     }
 
     public static function create(ContainerInterface $container): self
     {
-        /** @var Connection $database */
-        $database = $container->get('database');
-
-        /** @var LoggerChannelFactoryInterface $logger */
-        $logger = $container->get('logger.factory');
+        /** @var ESNcardService $esncardService */
+        $esncardService = $container->get('esn_membership_manager.esncard_service');
 
         return new static(
-            $database,
-            $logger
+            $esncardService,
         );
     }
 
@@ -41,48 +32,17 @@ class AddController extends ControllerBase
         $body = json_decode($request->getContent(), TRUE) ?? [];
         $cardNumber = $body['card'] ?? null;
 
-        if (empty($cardNumber)) {
-            return new JsonResponse(['status' => 'error', 'message' => 'No ESNcard number was provided.'], 400);
-        }
-
-        if (preg_match("/\d\d\d\d\d\d\d[A-Z][A-Z][A-Z][A-Z0-9]/", $cardNumber) != 1) {
-            return new JsonResponse(['status' => 'error', 'message' => 'Invalid ESNcard number was provided.'], 400);
-        }
-
-        try {
-            $query = $this->database->select('esn_membership_manager_cards', 'e');
-            $query->condition('e.number', $cardNumber);
-            $exists = $query->countQuery()->execute()->fetchField() > 0;
-
-            if ($exists) {
-                return new JsonResponse(['status' => 'error', 'message' => 'This ESNcard number already exists.'], 409);
-            }
-        } catch (Exception $e) {
-            $this->logger->error('Failed to checking ESNcard @card: @message', [
-                '@card' => $cardNumber,
-                '@message' => $e->getMessage(),
-            ]);
-            return new JsonResponse(['status' => 'error', 'message' => 'There was a problem checking the card.'], 500);
-        }
-
-        $transaction = null;
-        try {
-            $transaction = $this->database->startTransaction();
-
-            $this->database->insert('esn_membership_manager_cards')
-                ->fields([
-                    'number' => $cardNumber,
-                    'assigned' => 0,
-                ])
-                ->execute();
+        $issues = $this->esncardService->addESNcards([$cardNumber]);
+        if (empty($issues)) {
             return new JsonResponse(['status' => 'success', 'message' => 'The ESNcard was added successfully.'], 200);
-        } catch (Exception $e) {
-            $transaction?->rollBack();
-            $this->logger->error('Failed to insert ESNcard @card: @message', [
-                '@card' => $cardNumber,
-                '@message' => $e->getMessage(),
-            ]);
-            return new JsonResponse(['status' => 'error', 'message' => 'There was a problem inserting the card.'], 500);
         }
+
+        return match ($issues[0]['issue']) {
+            'empty' => new JsonResponse(['status' => 'error', 'message' => 'No ESNcard number was provided.'], 400),
+            'invalid' => new JsonResponse(['status' => 'error', 'message' => 'Invalid ESNcard number was provided.'], 400),
+            'duplicate' => new JsonResponse(['status' => 'error', 'message' => 'This ESNcard number already exists.'], 409),
+            'database' => new JsonResponse(['status' => 'error', 'message' => 'There was a problem inserting the card.'], 500),
+            default => new JsonResponse(['status' => 'error', 'message' => 'Unexpected error occurred.'], 500),
+        };
     }
 }

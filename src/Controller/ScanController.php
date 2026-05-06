@@ -4,6 +4,7 @@ namespace Drupal\esn_membership_manager\Controller;
 
 use Drupal\Component\Plugin\Exception\InvalidPluginDefinitionException;
 use Drupal\Component\Plugin\Exception\PluginNotFoundException;
+use Drupal\Core\Config\ConfigFactoryInterface;
 use Drupal\Core\Controller\ControllerBase;
 use Drupal\Core\Database\Connection;
 use Drupal\Core\Datetime\DrupalDateTime;
@@ -19,17 +20,20 @@ use Symfony\Component\HttpFoundation\Request;
 
 class ScanController extends ControllerBase
 {
+    protected $configFactory;
     protected $entityTypeManager;
     protected Connection $database;
     protected GoogleService $googleService;
     protected LoggerChannelInterface $logger;
 
     public function __construct(
+        ConfigFactoryInterface $configFactory,
         EntityTypeManagerInterface    $entityTypeManager,
         Connection                    $database,
-        GoogleService $googleService,
+        GoogleService          $googleService,
         LoggerChannelFactoryInterface $loggerFactory)
     {
+        $this->configFactory = $configFactory;
         $this->entityTypeManager = $entityTypeManager;
         $this->database = $database;
         $this->googleService = $googleService;
@@ -38,6 +42,9 @@ class ScanController extends ControllerBase
 
     public static function create(ContainerInterface $container): self
     {
+        /** @var ConfigFactoryInterface $configFactory */
+        $configFactory = $container->get('config.factory');
+
         /** @var EntityTypeManagerInterface $entityTypeManager */
         $entityTypeManager = $container->get('entity_type.manager');
 
@@ -51,6 +58,7 @@ class ScanController extends ControllerBase
         $loggerFactory = $container->get('logger.factory');
 
         return new static(
+            $configFactory,
             $entityTypeManager,
             $database,
             $googleService,
