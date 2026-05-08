@@ -259,6 +259,11 @@ function esn_membership_manager_schema(): array
                 'type' => 'varchar',
                 'length' => 64,
             ],
+            'date_last_modified' => [
+                'description' => 'Timestamp when the application was last modified.',
+                'type' => 'varchar',
+                'length' => 64,
+            ],
         ],
         'primary key' => ['id'],
         'unique keys' => [
@@ -358,6 +363,11 @@ function esn_membership_manager_schema(): array
                 'type' => 'varchar',
                 'length' => 64,
             ],
+            'date_last_modified' => [
+                'description' => 'Timestamp when the application was last modified.',
+                'type' => 'varchar',
+                'length' => 64,
+            ],
         ],
         'primary key' => ['id'],
         'foreign keys' => [
@@ -368,6 +378,54 @@ function esn_membership_manager_schema(): array
         ],
         'indexes' => [
             'email' => ['email'],
+        ],
+    ];
+
+    $schema['esn_membership_manager_apple_wallet_registrations'] = [
+        'description' => 'Stores Apple Wallet device registrations for push updates.',
+        'fields' => [
+            'id' => [
+                'description' => 'Primary Key: Unique registration ID.',
+                'type' => 'serial',
+                'not null' => TRUE,
+            ],
+            'device_library_identifier' => [
+                'description' => 'The unique identifier for the user device.',
+                'type' => 'varchar',
+                'length' => 255,
+                'not null' => TRUE,
+            ],
+            'pass_type_identifier' => [
+                'description' => 'The pass type identifier.',
+                'type' => 'varchar',
+                'length' => 255,
+                'not null' => TRUE,
+            ],
+            'serial_number' => [
+                'description' => 'The unique serial number of the specific pass.',
+                'type' => 'varchar',
+                'length' => 255,
+                'not null' => TRUE,
+            ],
+            'push_token' => [
+                'description' => 'The APNs push token used to notify the device of updates.',
+                'type' => 'varchar',
+                'length' => 255,
+                'not null' => TRUE,
+            ],
+            'date_created' => [
+                'description' => 'Timestamp when the registration occurred.',
+                'type' => 'varchar',
+                'length' => 64,
+                'not null' => TRUE,
+            ],
+        ],
+        'primary key' => ['id'],
+        'unique keys' => [
+            'device_serial' => ['device_library_identifier', 'serial_number'],
+        ],
+        'indexes' => [
+            'serial_number' => ['serial_number'],
         ],
     ];
 

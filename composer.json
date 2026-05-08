@@ -35,7 +35,8 @@
     "pkpass/pkpass": "^2.5.1",
     "tecnickcom/tcpdf": "^6.11",
     "ext-gd": "*",
-    "ext-pdo": "*"
+    "ext-pdo": "*",
+    "ext-openssl": "*"
   },
   "require-dev": {
     "drupal/core": "^10"

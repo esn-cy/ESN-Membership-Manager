@@ -4,11 +4,13 @@ namespace Drupal\esn_membership_manager\Form;
 
 use Drupal\Component\Utility\Crypt;
 use Drupal\Core\Config\ConfigFactoryInterface;
+use Drupal\Core\File\FileSystemInterface;
 use Drupal\Core\Form\ConfigFormBase;
 use Drupal\Core\Form\FormStateInterface;
 use Drupal\Core\State\StateInterface;
 use Drupal\Core\Url;
 use Drupal\esn_membership_manager\Service\WeeztixService;
+use Exception;
 use Symfony\Component\DependencyInjection\ContainerInterface;
 use Symfony\Component\HttpFoundation\File\UploadedFile;
 use Symfony\Component\HttpFoundation\RequestStack;
@@ -21,18 +23,21 @@ class SettingsForm extends ConfigFormBase
     protected WeeztixService $weeztixService;
     protected StateInterface $state;
     protected $requestStack;
+    protected FileSystemInterface $fileSystem;
 
     public function __construct(
-        ConfigFactoryInterface $config_factory,
-        WeeztixService $weeztixService,
+        ConfigFactoryInterface $configFactory,
+        WeeztixService         $weeztixService,
         StateInterface         $state,
-        RequestStack   $requestStack
+        RequestStack           $requestStack,
+        FileSystemInterface    $fileSystem,
     )
     {
-        parent::__construct($config_factory);
+        parent::__construct($configFactory);
         $this->weeztixService = $weeztixService;
         $this->state = $state;
         $this->requestStack = $requestStack;
+        $this->fileSystem = $fileSystem;
     }
 
     public static function create(ContainerInterface $container): self
@@ -49,11 +54,15 @@ class SettingsForm extends ConfigFormBase
         /** @var RequestStack $requestStack */
         $requestStack = $container->get('request_stack');
 
+        /** @var FileSystemInterface $fileSystem */
+        $fileSystem = $container->get('file_system');
+
         return new static(
             $configFactory,
             $weeztixService,
             $state,
-            $requestStack
+            $requestStack,
+            $fileSystem
         );
     }
 
@@ -372,7 +381,7 @@ class SettingsForm extends ConfigFormBase
             '#open' => ($config->get('switch_apple_wallet') ?? FALSE) || ($config->get('switch_apple_wallet') ?? FALSE)
         ];
 
-        $certString = $config->get('apple_certificate_string');
+        $certString = $config->get('apple_certificate_string_p12');
 
         if ($certString) {
             $form['apple']['current_status'] = [
@@ -463,7 +472,15 @@ class SettingsForm extends ConfigFormBase
         if ($appleFile instanceof UploadedFile) {
             if ($appleFile->isValid()) {
                 $content = file_get_contents($appleFile->getRealPath());
-                $form_state->set('apple_certificate_string', $content);
+                $form_state->set('apple_certificate_string_p12', $content);
+
+                $password = $form_state->getValue('apple_certificate_password');
+                try {
+                    $pemCertificate = $this->readP12($content, $password);
+                    $form_state->set('apple_certificate_string_pem', $pemCertificate);
+                } catch (Exception $e) {
+                    $this->messenger()->addError($this->t($e->getMessage()));
+                }
             }
         }
     }
@@ -515,9 +532,11 @@ class SettingsForm extends ConfigFormBase
             $this->messenger()->addStatus($this->t('Credentials updated for @email. Remember to share your sheet with this email!', ['@email' => $googleCredentials['client_email']]));
         }
 
-        $appleCertificate = $form_state->get('apple_certificate_string');
-        if ($appleCertificate) {
-            $config->set('apple_certificate_string', $appleCertificate);
+        $appleCertificateP12 = $form_state->get('apple_certificate_string_p12');
+        $appleCertificatePEM = $form_state->get('apple_certificate_string_pem');
+        if ($appleCertificateP12 && $appleCertificatePEM) {
+            $config->set('apple_certificate_string_p12', $appleCertificateP12);
+            $config->set('apple_certificate_string_pem', $appleCertificatePEM);
             $this->messenger()->addStatus($this->t('The Apple Pass Certificate has been saved.'));
         }
 
@@ -532,5 +551,50 @@ class SettingsForm extends ConfigFormBase
     protected function getEditableConfigNames(): array
     {
         return ['esn_membership_manager.settings'];
+    }
+
+    /**
+     * @throws Exception
+     */
+    private function readP12(string $p12String, string $password): string
+    {
+        $certs = [];
+        if (openssl_pkcs12_read($p12String, $certs, $password)) {
+            return $certs['cert'] . "\n" . $certs['pkey'];
+        }
+
+        $error = '';
+        while ($text = openssl_error_string()) {
+            $error .= $text;
+        }
+
+        if (!str_contains($error, 'digital envelope routines::unsupported')) {
+            throw new Exception('Invalid certificate file or password. OpenSSL Error: ' . $error);
+        }
+
+        $tempDir = $this->fileSystem->getTempDirectory();
+        $certificatePath = $this->fileSystem->tempnam($tempDir, 'apple_cert_') . '.p12';
+        if (empty($certificatePath)) {
+            throw new Exception('Could not create temporary certificate file.');
+        }
+
+        if (!file_put_contents($certificatePath, $p12String)) {
+            throw new Exception('Could not write to the temporary certificate file.');
+        }
+
+        $value = shell_exec(
+            "openssl pkcs12 -in " . escapeshellarg($certificatePath) .
+            " -passin " . escapeshellarg("pass:" . $password) .
+            " -passout " . escapeshellarg("pass:" . $password) .
+            " -legacy"
+        );
+
+        unlink($certificatePath);
+
+        if (empty($value)) {
+            throw new Exception('Could not read certificate file.');
+        }
+
+        return $value;
     }
 }

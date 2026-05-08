@@ -202,6 +202,7 @@ class SubmissionController extends ControllerBase implements ContainerInjectionI
             $labels += ['date_paid' => $this->t('Date Paid')];
         }
         $labels += ['date_last_scanned' => $this->t('Date Last Scanned')];
+        $labels += ['date_last_modified' => $this->t('Date Last Modified')];
 
         $proofURL = null;
         $idURL = null;
@@ -217,7 +218,8 @@ class SubmissionController extends ControllerBase implements ContainerInjectionI
             'approval_status',
             'date_created',
             'date_paid',
-            'date_approved'
+            'date_approved',
+            'date_last_modified'
         ];
 
         $fieldData = [];

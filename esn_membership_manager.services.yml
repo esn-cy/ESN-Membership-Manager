@@ -41,9 +41,11 @@ services:
     class: Drupal\esn_membership_manager\Service\AppleWalletService
     arguments:
       - '@config.factory'
+      - '@settings'
       - '@module_handler'
       - '@entity_type.manager'
       - '@file_system'
+      - '@http_client'
       - '@logger.factory'
 
   esn_membership_manager.email_manager:

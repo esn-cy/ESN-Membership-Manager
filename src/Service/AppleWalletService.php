@@ -10,31 +10,41 @@ use Drupal\Core\Extension\ModuleHandlerInterface;
 use Drupal\Core\File\FileSystemInterface;
 use Drupal\Core\Logger\LoggerChannelFactoryInterface;
 use Drupal\Core\Logger\LoggerChannelInterface;
+use Drupal\Core\Site\Settings;
+use Drupal\Core\Url;
 use Drupal\file\FileInterface;
 use Exception;
+use GuzzleHttp\ClientInterface;
+use GuzzleHttp\Exception\GuzzleException;
 use PKPass\PKPass;
 use PKPass\PKPassException;
 
 class AppleWalletService
 {
     protected ConfigFactoryInterface $configFactory;
+    protected Settings $settings;
     protected ModuleHandlerInterface $moduleHandler;
     protected EntityTypeManagerInterface $entityTypeManager;
     protected FileSystemInterface $fileSystem;
+    protected ClientInterface $httpClient;
     protected LoggerChannelInterface $logger;
 
     public function __construct(
-        ConfigFactoryInterface        $config_factory,
+        ConfigFactoryInterface     $configFactory,
+        Settings                   $settings,
         ModuleHandlerInterface        $moduleHandler,
         EntityTypeManagerInterface $entityTypeManager,
         FileSystemInterface        $fileSystem,
+        ClientInterface            $httpClient,
         LoggerChannelFactoryInterface $logger_factory
     )
     {
-        $this->configFactory = $config_factory;
+        $this->configFactory = $configFactory;
+        $this->settings = $settings;
         $this->moduleHandler = $moduleHandler;
         $this->entityTypeManager = $entityTypeManager;
         $this->fileSystem = $fileSystem;
+        $this->httpClient = $httpClient;
         $this->logger = $logger_factory->get('esn_membership_manager');
     }
 
@@ -47,18 +57,20 @@ class AppleWalletService
 
         $pass = new PKPass();
 
-        $pass->setCertificateString($moduleConfig->get('apple_certificate_string'));
+        $pass->setCertificateString($moduleConfig->get('apple_certificate_string_p12'));
         $pass->setCertificatePassword($moduleConfig->get('apple_certificate_password'));
+
+        $serialNumber = 'esncard-' . $data['id'];
 
         $paidDate = new DateTime($data['date_paid']);
         $paidDate->setTime(0, 0);
 
-        $passData = $this->getCommonAttributes() +
+        $passData = $this->getCommonAttributes($serialNumber) +
             [
                 'description' => 'ESNcard',
                 'logoText' => 'ESNcard',
                 'backgroundColor' => 'rgb(46, 49, 146)',
-                'serialNumber' => $data['esncard_number'],
+                'serialNumber' => $serialNumber,
                 'generic' => [
                     'primaryFields' => [
                         [
@@ -152,9 +164,14 @@ class AppleWalletService
         }
     }
 
-    protected function getCommonAttributes(): array
+    protected function getCommonAttributes(string $serialNumber): array
     {
         $moduleConfig = $this->configFactory->get('esn_membership_manager.settings');
+
+        $siteSalt = $this->settings::getHashSalt();
+        $authToken = hash('sha256', $serialNumber . $siteSalt);
+
+        $apiRoot = preg_replace('/\/v1\/log\/?$/', '', Url::fromRoute('esn_membership_manager.apple_wallet_log', [], ['absolute' => TRUE])->toString());
 
         return [
             'formatVersion' => 1,
@@ -163,6 +180,8 @@ class AppleWalletService
             'passTypeIdentifier' => $moduleConfig->get('apple_pass_type_id'),
             'foregroundColor' => 'rgb(255, 255, 255)',
             'labelColor' => 'rgb(255, 255, 255)',
+            'webServiceURL' => $apiRoot,
+            'authenticationToken' => $authToken,
         ];
     }
 
@@ -175,18 +194,20 @@ class AppleWalletService
 
         $pass = new PKPass();
 
-        $pass->setCertificateString($moduleConfig->get('apple_certificate_string'));
+        $pass->setCertificateString($moduleConfig->get('apple_certificate_string_p12'));
         $pass->setCertificatePassword($moduleConfig->get('apple_certificate_password'));
+
+        $serialNumber = 'free_pass-' . $data['id'];
 
         $approvedDate = new DateTime($data['date_approved']);
         $approvedDate->setTime(0, 0);
 
-        $passData = $this->getCommonAttributes() +
+        $passData = $this->getCommonAttributes($serialNumber) +
             [
                 'description' => $moduleConfig->get('scheme_name'),
                 'logoText' => $moduleConfig->get('scheme_name'),
                 'backgroundColor' => 'rgb(0, 174, 239)',
-                'serialNumber' => $data['pass_token'],
+                'serialNumber' => $serialNumber,
                 'generic' => [
                     'primaryFields' => [
                         [
@@ -271,19 +292,21 @@ class AppleWalletService
 
         $pass = new PKPass();
 
-        $pass->setCertificateString($moduleConfig->get('apple_certificate_string'));
+        $pass->setCertificateString($moduleConfig->get('apple_certificate_string_p12'));
         $pass->setCertificatePassword($moduleConfig->get('apple_certificate_password'));
+
+        $serialNumber = 'guest-' . $data['id'];
 
         $approvedDate = new DateTime($data['date_approved']);
         $approvedDate->setTime(0, 0);
         $expiryDate = (clone $approvedDate)->add(new DateInterval("P7D"));
 
-        $passData = $this->getCommonAttributes() +
+        $passData = $this->getCommonAttributes($serialNumber) +
             [
                 'description' => $moduleConfig->get('guest_scheme_name'),
                 'logoText' => $moduleConfig->get('guest_scheme_name'),
                 'backgroundColor' => 'rgb(236, 0, 140)',
-                'serialNumber' => $data['guest_pass_token'],
+                'serialNumber' => $serialNumber,
                 'generic' => [
                     'primaryFields' => [
                         [
@@ -351,6 +374,46 @@ class AppleWalletService
         } catch (PKPassException $e) {
             $this->logger->error('Apple Wallet Pass creation failed: ' . $e->getMessage());
             return NULL;
+        }
+    }
+
+    public function sendUpdateNotification(string $pushToken): bool
+    {
+        $moduleConfig = $this->configFactory->get('esn_membership_manager.settings');
+
+        $pemString = $moduleConfig->get('apple_certificate_string_pem');
+        $password = $moduleConfig->get('apple_certificate_password');
+
+        $tempDir = $this->fileSystem->getTempDirectory();
+        $certificatePath = $this->fileSystem->tempnam($tempDir, 'apns_cert_') . '.pem';
+
+        try {
+            file_put_contents($certificatePath, $pemString);
+
+            $this->httpClient->request('POST', "https://api.push.apple.com/3/device/{$pushToken}", [
+                'version' => '2.0',
+                'body' => '{}',
+                'cert' => [$certificatePath, $password],
+                'headers' => [
+                    'apns-topic' => $moduleConfig->get('apple_pass_type_id'),
+                ],
+            ]);
+
+            return true;
+        } catch (GuzzleException $e) {
+            $this->logger->error('APNs Push Failed for token @token: @error', ['@token' => $pushToken, '@error' => $e->getMessage(),]);
+
+            if (method_exists($e, 'hasResponse') && $e->hasResponse()) {
+                $responseBody = (string)$e->getResponse()->getBody();
+                $statusCode = $e->getResponse()->getStatusCode();
+                $this->logger->error('APNs Error Details (@code): @body', ['@code' => $statusCode, '@body' => $responseBody]);
+            }
+
+            return false;
+        } finally {
+            if (file_exists($certificatePath)) {
+                unlink($certificatePath);
+            }
         }
     }
 }
