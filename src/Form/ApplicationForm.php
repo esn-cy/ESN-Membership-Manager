@@ -1,4 +1,4 @@
-<?php
+<?php /** @noinspection PhpUnused */
 
 namespace Drupal\esn_membership_manager\Form;
 
@@ -17,10 +17,13 @@ use Drupal\Core\Form\FormStateInterface;
 use Drupal\Core\Logger\LoggerChannelFactoryInterface;
 use Drupal\Core\Logger\LoggerChannelInterface;
 use Drupal\Core\Render\Markup;
+use Drupal\Core\Url;
 use Drupal\esn_membership_manager\Service\EmailManager;
 use Drupal\file\FileInterface;
 use Drupal\file\FileRepositoryInterface;
 use Exception;
+use GuzzleHttp\ClientInterface;
+use GuzzleHttp\Exception\GuzzleException;
 use Symfony\Component\DependencyInjection\ContainerInterface;
 
 class ApplicationForm extends FormBase
@@ -32,6 +35,7 @@ class ApplicationForm extends FormBase
     protected ModuleHandlerInterface $moduleHandler;
     protected FileSystemInterface $fileSystem;
     protected FileRepositoryInterface $fileRepository;
+    protected ClientInterface $httpClient;
     protected LoggerChannelInterface $logger;
 
     protected array $nationalities = [];
@@ -40,11 +44,12 @@ class ApplicationForm extends FormBase
         ConfigFactoryInterface        $configFactory,
         Connection                    $database,
         EmailManager                  $emailManager,
-        EntityTypeManagerInterface $entityTypeManager,
+        EntityTypeManagerInterface    $entityTypeManager,
         ModuleHandlerInterface        $moduleHandler,
         FileSystemInterface           $fileSystem,
         FileRepositoryInterface       $fileRepository,
-        LoggerChannelFactoryInterface $logger_factory
+        ClientInterface               $httpClient,
+        LoggerChannelFactoryInterface $loggerFactory
     )
     {
         $this->configFactory = $configFactory;
@@ -54,7 +59,8 @@ class ApplicationForm extends FormBase
         $this->moduleHandler = $moduleHandler;
         $this->fileSystem = $fileSystem;
         $this->fileRepository = $fileRepository;
-        $this->logger = $logger_factory->get('esn_membership_manager');
+        $this->httpClient = $httpClient;
+        $this->logger = $loggerFactory->get('esn_membership_manager');
     }
 
     public static function create(ContainerInterface $container): self
@@ -80,6 +86,9 @@ class ApplicationForm extends FormBase
         /** @var FileRepositoryInterface $fileRepository */
         $fileRepository = $container->get('file.repository');
 
+        /** @var ClientInterface $httpClient */
+        $httpClient = $container->get('http_client');
+
         /** @var LoggerChannelFactoryInterface $loggerFactory */
         $loggerFactory = $container->get('logger.factory');
 
@@ -91,6 +100,7 @@ class ApplicationForm extends FormBase
             $moduleHandler,
             $fileSystem,
             $fileRepository,
+            $httpClient,
             $loggerFactory
         );
     }
@@ -113,16 +123,97 @@ class ApplicationForm extends FormBase
         $form['#attached']['library'][] = 'esn_membership_manager/application_form';
         $form['#attributes']['class'][] = 'esn-membership-manager-form';
 
+        $form['#prefix'] = '<div id="application-form-wrapper">';
+        $form['#suffix'] = '</div>';
+
         $schemeName = $moduleConfig->get('scheme_name');
 
-        $form['header'] = [
-            '#markup' => Markup::create(
-                '<h2>' . $this->t('Apply for an ESNcard / @scheme', ['@scheme' => $schemeName]) . '</h2>' .
+        $session = $this->getRequest()->getSession();
+        $savedData = $session->get('application_form_saved_data', []);
+        $verificationData = $session->get('application_form_verification_data', []);
+
+        $form_state->disableCache();
+
+        $isCodeSent = !empty($verificationData['email_code_sent']) || $form_state->get('code_sent');
+        $isCodeVerified = !empty($verificationData['email_code_verified']) || $form_state->get('code_verified');
+
+        if (!$isCodeVerified) {
+            $form['#attributes']['class'][] = 'esn-membership-manager-login-form';
+            $form['#attached']['library'][] = 'esn_membership_manager/login_form';
+        }
+
+        $headerMarkup = '<h2>' . $this->t('Apply for an ESNcard / @scheme', ['@scheme' => $schemeName]) . '</h2>';
+        if ($isCodeVerified) {
+            $headerMarkup .=
                 '<p>' . $this->t('The @scheme is your digital identifier. It verifies your status as a mobility participant and grants you access to exclusive events.', ['@scheme' => $schemeName]) . '</p>' .
-                '<p>' . $this->t('The ESNcard is the official physical membership card of the Erasmus Student Network. It provides all the benefits of the @scheme, plus access to thousands of discounts at major brands and local businesses across Europe.', ['@scheme' => $schemeName]) . '</p>'
-            ),
+                '<p>' . $this->t('The ESNcard is the official physical membership card of the Erasmus Student Network. It provides all the benefits of the @scheme, plus access to thousands of discounts at major brands and local businesses across Europe.', ['@scheme' => $schemeName]) . '</p>';
+        }
+
+        $form['header'] = [
+            '#markup' => Markup::create($headerMarkup),
             '#weight' => -30,
         ];
+
+        $form['email'] = [
+            '#type' => 'fieldset',
+        ];
+        if ($isCodeVerified) {
+            $form['email']['#title'] = $this->t('Email');
+        }
+
+        $form['email']['email'] = [
+            '#type' => 'email',
+            '#title' => $this->t('Email'),
+            '#description' => $this->t('A verification code will be sent to this email address.'),
+            '#required' => TRUE,
+            '#default_value' => $form_state->getValue('email') ?? $savedData['email'] ?? '',
+        ];
+
+        $form['email']['actions_wrapper'] = [
+            '#type' => 'container',
+            '#attributes' => ['id' => 'verify-actions-wrapper'],
+        ];
+
+        $apiMessage = $form_state->get('api_message');
+        if ($apiMessage) {
+            $messageType = $form_state->get('api_message_type') ?? 'status';
+            $form['email']['actions_wrapper']['message'] = [
+                '#markup' => '<div class="messages messages--' . $messageType . '">' . $apiMessage . '</div>',
+            ];
+        }
+
+        if (!$isCodeSent && !$isCodeVerified) {
+            $form['email']['actions_wrapper']['send_code'] = [
+                '#type' => 'submit',
+                '#value' => $this->t('Send Verification Email'),
+                '#submit' => ['::sendCodeSubmit'],
+                '#ajax' => [
+                    'callback' => '::updateForm',
+                    'wrapper' => 'application-form-wrapper',
+                ],
+                '#limit_validation_errors' => [['email']],
+            ];
+            return $form;
+        } elseif ($isCodeSent && !$isCodeVerified) {
+            $form['email']['actions_wrapper']['verification_code'] = [
+                '#type' => 'textfield',
+                '#title' => $this->t('Verification Code'),
+                '#required' => TRUE,
+                '#default_value' => $form_state->getValue('verification_code') ?? $savedData['verification_code'] ?? '',
+            ];
+
+            $form['email']['actions_wrapper']['verify_submit'] = [
+                '#type' => 'submit',
+                '#value' => $this->t('Verify Code'),
+                '#submit' => ['::verifyCodeSubmit'],
+                '#ajax' => [
+                    'callback' => '::updateForm',
+                    'wrapper' => 'application-form-wrapper',
+                ],
+                '#limit_validation_errors' => [['email'], ['verification_code']],
+            ];
+            return $form;
+        }
 
         $form['personal_details'] = [
             '#type' => 'fieldset',
@@ -138,13 +229,6 @@ class ApplicationForm extends FormBase
         $form['personal_details']['surname'] = [
             '#type' => 'textfield',
             '#title' => $this->t('Surname'),
-            '#required' => TRUE,
-        ];
-
-        $form['personal_details']['email'] = [
-            '#type' => 'email',
-            '#title' => $this->t('Email'),
-            '#description' => $this->t('All communications related to your application will be sent here.'),
             '#required' => TRUE,
         ];
 
@@ -185,9 +269,9 @@ class ApplicationForm extends FormBase
             ],
             'Other Mobility Programme' => [
                 'other_study' => $this->t('Study Exchange (Other)'),
-                'other_train_traineeship' => $this->t('Traineeship'),
-                'other_train_internship' => $this->t('Internship'),
-                'other_train_apprenticeship' => $this->t('Apprenticeship'),
+                'other_train_traineeship' => $this->t('Traineeship (Other)'),
+                'other_train_internship' => $this->t('Internship (Other)'),
+                'other_train_apprenticeship' => $this->t('Apprenticeship (Other)'),
                 'other_volunteer' => $this->t('Volunteer (non-ESN)'),
             ],
             'ESN' => [
@@ -367,8 +451,8 @@ class ApplicationForm extends FormBase
         if (file_exists($path)) {
             if (($handle = fopen($path, "r")) !== FALSE) {
                 while (($data = fgetcsv($handle, 1000, ",", "\"", "\\")) !== FALSE) {
-                    if (empty($data[0])) continue;
-                    $val = trim($data[0]);
+                    if (empty($data[1])) continue;
+                    $val = trim($data[1]);
                     $nationalities[$val] = $val;
                 }
                 fclose($handle);
@@ -380,6 +464,109 @@ class ApplicationForm extends FormBase
     }
 
     /**
+     * Submit handler for sending the verification code.
+     */
+    public function sendCodeSubmit(array &$form, FormStateInterface $form_state): void
+    {
+        $email = $form_state->getValue('email');
+
+        try {
+            $response = $this->httpClient->post(
+                Url::fromRoute(
+                    'esn_membership_manager.authentication_code',
+                    ['type' => 'register'],
+                    ['absolute' => TRUE]
+                )->toString(),
+                [
+                    'json' => ['email' => $email]
+                ]
+            );
+
+            $body = json_decode((string)$response->getBody(), TRUE);
+
+            if (isset($body['error'])) {
+                $form_state->set('api_message', $body['error']);
+                $form_state->set('api_message_type', 'error');
+            } else {
+                $form_state->set('api_message', $body['message'] ?? $this->t('Verification email sent.'));
+                $form_state->set('api_message_type', 'status');
+                $form_state->set('code_sent', TRUE);
+
+                $session = $this->getRequest()->getSession();
+                $verificationData = $session->get('application_form_verification_data', []);
+                $verificationData['email_code_sent'] = TRUE;
+                $session->set('application_form_verification_data', $verificationData);
+
+                $savedData = $session->get('application_form_saved_data', []);
+                $savedData['email'] = $email;
+                $session->set('application_form_saved_data', $savedData);
+            }
+        } catch (GuzzleException) {
+            $form_state->set('api_message', $this->t('There was an issue processing your request. Please try again later.'));
+            $form_state->set('api_message_type', 'error');
+        }
+
+        $form_state->setRebuild();
+    }
+
+    public function verifyCodeSubmit(array &$form, FormStateInterface $form_state): void
+    {
+        $email = $form_state->getValue('email');
+        $code = $form_state->getValue('verification_code');
+
+        try {
+            $response = $this->httpClient->post(
+                Url::fromRoute(
+                    'esn_membership_manager.authentication_verify',
+                    ['type' => 'register'],
+                    ['absolute' => TRUE]
+                )->toString(),
+                [
+                    'json' => [
+                        'email' => $email,
+                        'code' => $code,
+                    ]
+                ]
+            );
+
+            $body = json_decode((string)$response->getBody(), TRUE);
+
+            if (isset($body['error'])) {
+                $form_state->set('api_message', $body['error']);
+                $form_state->set('api_message_type', 'error');
+            } else {
+                $form_state->set('api_message', $body['message'] ?? $this->t('Email address verified.'));
+                $form_state->set('api_message_type', 'status');
+                $form_state->set('code_verified', TRUE);
+
+                $session = $this->getRequest()->getSession();
+                $verificationData = $session->get('application_form_verification_data', []);
+                $verificationData['email_code_verified'] = TRUE;
+                $session->set('application_form_verification_data', $verificationData);
+
+                $savedData = $session->get('application_form_saved_data', []);
+                $savedData['email'] = $email;
+                $savedData['verification_code'] = $code;
+                $session->set('application_form_saved_data', $savedData);
+            }
+        } catch (GuzzleException) {
+            $form_state->set('api_message', $this->t('There was an issue processing your request. Please try again later.'));
+            $form_state->set('api_message_type', 'error');
+        }
+
+        $form_state->setRebuild();
+    }
+
+    /**
+     * AJAX callback to update the actions' wrapper.
+     */
+    public function updateForm(array &$form, FormStateInterface $form_state): array
+    {
+        return $form;
+    }
+
+
+    /**
      * {@inheritdoc}
      */
     public function validateForm(array &$form, FormStateInterface $form_state): void
@@ -387,7 +574,7 @@ class ApplicationForm extends FormBase
         parent::validateForm($form, $form_state);
 
         $values = $form_state->getValues();
-        $hasESNcard = (bool)$values['has_esncard'];
+        $hasESNcard = (bool)($values['has_esncard'] ?? FALSE);
 
         if ($hasESNcard) {
             if (empty($values['id_document'])) {

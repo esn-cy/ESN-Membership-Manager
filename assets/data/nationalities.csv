@@ -1,225 +1,257 @@
-Afghan
-Albanian
-Algerian
-American
-Andorran
-Angolan
-Anguillan
-Argentine
-Armenian
-Australian
-Austrian
-Azerbaijani
-Bahamian
-Bahraini
-Bangladeshi
-Barbadian
-Belarusian
-Belgian
-Belizean
-Beninese
-Bermudian
-Bhutanese
-Bolivian
-Botswanan
-Brazilian
-British
-British Virgin Islander
-Bruneian
-Bulgarian
-Burkinan
-Burmese
-Burundian
-Cambodian
-Cameroonian
-Canadian
-Cape Verdean
-Cayman Islander
-Central African
-Chadian
-Chilean
-Chinese
-Citizen of Antigua and Barbuda
-Citizen of Bosnia and Herzegovina
-Citizen of Guinea-Bissau
-Citizen of Kiribati
-Citizen of Seychelles
-Citizen of the Dominican Republic
-Citizen of Vanuatu 
-Colombian
-Comoran
-Congolese (Congo)
-Congolese (DRC)
-Cook Islander
-Costa Rican
-Croatian
-Cuban
-Cymraes
-Cymro
-Cypriot
-Czech
-Danish
-Djiboutian
-Dominican
-Dutch
-East Timorese
-Ecuadorean
-Egyptian
-Emirati
-English
-Equatorial Guinean
-Eritrean
-Estonian
-Ethiopian
-Faroese
-Fijian
-Filipino
-Finnish
-French
-Gabonese
-Gambian
-Georgian
-German
-Ghanaian
-Gibraltarian
-Greek
-Greenlandic
-Grenadian
-Guamanian
-Guatemalan
-Guinean
-Guyanese
-Haitian
-Honduran
-Hong Konger
-Hungarian
-Icelandic
-Indian
-Indonesian
-Iranian
-Iraqi
-Irish
-Israeli
-Italian
-Ivorian
-Jamaican
-Japanese
-Jordanian
-Kazakh
-Kenyan
-Kittitian
-Kosovan
-Kuwaiti
-Kyrgyz
-Lao
-Latvian
-Lebanese
-Liberian
-Libyan
-Liechtenstein citizen
-Lithuanian
-Luxembourger
-Macanese
-Macedonian
-Malagasy
-Malawian
-Malaysian
-Maldivian
-Malian
-Maltese
-Marshallese
-Martiniquais
-Mauritanian
-Mauritian
-Mexican
-Micronesian
-Moldovan
-Monegasque
-Mongolian
-Montenegrin
-Montserratian
-Moroccan
-Mosotho
-Mozambican
-Namibian
-Nauruan
-Nepalese
-New Zealander
-Nicaraguan
-Nigerian
-Nigerien
-Niuean
-North Korean
-Northern Irish
-Norwegian
-Omani
-Pakistani
-Palauan
-Palestinian
-Panamanian
-Papua New Guinean
-Paraguayan
-Peruvian
-Pitcairn Islander
-Polish
-Portuguese
-Prydeinig
-Puerto Rican
-Qatari
-Romanian
-Russian
-Rwandan
-Salvadorean
-Sammarinese
-Samoan
-Sao Tomean
-Saudi Arabian
-Scottish
-Senegalese
-Serbian
-Sierra Leonean
-Singaporean
-Slovak
-Slovenian
-Solomon Islander
-Somali
-South African
-South Korean
-South Sudanese
-Spanish
-Sri Lankan
-St Helenian
-St Lucian
-Stateless
-Sudanese
-Surinamese
-Swazi
-Swedish
-Swiss
-Syrian
-Taiwanese
-Tajik
-Tanzanian
-Thai
-Togolese
-Tongan
-Trinidadian
-Tristanian
-Tunisian
-Turkish
-Turkmen
-Turks and Caicos Islander
-Tuvaluan
-Ugandan
-Ukrainian
-Uruguayan
-Uzbek
-Vatican citizen
-Venezuelan
-Vietnamese
-Vincentian
-Wallisian
-Welsh
-Yemeni
-Zambian
-Zimbabwean
+AFG,Afghan
+ALA,Åland Islander
+ALB,Albanian
+DZA,Algerian
+USA,American
+UMI,American Minor Outlying Islander
+ASM,American Samoan
+AND,Andorran
+AGO,Angolan
+AIA,Anguillan
+ATA,Antarctican
+ARG,Argentine
+ARM,Armenian
+ABW,Aruban
+AUS,Australian
+AUT,Austrian
+AZE,Azerbaijani
+BHS,Bahamian
+BHR,Bahraini
+BGD,Bangladeshi
+BRB,Barbadian
+BLM,Barthélemois
+BLR,Belarusian
+BEL,Belgian
+BLZ,Belizean
+BEN,Beninese
+BMU,Bermudian
+BTN,Bhutanese
+BOL,Bolivian
+BES,Bonairean
+BWA,Botswanan
+BVT,Bouvet Islander
+BRA,Brazilian
+GBR,British
+VGB,British Virgin Islander
+BRN,Bruneian
+BGR,Bulgarian
+BFA,Burkinan
+MMR,Burmese
+BDI,Burundian
+KHM,Cambodian
+CMR,Cameroonian
+CAN,Canadian
+CPV,Cape Verdean
+CYM,Cayman Islander
+CAF,Central African
+TCD,Chadian
+IOT,Chagossian
+GGY,Channel Islander (Guernsey)
+JEY,Channel Islander (Jersey)
+CHL,Chilean
+CHN,Chinese
+CXR,Christmas Islander
+ATG,Citizen of Antigua and Barbuda
+BIH,Citizen of Bosnia and Herzegovina
+GNB,Citizen of Guinea-Bissau
+KIR,Citizen of Kiribati
+SYC,Citizen of Seychelles
+DOM,Citizen of the Dominican Republic
+ATF,Citizen of the French Southern Territories
+VUT,Citizen of Vanuatu
+CCK,Cocos Islander
+COL,Colombian
+COM,Comoran
+COG,Congolese (Congo)
+COD,Congolese (DRC)
+COK,Cook Islander
+CRI,Costa Rican
+HRV,Croatian
+CUB,Cuban
+CUW,Curaçaoan
+CYP,Cypriot
+CZE,Czech
+DNK,Danish
+DJI,Djiboutian
+DOM,Dominican
+DMA,Dominican (Dominica)
+NLD,Dutch
+TLS,East Timorese
+ECU,Ecuadorean
+EGY,Egyptian
+ARE,Emirati
+GBR,English
+GNQ,Equatorial Guinean
+ERI,Eritrean
+EST,Estonian
+ETH,Ethiopian
+FLK,Falkland Islander
+FRO,Faroese
+FJI,Fijian
+PHL,Filipino
+FIN,Finnish
+FRA,French
+GUF,French Guianese
+PYF,French Polynesian
+GAB,Gabonese
+GMB,Gambian
+GEO,Georgian
+DEU,German
+GHA,Ghanaian
+GIB,Gibraltarian
+GRC,Greek
+GRL,Greenlandic
+GRD,Grenadian
+GLP,Guadeloupian
+GUM,Guamanian
+GTM,Guatemalan
+GIN,Guinean
+GUY,Guyanese
+HTI,Haitian
+HMD,Heard and McDonald Islander
+HND,Honduran
+HKG,Hong Konger
+HUN,Hungarian
+ISL,Icelandic
+IND,Indian
+IDN,Indonesian
+IRN,Iranian
+IRQ,Iraqi
+IRL,Irish
+ISR,Israeli
+ITA,Italian
+CIV,Ivorian
+JAM,Jamaican
+JPN,Japanese
+JOR,Jordanian
+KAZ,Kazakh
+KEN,Kenyan
+KNA,Kittitian
+XKX,Kosovan
+KWT,Kuwaiti
+KGZ,Kyrgyz
+LAO,Lao
+LVA,Latvian
+LBN,Lebanese
+LBR,Liberian
+LBY,Libyan
+LIE,Liechtenstein citizen
+LTU,Lithuanian
+LUX,Luxembourger
+MAC,Macanese
+MKD,Macedonian
+MYT,Mahoran
+MDG,Malagasy
+MWI,Malawian
+MYS,Malaysian
+MDV,Maldivian
+MLI,Malian
+MLT,Maltese
+IMN,Manx
+MHL,Marshallese
+MTQ,Martiniquais
+MRT,Mauritanian
+MUS,Mauritian
+MEX,Mexican
+FSM,Micronesian
+MDA,Moldovan
+MCO,Monegasque
+MNG,Mongolian
+MNE,Montenegrin
+MSR,Montserratian
+MAR,Moroccan
+LSO,Mosotho
+MOZ,Mozambican
+NAM,Namibian
+NRU,Nauruan
+NPL,Nepalese
+NCL,New Caledonian
+NZL,New Zealander
+NIC,Nicaraguan
+NGA,Nigerian
+NER,Nigerien
+NIU,Niuean
+NFK,Norfolk Islander
+PRK,North Korean
+GBR,Northern Irish
+MNP,Northern Marianan
+NOR,Norwegian
+OMN,Omani
+PAK,Pakistani
+PLW,Palauan
+PSE,Palestinian
+PAN,Panamanian
+PNG,Papua New Guinean
+PRY,Paraguayan
+PER,Peruvian
+PCN,Pitcairn Islander
+POL,Polish
+PRT,Portuguese
+PRI,Puerto Rican
+QAT,Qatari
+REU,Réunionese
+ROU,Romanian
+RUS,Russian
+RWA,Rwandan
+MAF,Saint-Martinois
+SPM,Saint-Pierrais
+SLV,Salvadorean
+SMR,Sammarinese
+WSM,Samoan
+STP,Sao Tomean
+ESH,Sahrawi
+SAU,Saudi Arabian
+GBR,Scottish
+SEN,Senegalese
+SRB,Serbian
+SLE,Sierra Leonean
+SGP,Singaporean
+SXM,Sint Maartener
+SVK,Slovak
+SVN,Slovenian
+SLB,Solomon Islander
+SOM,Somali
+ZAF,South African
+SGS,South Georgia and the South Sandwich Islander
+KOR,South Korean
+SSD,South Sudanese
+ESP,Spanish
+LKA,Sri Lankan
+SHN,St Helenian
+LCA,St Lucian
+XXX,Stateless
+SDN,Sudanese
+SUR,Surinamese
+SJM,Svalbardian
+SWZ,Swazi
+SWE,Swedish
+CHE,Swiss
+SYR,Syrian
+TWN,Taiwanese
+TJK,Tajik
+TZA,Tanzanian
+THA,Thai
+TGO,Togolese
+TON,Tongan
+TKL,Tokelauan
+TTO,Trinidadian
+SHN,Tristanian
+TUN,Tunisian
+TUR,Turkish
+TKM,Turkmen
+TCA,Turks and Caicos Islander
+TUV,Tuvaluan
+UGA,Ugandan
+UKR,Ukrainian
+URY,Uruguayan
+VIR,U.S. Virgin Islander
+UZB,Uzbek
+VAT,Vatican citizen
+VEN,Venezuelan
+VNM,Vietnamese
+VCT,Vincentian
+WLF,Wallisian
+GBR,Welsh
+YEM,Yemeni
+ZMB,Zambian
+ZWE,Zimbabwean

@@ -170,6 +170,6 @@ class AuthenticationController extends ControllerBase
         $session->set('verified_email', $email);
         $session->set('authentication_type', $type);
 
-        return new JsonResponse(null, 200);
+        return new JsonResponse([], 200);
     }
 }

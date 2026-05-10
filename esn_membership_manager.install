@@ -279,6 +279,12 @@ function esn_membership_manager_schema(): array
     $schema['esn_membership_manager_authentication'] = [
         'description' => 'Stores authentication tokens for application emails.',
         'fields' => [
+            'id' => [
+                'description' => 'Primary Key: Unique authentication code ID.',
+                'type' => 'serial',
+                'unsigned' => TRUE,
+                'not null' => TRUE,
+            ],
             'email' => [
                 'description' => 'The email address requesting access.',
                 'type' => 'varchar',
@@ -303,9 +309,10 @@ function esn_membership_manager_schema(): array
                 'not null' => TRUE,
             ],
         ],
-        'primary key' => ['email', 'type'],
+        'primary key' => ['id'],
         'unique keys' => [
             'unique_code' => ['code'],
+            'email_type' => ['email', 'type']
         ],
     ];
 
