@@ -9,6 +9,7 @@ use Drupal\Core\Logger\LoggerChannelInterface;
 use Drupal\Core\State\StateInterface;
 use GuzzleHttp\ClientInterface;
 use GuzzleHttp\Exception\GuzzleException;
+use Psr\Http\Message\ResponseInterface;
 
 class WeeztixService
 {
@@ -33,7 +34,7 @@ class WeeztixService
         $this->time = $time;
     }
 
-    public function getAuthorizationUrl(string $redirect_uri, string $state_token): ?string
+    public function getAuthorizationUrl(string $redirectURI, string $stateToken): ?string
     {
         $moduleConfig = $this->configFactory->get('esn_membership_manager.settings');
         $clientID = $moduleConfig->get('weeztix_client_id');
@@ -44,9 +45,9 @@ class WeeztixService
 
         $query = [
             'client_id' => $clientID,
-            'redirect_uri' => $redirect_uri,
+            'redirect_uri' => $redirectURI,
             'response_type' => 'code',
-            'state' => $state_token,
+            'state' => $stateToken,
         ];
 
         return 'https://login.weeztix.com/login?' . http_build_query($query);
@@ -107,7 +108,7 @@ class WeeztixService
         }
     }
 
-    protected function getAccessToken()
+    protected function getAccessToken(): ?string
     {
         $storedToken = $this->state->get('esn_membership_manager.weeztix_access_token');
         $expiry = $this->state->get('esn_membership_manager.weeztix_token_expires');
@@ -119,7 +120,7 @@ class WeeztixService
         return $this->refreshAccessToken();
     }
 
-    protected function refreshAccessToken()
+    protected function refreshAccessToken(): ?string
     {
         $moduleConfig = $this->configFactory->get('esn_membership_manager.settings');
         $clientID = $moduleConfig->get('weeztix_client_id');
@@ -148,7 +149,7 @@ class WeeztixService
         }
     }
 
-    protected function processTokenResponse($response): bool
+    protected function processTokenResponse(ResponseInterface $response): bool
     {
         $data = json_decode($response->getBody(), TRUE);
 
@@ -167,7 +168,7 @@ class WeeztixService
         return FALSE;
     }
 
-    public function authorizeWithCode(string $auth_code, string $redirect_uri): bool
+    public function authorizeWithCode(string $authCode, string $redirectURI): bool
     {
         $moduleConfig = $this->configFactory->get('esn_membership_manager.settings');
         $clientID = $moduleConfig->get('weeztix_client_id');
@@ -184,8 +185,8 @@ class WeeztixService
                     'grant_type' => 'authorization_code',
                     'client_id' => $clientID,
                     'client_secret' => $clientSecret,
-                    'redirect_uri' => $redirect_uri,
-                    'code' => $auth_code,
+                    'redirect_uri' => $redirectURI,
+                    'code' => $authCode,
                 ],
             ]);
 

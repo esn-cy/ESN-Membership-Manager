@@ -19,10 +19,13 @@ class StripeService
     protected LoggerChannelInterface $logger;
     protected ?StripeClient $client = NULL;
 
-    public function __construct(ConfigFactoryInterface $config_factory, LoggerChannelFactoryInterface $logger_factory)
+    public function __construct(
+        ConfigFactoryInterface        $configFactory,
+        LoggerChannelFactoryInterface $loggerFactory
+    )
     {
-        $this->configFactory = $config_factory;
-        $this->logger = $logger_factory->get('esn_membership_manager');
+        $this->configFactory = $configFactory;
+        $this->logger = $loggerFactory->get('esn_membership_manager');
     }
 
     /**

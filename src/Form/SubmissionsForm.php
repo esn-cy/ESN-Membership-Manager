@@ -298,9 +298,9 @@ class SubmissionsForm extends FormBase
                         '#markup' => Markup::create('<input type="checkbox" onclick="return false;" style="cursor: default;" ' . ($row->esncard ? 'checked' : '') . '>'),
                     ],
                 ],
-                'proof' => $this->generateFilePreview($row->proof_fid),
-                'id_doc' => $this->generateFilePreview($row->id_document_fid),
-                'profile_img' => $this->generateFilePreview($row->face_photo_fid),
+                'proof' => $this->generateFilePreview($row->proof_fid) ?? '',
+                'id_doc' => $this->generateFilePreview($row->id_document_fid) ?? '',
+                'profile_img' => $this->generateFilePreview($row->face_photo_fid) ?? '',
                 'operations' => [
                     'data' => [
                         '#type' => 'link',
@@ -329,16 +329,16 @@ class SubmissionsForm extends FormBase
         return $form;
     }
 
-    function generateFilePreview($file_id): array|string
+    function generateFilePreview(string $fileID): ?array
     {
-        if (empty($file_id)) {
-            return '';
+        if (empty($fileID)) {
+            return null;
         }
 
         try {
             /** @var FileInterface $file */
-            $file = $this->entityTypeManager->getStorage('file')->load($file_id);
-            if (!$file) return '';
+            $file = $this->entityTypeManager->getStorage('file')->load($fileID);
+            if (!$file) return null;
             return [
                 'data' => [
                     '#type' => 'link',
@@ -352,8 +352,8 @@ class SubmissionsForm extends FormBase
                 ]
             ];
         } catch (InvalidPluginDefinitionException|PluginNotFoundException) {
-            $this->logger->warning('File ID @id was unable to be retrieved.', ['@id' => $file_id]);
-            return '';
+            $this->logger->warning('File ID @id was unable to be retrieved.', ['@id' => $fileID]);
+            return null;
         }
     }
 
@@ -413,7 +413,6 @@ class SubmissionsForm extends FormBase
             } else {
                 $this->messenger()->addError($this->t('Action plugin not found.'));
             }
-
         } catch (Exception $e) {
             $this->logger->error('Failed to execute bulk action @action: @message', [
                 '@action' => $actionID,

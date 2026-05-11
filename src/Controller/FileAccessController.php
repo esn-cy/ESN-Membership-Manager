@@ -22,11 +22,11 @@ class FileAccessController extends ControllerBase
 
     public function __construct(
         ModuleHandlerInterface        $moduleHandler,
-        LoggerChannelFactoryInterface $logger_factory
+        LoggerChannelFactoryInterface $loggerFactory
     )
     {
         $this->moduleHandler = $moduleHandler;
-        $this->logger = $logger_factory->get('esn_membership_manager');
+        $this->logger = $loggerFactory->get('esn_membership_manager');
     }
 
     public static function create(ContainerInterface $container): self
@@ -46,19 +46,19 @@ class FileAccessController extends ControllerBase
     /**
      * Downloads a file from the membership scheme.
      *
-     * @param string $application_id
+     * @param string $applicationID
      *   The application ID.
      * @param string $filename
      *   The filename.
      *
      * @return Response
      */
-    public function download(string $application_id, string $filename): Response
+    public function download(string $applicationID, string $filename): Response
     {
-        $uri = 'membership://' . $application_id . '/' . $filename;
+        $uri = 'membership://' . $applicationID . '/' . $filename;
 
         if (!file_exists($uri)) {
-            $realPath = realpath(dirname(DRUPAL_ROOT) . '/../../private/esn_membership_manager_storage/' . $application_id . '/' . $filename);
+            $realPath = realpath(dirname(DRUPAL_ROOT) . '/../../private/esn_membership_manager_storage/' . $applicationID . '/' . $filename);
             $directoryPath = dirname(DRUPAL_ROOT) . '/../../private/esn_membership_manager_storage';
 
             $this->logger->warning('FileAccessController: File not found: @uri. Debug Info: Realpath: @real. Dir exists: @dir_exists. Dir writable: @dir_writable. Root: @root', [

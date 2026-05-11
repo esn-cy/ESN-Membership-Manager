@@ -90,7 +90,7 @@ class ApproveSubmission extends ActionBase implements ContainerFactoryPluginInte
      * {@inheritdoc}
      * @throws Exception
      */
-    public function execute($id = null): void
+    public function execute(?int $id = null): void
     {
         if (empty($id)) {
             return;

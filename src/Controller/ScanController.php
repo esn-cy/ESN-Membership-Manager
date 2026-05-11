@@ -159,7 +159,7 @@ class ScanController extends ControllerBase
         ], 200);
     }
 
-    protected function scanGuest($cardNumber): JsonResponse
+    protected function scanGuest(string $cardNumber): JsonResponse
     {
         $moduleConfig = $this->configFactory->get('esn_membership_manager.settings');
 

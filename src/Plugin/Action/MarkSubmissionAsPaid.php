@@ -88,7 +88,7 @@ class MarkSubmissionAsPaid extends ActionBase implements ContainerFactoryPluginI
      * {@inheritdoc}
      * @throws Exception
      */
-    public function execute($applicationID = NULL, $linkID = NULL): string
+    public function execute(?int $applicationID = NULL, ?string $linkID = NULL): string
     {
         if (empty($applicationID)) {
             $this->logger->warning('MarkSubmissionAsPaid executed without a valid Application ID.');

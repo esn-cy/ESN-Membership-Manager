@@ -133,7 +133,7 @@ class AppleWalletController extends ControllerBase
         return $response;
     }
 
-    protected function downloadGuest($identifier): Response
+    protected function downloadGuest(string $identifier): Response
     {
         try {
             $query = $this->database->select('esn_membership_manager_guest_passes', 'g');

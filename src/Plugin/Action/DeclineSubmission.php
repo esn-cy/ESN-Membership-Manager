@@ -71,7 +71,7 @@ class DeclineSubmission extends ActionBase implements ContainerFactoryPluginInte
      * {@inheritdoc}
      * @throws Exception
      */
-    public function execute($id = NULL): void
+    public function execute(?int $id = NULL): void
     {
         if (empty($id)) {
             return;

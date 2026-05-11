@@ -23,7 +23,7 @@ class ESNcardService
     public function __construct(
         ConfigFactoryInterface        $configFactory,
         Connection                    $database,
-        LoggerChannelFactoryInterface $logger_factory,
+        LoggerChannelFactoryInterface $loggerFactory,
         StripeService                 $stripeService,
         EmailManager                  $emailManager,
         WeeztixService                $weeztixService,
@@ -32,7 +32,7 @@ class ESNcardService
     {
         $this->configFactory = $configFactory;
         $this->database = $database;
-        $this->logger = $logger_factory->get('esn_membership_manager');
+        $this->logger = $loggerFactory->get('esn_membership_manager');
         $this->stripeService = $stripeService;
         $this->emailManager = $emailManager;
         $this->weeztixService = $weeztixService;

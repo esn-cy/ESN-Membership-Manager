@@ -71,7 +71,7 @@ class IssueCard extends ActionBase implements ContainerFactoryPluginInterface
      * {@inheritdoc}
      * @throws Exception
      */
-    public function execute($id = NULL): void
+    public function execute(?int $id = NULL): void
     {
         if (empty($id)) {
             return;

@@ -19,12 +19,12 @@ class ESNcardNumberForm extends FormBase
 
     public function __construct(
         Connection                    $database,
-        LoggerChannelFactoryInterface $logger_factory,
+        LoggerChannelFactoryInterface $loggerFactory,
         ESNcardService                $esncardService,
     )
     {
         $this->database = $database;
-        $this->logger = $logger_factory->get('esn_membership_manager');
+        $this->logger = $loggerFactory->get('esn_membership_manager');
         $this->esncardService = $esncardService;
     }
 

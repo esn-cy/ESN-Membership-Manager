@@ -51,7 +51,7 @@ class GoogleWalletController extends ControllerBase
         );
     }
 
-    public function addToWallet($identifier): Response
+    public function addToWallet(string $identifier): Response
     {
         if (empty($identifier)) {
             throw new BadRequestHttpException('No identifier was provided.', null, 400);

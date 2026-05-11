@@ -136,7 +136,7 @@ class SubmissionController extends ControllerBase implements ContainerInjectionI
     /**
      * Helper to ensure absolute URL if needed, or just return.
      */
-    private function getAbsoluteUrl($url): string
+    private function getAbsoluteUrl(string $url): string
     {
         if (str_starts_with($url, '/')) {
             return 'base:' . ltrim($url, '/');
@@ -313,15 +313,15 @@ class SubmissionController extends ControllerBase implements ContainerInjectionI
     /**
      * Helper function to generate file links.
      */
-    protected function generateFileLink($file_id): string
+    protected function generateFileLink(?string $fileID): string
     {
-        if (empty($file_id)) {
+        if (empty($fileID)) {
             return $this->t('N/A');
         }
 
         try {
             /** @var FileInterface $file */
-            $file = $this->entityTypeManager()->getStorage('file')->load($file_id);
+            $file = $this->entityTypeManager()->getStorage('file')->load($fileID);
             if ($file) {
                 return $file->createFileUrl(FALSE);
             }

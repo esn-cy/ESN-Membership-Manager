@@ -30,13 +30,13 @@ class AppleWalletService
     protected LoggerChannelInterface $logger;
 
     public function __construct(
-        ConfigFactoryInterface     $configFactory,
-        Settings                   $settings,
+        ConfigFactoryInterface        $configFactory,
+        Settings                      $settings,
         ModuleHandlerInterface        $moduleHandler,
-        EntityTypeManagerInterface $entityTypeManager,
-        FileSystemInterface        $fileSystem,
-        ClientInterface            $httpClient,
-        LoggerChannelFactoryInterface $logger_factory
+        EntityTypeManagerInterface    $entityTypeManager,
+        FileSystemInterface           $fileSystem,
+        ClientInterface               $httpClient,
+        LoggerChannelFactoryInterface $loggerFactory
     )
     {
         $this->configFactory = $configFactory;
@@ -45,7 +45,7 @@ class AppleWalletService
         $this->entityTypeManager = $entityTypeManager;
         $this->fileSystem = $fileSystem;
         $this->httpClient = $httpClient;
-        $this->logger = $logger_factory->get('esn_membership_manager');
+        $this->logger = $loggerFactory->get('esn_membership_manager');
     }
 
     /**
