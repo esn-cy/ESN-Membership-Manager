@@ -219,9 +219,12 @@ class AppleWalletController extends ControllerBase
                 return new Response('', 200);
             }
 
+            $applicationID = str_replace(['esncard-', 'free_pass-', 'guest-'], '', $serialNumber);
+
             try {
                 $this->database->insert('esn_membership_manager_apple_wallet_registrations')
                     ->fields([
+                        'application_id' => (int)$applicationID,
                         'device_library_identifier' => $deviceLibraryIdentifier,
                         'pass_type_identifier' => $passTypeIdentifier,
                         'serial_number' => $serialNumber,

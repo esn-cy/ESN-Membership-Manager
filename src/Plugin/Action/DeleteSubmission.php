@@ -150,7 +150,7 @@ class DeleteSubmission extends ActionBase implements ContainerFactoryPluginInter
             }
 
             if ($application['esncard'] && $application['approval_status'] == "Approved") {
-                $this->stripeService->disablePaymentLink($id);
+                $this->stripeService->disablePaymentLink($application['payment_link_id']);
             }
 
             if ($moduleConfig->get('switch_google_wallet') ?? FALSE) {
@@ -164,6 +164,20 @@ class DeleteSubmission extends ActionBase implements ContainerFactoryPluginInter
                 ->condition('id', $id)
                 ->execute();
 
+            if ($moduleConfig->get('switch_apple_wallet') ?? FALSE) {
+                $this->database->delete('esn_membership_manager_apple_wallet_registrations')
+                    ->condition('application_id', $id)
+                    ->execute();
+            }
+
+            $this->database->delete('esn_membership_manager_authentication')
+                ->condition('email', $application['email'])
+                ->execute();
+
+            $this->database->delete('esn_membership_manager_guest_passes')
+                ->condition('referrer_id', $id)
+                ->execute();
+
             $this->logger->notice('Deleted submission @id', ['@id' => $id]);
         } catch (Exception $e) {
             $this->logger->error('Unable to delete submission @id: @message', ['@id' => $id, '@message' => $e->getMessage()]);
@@ -174,7 +188,7 @@ class DeleteSubmission extends ActionBase implements ContainerFactoryPluginInter
     /**
      * {@inheritdoc}
      */
-    public function access($object, AccountInterface $account = NULL, $return_as_object = FALSE): bool|AccessResultInterface
+    public function access($object, ?AccountInterface $account = NULL, $return_as_object = FALSE): bool|AccessResultInterface
     {
         $access = AccessResult::allowedIfHasPermission($account, 'delete submission');
         return $return_as_object ? $access : $access->isAllowed();

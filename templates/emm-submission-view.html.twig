@@ -193,16 +193,29 @@
 </style>
 
 <div class="split-modal">
+    {% set show_proof = urls.proof is not empty %}
+    {% set show_id = not show_proof and urls.id is not empty %}
+    {% set show_photo = not show_proof and not show_id and urls.photo is not empty %}
+    {% set no_docs = not show_proof and not show_id and not show_photo %}
+
     <div class="pane left-pane">
-        <div class="doc-viewer" style="display: flex; flex-direction: column; overflow: hidden; position: relative;">
-            <iframe id="main-preview" src="{{ urls.proof }}"></iframe>
+        <div class="doc-viewer"
+             style="display: flex; flex-direction: column; overflow: hidden; position: relative;{% if no_docs %} justify-content: center;{% endif %}">
+            <iframe id="main-preview"
+                    {% if urls.proof %}src="{{ urls.proof }}"{% endif %}
+                    style="{% if show_proof %}display: block;{% else %}display: none;{% endif %} width: 100%; height: 100%; border: none;"
+                    title="Document Preview">
+            </iframe>
             <div id="image-preview-container"
-                 style="display: none; width: 100%; height: 100%; justify-content: center; align-items: center; overflow: hidden; position: relative;">
-                <img id="image-preview" src="" style="max-width: 100%; max-height: 100%;">
+                 style="{% if show_id or show_photo %}display: flex;{% else %}display: none;{% endif %} width: 100%; height: 100%; justify-content: center; align-items: center; overflow: hidden; position: relative;">
+                <img id="image-preview"
+                     src="{% if show_id %}{{ urls.id }}{% elseif show_photo %}{{ urls.photo }}{% endif %}"
+                     style="max-width: 100%; max-height: 100%;"
+                     alt="File Preview">
 
                 {% if permissions.edit %}
                     <div id="crop-action-buttons"
-                         style="display: none; position: absolute; bottom: 15px; right: 15px; flex-direction: column; gap: 10px; z-index: 10;">
+                         style="{% if show_photo %}display: flex;{% else %}display: none;{% endif %}; position: absolute; bottom: 15px; right: 15px; flex-direction: column; gap: 10px; z-index: 10;">
                         <button type="button" id="btn-save-crop" class="circular-btn tick-btn" style="display: none;"
                                 onclick="saveCrop({{ id }})" title="Save Crop">
                             <svg viewBox="0 0 24 24" width="24" height="24" stroke="currentColor" stroke-width="2"
@@ -227,17 +240,26 @@
                     </div>
                 {% endif %}
             </div>
-            <div id="no-preview" style="display:none; padding:20px; text-align:center;">No document selected</div>
+            <div id="no-preview"
+                 style="{% if no_docs %}display:block;{% else %}display:none;{% endif %} padding:20px; text-align:center; font-size: 24pt; font-weight: bold">
+                No documents available
+            </div>
         </div>
         <div class="doc-controls">
-            <button type="button" class="selected-doc" onclick="changeActiveDocument(this, '{{ urls.proof }}')">
-                Proof of Status
-            </button>
+            {% if urls.proof %}
+                <button type="button" class="selected-doc" onclick="changeActiveDocument(this, '{{ urls.proof }}')">
+                    Proof of Status
+                </button>
+            {% endif %}
             {% if urls.id %}
-                <button type="button" onclick="changeActiveDocument(this, '{{ urls.id }}')">ID Document</button>
+                <button type="button" {% if urls.proof is empty %} class="selected-doc" {% endif %}
+                        onclick="changeActiveDocument(this, '{{ urls.id }}')">ID Document
+                </button>
             {% endif %}
             {% if urls.photo %}
-                <button type="button" onclick="changeActiveDocument(this, '{{ urls.photo }}', true)">Face Photo</button>
+                <button type="button" {% if (urls.proof is empty) and (urls.id is empty) %} class="selected-doc" {% endif %}
+                        onclick="changeActiveDocument(this, '{{ urls.photo }}', true)">Face Photo
+                </button>
             {% endif %}
         </div>
     </div>

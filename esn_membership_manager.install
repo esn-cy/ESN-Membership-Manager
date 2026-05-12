@@ -267,6 +267,7 @@ function esn_membership_manager_schema(): array
         ],
         'primary key' => ['id'],
         'unique keys' => [
+            'email' => ['email'],
             'pass_token' => ['pass_token'],
             'esncard_number' => ['esncard_number'],
         ],
@@ -288,7 +289,7 @@ function esn_membership_manager_schema(): array
             'email' => [
                 'description' => 'The email address requesting access.',
                 'type' => 'varchar',
-                'length' => 254,
+                'length' => 255,
                 'not null' => TRUE,
             ],
             'code' => [
@@ -310,6 +311,9 @@ function esn_membership_manager_schema(): array
             ],
         ],
         'primary key' => ['id'],
+        'foreign keys' => [
+            'email' => ['table' => 'esn_membership_manager_applications', 'columns' => ['email' => 'email']],
+        ],
         'unique keys' => [
             'unique_code' => ['code'],
             'email_type' => ['email', 'type']
@@ -396,6 +400,12 @@ function esn_membership_manager_schema(): array
                 'type' => 'serial',
                 'not null' => TRUE,
             ],
+            'application_id' => [
+                'description' => 'Referrer Application ID.',
+                'type' => 'int',
+                'unsigned' => TRUE,
+                'not null' => TRUE,
+            ],
             'device_library_identifier' => [
                 'description' => 'The unique identifier for the user device.',
                 'type' => 'varchar',
@@ -428,6 +438,9 @@ function esn_membership_manager_schema(): array
             ],
         ],
         'primary key' => ['id'],
+        'foreign keys' => [
+            'email' => ['table' => 'esn_membership_manager_applications', 'columns' => ['application_id' => 'id']],
+        ],
         'unique keys' => [
             'device_serial' => ['device_library_identifier', 'serial_number'],
         ],

@@ -853,7 +853,7 @@ class GoogleService
         };
 
         try {
-            $this->walletService->genericobject->get($objectID);
+            @$this->walletService->genericobject->get($objectID);
         } catch (\Google\Service\Exception) {
             return true;
         }
@@ -891,6 +891,12 @@ class GoogleService
             'guest' => "$issuerID.guest_pass-$applicationID",
             default => throw new Exception('Unsupported application type.'),
         };
+
+        try {
+            @$this->walletService->genericobject->get($objectID);
+        } catch (\Google\Service\Exception) {
+            return true;
+        }
 
         $patchObject = new GenericObject([]);
         $patchObject->setState('EXPIRED');

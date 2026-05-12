@@ -1,11 +1,10 @@
 <?php /** @noinspection PhpUnused */
 
-use Drupal\Component\Plugin\Exception\InvalidPluginDefinitionException;
-use Drupal\Component\Plugin\Exception\PluginNotFoundException;
-use Drupal\Core\Datetime\DrupalDateTime;
-use Drupal\Core\Entity\EntityStorageException;
+use Drupal\Core\Logger\LoggerChannelInterface;
 use Drupal\Core\Render\Markup;
 use Drupal\Core\StreamWrapper\StreamWrapperManager;
+use Drupal\esn_membership_manager\Service\FileService;
+use Drupal\esn_membership_manager\Service\StripeService;
 use Drupal\user\Entity\User;
 
 /**
@@ -256,17 +255,15 @@ function esn_membership_manager_preprocess_menu(&$variables): void
 function esn_membership_manager_cron(): void
 {
     $database = Drupal::database();
+    /** @var LoggerChannelInterface $logger */
     $logger = Drupal::service('logger.factory')->get('esn_membership_manager');
 
-    $now = new DrupalDateTime();
-    $twoWeeksAgo = $now->sub(new DateInterval('P14D'));
-    $oneYearAgo = $now->sub(new DateInterval('P1Y'));
-    $format = 'Y-m-d H:i:s';
-
     try {
-        $fileStorage = Drupal::entityTypeManager()->getStorage('file');
-    } catch (InvalidPluginDefinitionException|PluginNotFoundException $e) {
-        $logger->error('Cron Error: File storage could not be loaded. @message', ['@message' => $e->getMessage()]);
+        $now = new DateTime();
+        $twoWeeksAgo = (clone $now)->sub(new DateInterval('P14D'))->format('Y-m-d H:i:s');
+        $oneYearAgo = (clone $now)->sub(new DateInterval('P1Y'))->format('Y-m-d H:i:s');
+    } catch (Exception $e) {
+        $logger->error($e->getMessage());
         return;
     }
 
@@ -274,17 +271,23 @@ function esn_membership_manager_cron(): void
     // Based on approved date
     $query2W = $database->select('esn_membership_manager_applications', 'a')
         ->fields('a', ['id', 'proof_fid', 'id_document_fid'])
-        ->condition('date_approved', $twoWeeksAgo->format($format), '<');
+        ->condition('approval_status', 'Pending', '<>');
+
+    $approvalCondition = $query2W->orConditionGroup()
+        ->condition('date_approved', $twoWeeksAgo, '<')
+        ->condition('approval_status', 'Declined');
 
     // Only process if there are files to delete
     $filesExistCondition = $query2W->orConditionGroup()
         ->isNotNull('proof_fid')
         ->isNotNull('id_document_fid');
+
     $query2W->condition($filesExistCondition);
+    $query2W->condition($approvalCondition);
 
     // 2. PII & Face Photos: Deleted after 1 year relative to status
     $query1Y = $database->select('esn_membership_manager_applications', 'a')
-        ->fields('a', ['id', 'face_photo_fid']);
+        ->fields('a', ['id', 'email', 'approval_status', 'esncard', 'payment_link_id', 'face_photo_fid']);
 
     // Create the conditional retention logic group for 1 year
     $retentionCondition = $query1Y->orConditionGroup();
@@ -292,12 +295,12 @@ function esn_membership_manager_cron(): void
     // Condition A: ESNcard wanted (1) AND paid more than 1 year ago
     $conditionPaid1Y = $query1Y->andConditionGroup()
         ->condition('esncard', 1)
-        ->condition('date_paid', $oneYearAgo->format($format), '<');
+        ->condition('date_paid', $oneYearAgo, '<');
 
     // Condition B: ESNcard NOT wanted (0) AND approved more than 1 year ago
     $conditionApproved1Y = $query1Y->andConditionGroup()
         ->condition('esncard', 0)
-        ->condition('date_approved', $oneYearAgo->format($format), '<');
+        ->condition('date_approved', $oneYearAgo, '<');
 
     $retentionCondition->condition($conditionPaid1Y);
     $retentionCondition->condition($conditionApproved1Y);
@@ -312,6 +315,9 @@ function esn_membership_manager_cron(): void
         return;
     }
 
+    /** @var FileService $fileService */
+    $fileService = Drupal::service('esn_membership_manager.file_service');
+
     // Process 2-week deletions
     foreach ($results2W as $row) {
         $fidsToDelete = [];
@@ -320,52 +326,44 @@ function esn_membership_manager_cron(): void
 
         if (!empty($fidsToDelete)) {
             foreach ($fidsToDelete as $fieldName => $fid) {
-                // Delete the file entity
-                $file = $fileStorage->load($fid);
-                if ($file) {
+                if ($fileService->deleteFile($fid)) {
                     try {
-                        $file->delete();
-                    } catch (EntityStorageException $e) {
-                        $logger->warning('File Warning: Unable to delete file: @file. @message', [
-                            '@file' => $fid,
+                        $database->update('esn_membership_manager_applications')
+                            ->fields([
+                                $fieldName => NULL,
+                            ])
+                            ->condition('id', $row->id)
+                            ->execute();
+                    } catch (Exception $e) {
+                        $logger->warning('Database Warning: Unable to nullify field @field for application @id. Message: @message', [
+                            '@field' => $fieldName,
+                            '@id' => $row->id,
                             '@message' => $e->getMessage()
                         ]);
                     }
-                }
-
-                try {
-                    $database->update('esn_membership_manager_applications')
-                        ->fields([
-                            $fieldName => NULL,
-                        ])
-                        ->condition('id', $row->id)
-                        ->execute();
-                } catch (Exception $e) {
-                    $logger->warning('Database Warning: Unable to nullify field @field for application @id. Message: @message', [
-                        '@field' => $fieldName,
-                        '@id' => $row->id,
-                        '@message' => $e->getMessage()
-                    ]);
                 }
             }
         }
     }
 
+    /** @var StripeService $stripeService */
+    $stripeService = Drupal::service('esn_membership_manager.stripe_service');
+    $moduleConfig = Drupal::config('esn_membership_manager.settings');
+
     // Process 1-year deletions
     foreach ($results1Y as $row) {
         // Delete face photo if exists
         if ($row->face_photo_fid) {
-            $file = $fileStorage->load($row->face_photo_fid);
-            if ($file) {
-                try {
-                    $file->delete();
-                } catch (EntityStorageException $e) {
-                    $logger->warning('File Warning: Unable to delete file: @fid. Message: @message', [
-                        '@fid' => $row->face_photo_fid,
-                        '@message' => $e->getMessage()
-                    ]);
-                }
+            $fileService->deleteFile($row->face_photo_fid);
+        }
+
+        $fileService->deleteDirectory('membership://' . $row->id);
+
+        try {
+            if ($row->esncard && $row->approval_status == "Approved") {
+                $stripeService->disablePaymentLink($row->payment_link_id);
             }
+        } catch (Exception) {
         }
 
         // Anonymize the record
@@ -374,15 +372,31 @@ function esn_membership_manager_cron(): void
                 ->fields([
                     'name' => 'Anonymized',
                     'surname' => 'Anonymized',
-                    'email' => 'Anonymized',
+                    'email' => $row->id . '@anonymized.email',
                     'dob' => '1970-01-01',
                     'face_photo_fid' => NULL,
                     'payment_link' => NULL,
+                    'payment_link_id' => NULL,
                 ])
                 ->condition('id', $row->id)
                 ->execute();
+
+            //Delete data from other tables
+            if ($moduleConfig->get('switch_apple_wallet') ?? FALSE) {
+                $database->delete('esn_membership_manager_apple_wallet_registrations')
+                    ->condition('application_id', $row->id)
+                    ->execute();
+            }
+
+            $database->delete('esn_membership_manager_authentication')
+                ->condition('email', $row->email)
+                ->execute();
+
+            $database->delete('esn_membership_manager_guest_passes')
+                ->condition('referrer_id', $row->id)
+                ->execute();
         } catch (Exception $e) {
-            $logger->warning('Database Warning: Unable to delete application ID: @id. Message: @message', [
+            $logger->warning('Database Warning: Unable to anonymize application ID: @id. Message: @message', [
                 '@id' => $row->id,
                 '@message' => $e->getMessage()
             ]);

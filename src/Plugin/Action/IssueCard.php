@@ -115,7 +115,7 @@ class IssueCard extends ActionBase implements ContainerFactoryPluginInterface
     /**
      * {@inheritdoc}
      */
-    public function access($object, AccountInterface $account = NULL, $return_as_object = FALSE): bool|AccessResultInterface
+    public function access($object, ?AccountInterface $account = NULL, $return_as_object = FALSE): bool|AccessResultInterface
     {
         $access = AccessResult::allowedIfHasPermission($account, 'issue card');
         return $return_as_object ? $access : $access->isAllowed();

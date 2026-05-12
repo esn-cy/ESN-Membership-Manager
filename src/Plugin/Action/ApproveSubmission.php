@@ -219,7 +219,7 @@ class ApproveSubmission extends ActionBase implements ContainerFactoryPluginInte
     /**
      * {@inheritdoc}
      */
-    public function access($object, AccountInterface $account = NULL, $return_as_object = FALSE): bool|AccessResultInterface
+    public function access($object, ?AccountInterface $account = NULL, $return_as_object = FALSE): bool|AccessResultInterface
     {
         $access = AccessResult::allowedIfHasPermission($account, 'approve submission');
         return $return_as_object ? $access : $access->isAllowed();

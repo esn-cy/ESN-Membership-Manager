@@ -215,7 +215,7 @@ class SubmissionController extends ControllerBase implements ContainerInjectionI
 
         $fieldData = [];
         foreach ($application as $key => $value) {
-            if (!$application['esncard'] && in_array($key, ['id_document_fid', 'face_photo_fid', 'esncard_number', 'payment_link', 'date_paid']))
+            if (!$application['esncard'] && in_array($key, ['face_photo_fid', 'esncard_number', 'payment_link', 'payment_link_id', 'date_paid']))
                 continue;
 
             if ($key == 'esncard') continue;

@@ -192,7 +192,7 @@ class MarkSubmissionAsPaid extends ActionBase implements ContainerFactoryPluginI
     /**
      * {@inheritdoc}
      */
-    public function access($object, AccountInterface $account = NULL, $return_as_object = FALSE): bool|AccessResultInterface
+    public function access($object, ?AccountInterface $account = NULL, $return_as_object = FALSE): bool|AccessResultInterface
     {
         $access = AccessResult::allowedIfHasPermission($account, 'mark submission as paid');
         return $return_as_object ? $access : $access->isAllowed();
