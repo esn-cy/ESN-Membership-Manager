@@ -7,15 +7,13 @@ use Drupal\Core\Access\AccessResultInterface;
 use Drupal\Core\Action\ActionBase;
 use Drupal\Core\Config\ConfigFactoryInterface;
 use Drupal\Core\Database\Connection;
-use Drupal\Core\Entity\EntityTypeManagerInterface;
-use Drupal\Core\File\FileSystemInterface;
 use Drupal\Core\Logger\LoggerChannelFactoryInterface;
 use Drupal\Core\Logger\LoggerChannelInterface;
 use Drupal\Core\Plugin\ContainerFactoryPluginInterface;
 use Drupal\Core\Session\AccountInterface;
+use Drupal\esn_membership_manager\Service\FileService;
 use Drupal\esn_membership_manager\Service\GoogleService;
 use Drupal\esn_membership_manager\Service\StripeService;
-use Drupal\file\FileInterface;
 use Exception;
 use Symfony\Component\DependencyInjection\ContainerInterface;
 
@@ -33,8 +31,7 @@ class DeleteSubmission extends ActionBase implements ContainerFactoryPluginInter
 {
     protected ConfigFactoryInterface $configFactory;
     protected Connection $database;
-    protected EntityTypeManagerInterface $entityTypeManager;
-    protected FileSystemInterface $fileSystem;
+    protected FileService $fileService;
     protected LoggerChannelInterface $logger;
     protected StripeService $stripeService;
     protected GoogleService $googleService;
@@ -43,8 +40,7 @@ class DeleteSubmission extends ActionBase implements ContainerFactoryPluginInter
         array                         $configuration, $plugin_id, $plugin_definition,
         ConfigFactoryInterface $configFactory,
         Connection                    $database,
-        EntityTypeManagerInterface    $entityTypeManager,
-        FileSystemInterface           $fileSystem,
+        FileService            $fileService,
         LoggerChannelFactoryInterface $loggerFactory,
         StripeService          $stripeService,
         GoogleService          $googleService
@@ -53,8 +49,7 @@ class DeleteSubmission extends ActionBase implements ContainerFactoryPluginInter
         parent::__construct($configuration, $plugin_id, $plugin_definition);
         $this->configFactory = $configFactory;
         $this->database = $database;
-        $this->entityTypeManager = $entityTypeManager;
-        $this->fileSystem = $fileSystem;
+        $this->fileService = $fileService;
         $this->logger = $loggerFactory->get('esn_membership_manager');
         $this->stripeService = $stripeService;
         $this->googleService = $googleService;
@@ -71,11 +66,8 @@ class DeleteSubmission extends ActionBase implements ContainerFactoryPluginInter
         /** @var Connection $database */
         $database = $container->get('database');
 
-        /** @var EntityTypeManagerInterface $entityTypeManager */
-        $entityTypeManager = $container->get('entity_type.manager');
-
-        /** @var FileSystemInterface $fileSystem */
-        $fileSystem = $container->get('file_system');
+        /** @var FileService $fileService */
+        $fileService = $container->get('esn_membership_manager.file_service');
 
         /** @var LoggerChannelFactoryInterface $loggerFactory */
         $loggerFactory = $container->get('logger.factory');
@@ -92,8 +84,7 @@ class DeleteSubmission extends ActionBase implements ContainerFactoryPluginInter
             $plugin_definition,
             $configFactory,
             $database,
-            $entityTypeManager,
-            $fileSystem,
+            $fileService,
             $loggerFactory,
             $stripeService,
             $googleService
@@ -147,16 +138,7 @@ class DeleteSubmission extends ActionBase implements ContainerFactoryPluginInter
                         ->execute()
                         ->fetchField();
                     if ($count <= 1) {
-                        try {
-                            /** @var FileInterface $file */
-                            $file = $this->entityTypeManager->getStorage('file')->load($application[$fileName]);
-                            $file?->delete();
-                        } catch (Exception $e) {
-                            $this->logger->error('Error deleting file @fid: @message', [
-                                '@fid' => $application[$fileName],
-                                '@message' => $e->getMessage()
-                            ]);
-                        }
+                        $this->fileService->deleteFile($application[$fileName]);
                         $deletedFiles++;
                     }
                 } catch (Exception $e) {
@@ -164,7 +146,7 @@ class DeleteSubmission extends ActionBase implements ContainerFactoryPluginInter
                 }
             }
             if (($application['esncard'] && $deletedFiles == 3) || (!$application['esncard'] && $deletedFiles == 1)) {
-                $this->fileSystem->deleteRecursive('membership://' . $id);
+                $this->fileService->deleteDirectory('membership://' . $id);
             }
 
             if ($application['esncard'] && $application['approval_status'] == "Approved") {

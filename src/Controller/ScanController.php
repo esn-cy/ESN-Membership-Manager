@@ -2,17 +2,14 @@
 
 namespace Drupal\esn_membership_manager\Controller;
 
-use Drupal\Component\Plugin\Exception\InvalidPluginDefinitionException;
-use Drupal\Component\Plugin\Exception\PluginNotFoundException;
 use Drupal\Core\Config\ConfigFactoryInterface;
 use Drupal\Core\Controller\ControllerBase;
 use Drupal\Core\Database\Connection;
 use Drupal\Core\Datetime\DrupalDateTime;
-use Drupal\Core\Entity\EntityTypeManagerInterface;
 use Drupal\Core\Logger\LoggerChannelFactoryInterface;
 use Drupal\Core\Logger\LoggerChannelInterface;
+use Drupal\esn_membership_manager\Service\FileService;
 use Drupal\esn_membership_manager\Service\GoogleService;
-use Drupal\file\FileInterface;
 use Exception;
 use Symfony\Component\DependencyInjection\ContainerInterface;
 use Symfony\Component\HttpFoundation\JsonResponse;
@@ -21,21 +18,22 @@ use Symfony\Component\HttpFoundation\Request;
 class ScanController extends ControllerBase
 {
     protected $configFactory;
-    protected $entityTypeManager;
     protected Connection $database;
+    protected FileService $fileService;
     protected GoogleService $googleService;
     protected LoggerChannelInterface $logger;
 
     public function __construct(
-        ConfigFactoryInterface $configFactory,
-        EntityTypeManagerInterface    $entityTypeManager,
+        ConfigFactoryInterface        $configFactory,
         Connection                    $database,
-        GoogleService          $googleService,
-        LoggerChannelFactoryInterface $loggerFactory)
+        FileService                   $fileService,
+        GoogleService                 $googleService,
+        LoggerChannelFactoryInterface $loggerFactory
+    )
     {
         $this->configFactory = $configFactory;
-        $this->entityTypeManager = $entityTypeManager;
         $this->database = $database;
+        $this->fileService = $fileService;
         $this->googleService = $googleService;
         $this->logger = $loggerFactory->get('esn_membership_manager');
     }
@@ -45,11 +43,11 @@ class ScanController extends ControllerBase
         /** @var ConfigFactoryInterface $configFactory */
         $configFactory = $container->get('config.factory');
 
-        /** @var EntityTypeManagerInterface $entityTypeManager */
-        $entityTypeManager = $container->get('entity_type.manager');
-
         /** @var Connection $database */
         $database = $container->get('database');
+
+        /** @var FileService $fileService */
+        $fileService = $container->get('esn_membership_manager.file_service');
 
         /** @var GoogleService $googleService */
         $googleService = $container->get('esn_membership_manager.google_service');
@@ -59,8 +57,8 @@ class ScanController extends ControllerBase
 
         return new static(
             $configFactory,
-            $entityTypeManager,
             $database,
+            $fileService,
             $googleService,
             $loggerFactory
         );
@@ -121,18 +119,7 @@ class ScanController extends ControllerBase
 
         $lastScanDate = $application['date_last_scanned'] ?? NULL;
 
-        $profileImageURL = NULL;
-        $fileID = $application['face_photo_fid'] ?? NULL;
-
-        if (!empty($fileID)) {
-            try {
-                /** @var FileInterface $file */
-                $file = $this->entityTypeManager->getStorage('file')->load($fileID);
-                $profileImageURL = $file?->createFileUrl(FALSE);
-            } catch (InvalidPluginDefinitionException|PluginNotFoundException) {
-                $this->logger->warning('File ID @id was unable to be retrieved.', ['@id' => $fileID]);
-            }
-        }
+        $profileImageURL = $this->fileService->getFileURL($application['face_photo_fid'] ?? NULL);
 
         try {
             $updateFields = [];

@@ -7,11 +7,10 @@ use Drupal\Core\Config\ConfigFactoryInterface;
 use Drupal\Core\Controller\ControllerBase;
 use Drupal\Core\Database\Connection;
 use Drupal\Core\DependencyInjection\ContainerInjectionInterface;
-use Drupal\Core\Entity\EntityTypeManagerInterface;
-use Drupal\Core\File\FileSystemInterface;
 use Drupal\Core\Link;
 use Drupal\Core\Session\AccountProxyInterface;
 use Drupal\Core\Url;
+use Drupal\esn_membership_manager\Service\FileService;
 use Drupal\file\FileInterface;
 use Exception;
 use Symfony\Component\DependencyInjection\ContainerInterface;
@@ -39,27 +38,23 @@ class SubmissionController extends ControllerBase implements ContainerInjectionI
      */
     protected $currentUser;
 
-    protected $entityTypeManager;
-
-    protected FileSystemInterface $fileSystem;
+    protected FileService $fileService;
 
     /**
      * Constructs a SubmissionController object.
      *
      */
     public function __construct(
-        ConfigFactoryInterface     $configFactory,
-        Connection                 $database,
-        AccountProxyInterface      $currentUser,
-        EntityTypeManagerInterface $entityTypeManager,
-        FileSystemInterface        $fileSystem
+        ConfigFactoryInterface $configFactory,
+        Connection             $database,
+        AccountProxyInterface  $currentUser,
+        FileService            $fileService
     )
     {
         $this->configFactory = $configFactory;
         $this->database = $database;
         $this->currentUser = $currentUser;
-        $this->entityTypeManager = $entityTypeManager;
-        $this->fileSystem = $fileSystem;
+        $this->fileService = $fileService;
     }
 
     /**
@@ -76,18 +71,14 @@ class SubmissionController extends ControllerBase implements ContainerInjectionI
         /** @var AccountProxyInterface $currentUser */
         $currentUser = $container->get('current_user');
 
-        /** @var EntityTypeManagerInterface $entityTypeManager */
-        $entityTypeManager = $container->get('entity_type.manager');
-
-        /** @var FileSystemInterface $fileSystem */
-        $fileSystem = $container->get('file_system');
+        /** @var FileService $fileService */
+        $fileService = $container->get('esn_membership_manager.file_service');
 
         return new static(
             $configFactory,
             $database,
             $currentUser,
-            $entityTypeManager,
-            $fileSystem
+            $fileService
         );
     }
 
@@ -248,9 +239,9 @@ class SubmissionController extends ControllerBase implements ContainerInjectionI
 
             if (in_array($key, ['proof_fid', 'id_document_fid', 'face_photo_fid'])) {
                 if (!empty($value)) {
-                    $url = $this->generateFileLink($value);
+                    $url = $this->fileService->getFileURL($value);
 
-                    if (filter_var($url, FILTER_VALIDATE_URL)) {
+                    if (!empty($url)) {
                         switch ($key) {
                             case 'proof_fid':
                                 $proofURL = $url;
@@ -264,7 +255,7 @@ class SubmissionController extends ControllerBase implements ContainerInjectionI
                         }
                         $displayValue = Link::fromTextAndUrl($url, Url::fromUri($url, ['attributes' => ['target' => '_blank']]))->toRenderable();
                     } else {
-                        $displayValue = $url;
+                        $displayValue = $this->t('File not available');
                     }
                 } else {
                     continue;
@@ -311,26 +302,6 @@ class SubmissionController extends ControllerBase implements ContainerInjectionI
     }
 
     /**
-     * Helper function to generate file links.
-     */
-    protected function generateFileLink(?string $fileID): string
-    {
-        if (empty($fileID)) {
-            return $this->t('N/A');
-        }
-
-        try {
-            /** @var FileInterface $file */
-            $file = $this->entityTypeManager()->getStorage('file')->load($fileID);
-            if ($file) {
-                return $file->createFileUrl(FALSE);
-            }
-        } catch (Exception) {
-        }
-        return $this->t('File not found');
-    }
-
-    /**
      * Display a success page for application submission.
      */
     public function successPage(): array
@@ -374,9 +345,11 @@ class SubmissionController extends ControllerBase implements ContainerInjectionI
 
         $section = preg_replace('/^' . preg_quote('ESN ', '/') . '/', '', $moduleConfig->get('organization_name') ?? 'ESN');
 
+        $facePhotoURL = $this->fileService->getFileURL($application['face_photo_fid'] ?? null);
+
         return [
             '#theme' => 'emm_esncard',
-            '#face_photo_link' => $this->generateFileLink($application['face_photo_fid']),
+            '#face_photo_link' => $facePhotoURL,
             '#full_name' => $application['name'] . ' ' . $application['surname'],
             '#nationality' => $application['nationality'],
             '#dob_day' => $dob[2],
@@ -443,21 +416,9 @@ class SubmissionController extends ControllerBase implements ContainerInjectionI
         $currentY = 10;
 
         foreach ($applications as $app) {
-            $fileID = $app->face_photo_fid;
-            if (!$fileID) {
-                continue;
-            }
+            $path = $this->fileService->getFileURL($app->face_photo_fid);
 
-            /** @var FileInterface $file */
-            $file = $this->entityTypeManager->getStorage('file')->load($fileID);
-            if (!$file) {
-                continue;
-            }
-
-            $uri = $file->getFileUri();
-            $path = $this->fileSystem->realpath($uri);
-
-            if (!file_exists($path)) {
+            if (!empty($path) && !file_exists($path)) {
                 continue;
             }
 

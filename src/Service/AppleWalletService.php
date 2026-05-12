@@ -5,14 +5,11 @@ namespace Drupal\esn_membership_manager\Service;
 use DateInterval;
 use DateTime;
 use Drupal\Core\Config\ConfigFactoryInterface;
-use Drupal\Core\Entity\EntityTypeManagerInterface;
 use Drupal\Core\Extension\ModuleHandlerInterface;
-use Drupal\Core\File\FileSystemInterface;
 use Drupal\Core\Logger\LoggerChannelFactoryInterface;
 use Drupal\Core\Logger\LoggerChannelInterface;
 use Drupal\Core\Site\Settings;
 use Drupal\Core\Url;
-use Drupal\file\FileInterface;
 use Exception;
 use GuzzleHttp\ClientInterface;
 use GuzzleHttp\Exception\GuzzleException;
@@ -24,8 +21,7 @@ class AppleWalletService
     protected ConfigFactoryInterface $configFactory;
     protected Settings $settings;
     protected ModuleHandlerInterface $moduleHandler;
-    protected EntityTypeManagerInterface $entityTypeManager;
-    protected FileSystemInterface $fileSystem;
+    protected FileService $fileService;
     protected ClientInterface $httpClient;
     protected LoggerChannelInterface $logger;
 
@@ -33,8 +29,7 @@ class AppleWalletService
         ConfigFactoryInterface        $configFactory,
         Settings                      $settings,
         ModuleHandlerInterface        $moduleHandler,
-        EntityTypeManagerInterface    $entityTypeManager,
-        FileSystemInterface           $fileSystem,
+        FileService $fileService,
         ClientInterface               $httpClient,
         LoggerChannelFactoryInterface $loggerFactory
     )
@@ -42,8 +37,7 @@ class AppleWalletService
         $this->configFactory = $configFactory;
         $this->settings = $settings;
         $this->moduleHandler = $moduleHandler;
-        $this->entityTypeManager = $entityTypeManager;
-        $this->fileSystem = $fileSystem;
+        $this->fileService = $fileService;
         $this->httpClient = $httpClient;
         $this->logger = $loggerFactory->get('esn_membership_manager');
     }
@@ -130,22 +124,25 @@ class AppleWalletService
 
         $imagesPath = $this->moduleHandler->getModule('esn_membership_manager')->getPath() . '/assets/images/apple_wallet/color/';
 
-        $thumbnailPath = "membership://{$data['id']}/apple_face_photo.png";
-        $targetPath = $this->fileSystem->realpath($thumbnailPath);
+        $type = $this->fileService->getFileMimeType($data['face_photo_fid']);
+        if (!empty($type)) {
+            if ($type == 'image/png') {
+                $pass->addFile($this->fileService->getFilePath($data['face_photo_fid']), 'thumbnail.png');
+            } else {
+                $imageContents = $this->fileService->readFile($data['face_photo_fid']);
 
-        if (!file_exists($thumbnailPath)) {
-            /** @var FileInterface $faceFile */
-            $faceFile = $this->entityTypeManager->getStorage('file')->load($data['face_photo_fid']);
-            if ($faceFile) {
-                $uri = $faceFile->getFileUri();
-                $path = $this->fileSystem->realpath($uri);
+                if ($imageResource = imagecreatefromstring($imageContents)) {
+                    ob_start();
+                    imagepng($imageResource);
+                    $pngData = ob_get_clean();
 
-                if (imagepng(imagecreatefromstring(file_get_contents($path)), $targetPath)) {
-                    $pass->addFile($targetPath, 'thumbnail.png');
+                    imagedestroy($imageResource);
+
+                    if ($this->fileService->replaceFileData($data['face_photo_fid'], $pngData)) {
+                        $pass->addFile($this->fileService->getFilePath($data['face_photo_fid']), 'thumbnail.png');
+                    }
                 }
             }
-        } else {
-            $pass->addFile($targetPath, 'thumbnail.png');
         }
 
         $pass->addFile($imagesPath . 'logo.png', 'logo.png');
@@ -384,8 +381,7 @@ class AppleWalletService
         $pemString = $moduleConfig->get('apple_certificate_string_pem');
         $password = $moduleConfig->get('apple_certificate_password');
 
-        $tempDir = $this->fileSystem->getTempDirectory();
-        $certificatePath = $this->fileSystem->tempnam($tempDir, 'apns_cert_') . '.pem';
+        $certificatePath = $this->fileService->getTemporaryFile('apns_cert_', '.pem');
 
         try {
             file_put_contents($certificatePath, $pemString);

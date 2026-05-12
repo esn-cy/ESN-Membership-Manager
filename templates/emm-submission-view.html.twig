@@ -446,7 +446,7 @@
 
         if (json.status === 'success') {
             const img = document.getElementById("image-preview");
-            const baseUrl = img.src.split("&t=")[0].split("?t=")[0];
+            const baseUrl = img.src.replace('jpeg', 'jpg').split("&t=")[0].split("?t=")[0];
 
             resetCropUI();
 

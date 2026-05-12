@@ -6,11 +6,8 @@ use DateInterval;
 use DateTime;
 use DateTimeInterface;
 use Drupal\Core\Config\ConfigFactoryInterface;
-use Drupal\Core\Entity\EntityTypeManagerInterface;
-use Drupal\Core\File\FileSystemInterface;
 use Drupal\Core\Logger\LoggerChannelFactoryInterface;
 use Drupal\Core\Logger\LoggerChannelInterface;
-use Drupal\file\FileInterface;
 use Exception;
 use Firebase\JWT\JWT;
 use Google\Client as GoogleClient;
@@ -30,8 +27,7 @@ use GuzzleHttp\Exception\GuzzleException;
 class GoogleService
 {
     protected ConfigFactoryInterface $configFactory;
-    protected EntityTypeManagerInterface $entityTypeManager;
-    protected FileSystemInterface $fileSystem;
+    protected FileService $fileService;
     protected LoggerChannelInterface $logger;
     protected ?GoogleClient $client = NULL;
     protected ?Walletobjects $walletService = NULL;
@@ -41,14 +37,12 @@ class GoogleService
 
     public function __construct(
         ConfigFactoryInterface        $configFactory,
-        EntityTypeManagerInterface    $entityTypeManager,
-        FileSystemInterface           $fileSystem,
+        FileService $fileService,
         LoggerChannelFactoryInterface $loggerFactory
     )
     {
         $this->configFactory = $configFactory;
-        $this->entityTypeManager = $entityTypeManager;
-        $this->fileSystem = $fileSystem;
+        $this->fileService = $fileService;
         $this->logger = $loggerFactory->get('esn_membership_manager');
     }
 
@@ -492,9 +486,7 @@ class GoogleService
         $paidDate = new DateTime($data['date_paid']);
         $paidDate->setTime(0, 0);
         $expiryDate = (clone $paidDate)->add(new DateInterval("P1Y"));
-        if (!empty($data['face_photo_fid'])) {
-            $privateImageID = $this->uploadPrivateImage($data['face_photo_fid']);
-        }
+        $privateImageID = $this->uploadPrivateImage($data['face_photo_fid']);
 
         return new GenericObject([
             'genericType' => 'GENERIC_OTHER',
@@ -874,7 +866,7 @@ class GoogleService
         };
 
         try {
-            $this->walletService->genericobject->update($objectID, $updateObject);
+            @$this->walletService->genericobject->update($objectID, $updateObject);
         } catch (\Google\Service\Exception) {
             return false;
         }
@@ -925,15 +917,10 @@ class GoogleService
      */
     private function uploadPrivateImage(string $fileID): string
     {
-        /** @var FileInterface $file */
-        $file = $this->entityTypeManager->getStorage('file')->load($fileID);
-        if (!$file) {
-            throw new Exception("File not found");
-        }
-
-        $realPath = $this->fileSystem->realpath($file->getFileUri());
-        if (!$realPath || !file_exists($realPath)) {
-            throw new Exception("Physical file not accessible");
+        $mimeType = $this->fileService->getFileMimeType($fileID);
+        $imageContents = $this->fileService->readFile($fileID);
+        if (empty($mimeType) || empty($imageContents)) {
+            throw new Exception("Unable to read the image file.");
         }
 
         $client = $this->getClient();
@@ -950,9 +937,9 @@ class GoogleService
         $httpClient = $client->authorize();
         $response = $httpClient->request('POST', "https://walletobjects.googleapis.com/upload/walletobjects/v1/privateContent/$issuerID/uploadPrivateImage", [
             'headers' => [
-                'Content-Type' => $file->getMimeType(),
+                'Content-Type' => $mimeType,
             ],
-            'body' => file_get_contents($realPath),
+            'body' => $imageContents,
         ]);
 
         $status = $response->getStatusCode();

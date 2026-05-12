@@ -2,20 +2,17 @@
 
 namespace Drupal\esn_membership_manager\Form;
 
-use Drupal\Component\Plugin\Exception\InvalidPluginDefinitionException;
-use Drupal\Component\Plugin\Exception\PluginNotFoundException;
 use Drupal\Component\Serialization\Json;
 use Drupal\Core\Action\ActionBase;
 use Drupal\Core\Action\ActionManager;
 use Drupal\Core\Database\Connection;
-use Drupal\Core\Entity\EntityTypeManagerInterface;
 use Drupal\Core\Form\FormBase;
 use Drupal\Core\Form\FormStateInterface;
 use Drupal\Core\Logger\LoggerChannelFactoryInterface;
 use Drupal\Core\Logger\LoggerChannelInterface;
 use Drupal\Core\Render\Markup;
 use Drupal\Core\Url;
-use Drupal\file\FileInterface;
+use Drupal\esn_membership_manager\Service\FileService;
 use Exception;
 use Symfony\Component\DependencyInjection\ContainerInterface;
 use Symfony\Component\HttpFoundation\JsonResponse;
@@ -23,32 +20,29 @@ use Symfony\Component\HttpFoundation\RequestStack;
 
 class SubmissionsForm extends FormBase
 {
-    protected EntityTypeManagerInterface $entityTypeManager;
     protected Connection $database;
     protected $requestStack;
     protected ActionManager $actionManager;
+    protected FileService $fileService;
     protected LoggerChannelInterface $logger;
 
     public function __construct(
-        EntityTypeManagerInterface    $entityTypeManager,
         Connection                    $database,
         RequestStack                  $requestStack,
         ActionManager                 $actionManager,
+        FileService $fileService,
         LoggerChannelFactoryInterface $loggerFactory
     )
     {
-        $this->entityTypeManager = $entityTypeManager;
         $this->database = $database;
         $this->requestStack = $requestStack;
         $this->actionManager = $actionManager;
+        $this->fileService = $fileService;
         $this->logger = $loggerFactory->get('esn_membership_manager');
     }
 
     public static function create(ContainerInterface $container): self
     {
-        /** @var EntityTypeManagerInterface $entityTypeManager */
-        $entityTypeManager = $container->get('entity_type.manager');
-
         /** @var Connection $database */
         $database = $container->get('database');
 
@@ -58,14 +52,17 @@ class SubmissionsForm extends FormBase
         /** @var ActionManager $actionManager */
         $actionManager = $container->get('plugin.manager.action');
 
+        /** @var FileService $fileService */
+        $fileService = $container->get('esn_membership_manager.file_service');
+
         /** @var LoggerChannelFactoryInterface $loggerFactory */
         $loggerFactory = $container->get('logger.factory');
 
         return new static(
-            $entityTypeManager,
             $database,
             $requestStack,
             $actionManager,
+            $fileService,
             $loggerFactory
         );
     }
@@ -329,32 +326,24 @@ class SubmissionsForm extends FormBase
         return $form;
     }
 
-    function generateFilePreview(string $fileID): ?array
+    function generateFilePreview(?string $fileID): ?array
     {
-        if (empty($fileID)) {
+        if (!$this->fileService->fileExists($fileID)) {
             return null;
         }
 
-        try {
-            /** @var FileInterface $file */
-            $file = $this->entityTypeManager->getStorage('file')->load($fileID);
-            if (!$file) return null;
-            return [
-                'data' => [
-                    '#type' => 'link',
-                    '#title' => $this->t('Preview'),
-                    '#url' => Url::fromRoute('esn_membership_manager.file_preview', ['file' => $file->id()]),
-                    '#attributes' => [
-                        'class' => ['use-ajax', 'button', 'button--small'],
-                        'data-dialog-type' => 'modal',
-                        'data-dialog-options' => Json::encode(['width' => 700, 'minHeight' => 500]),
-                    ],
-                ]
-            ];
-        } catch (InvalidPluginDefinitionException|PluginNotFoundException) {
-            $this->logger->warning('File ID @id was unable to be retrieved.', ['@id' => $fileID]);
-            return null;
-        }
+        return [
+            'data' => [
+                '#type' => 'link',
+                '#title' => $this->t('Preview'),
+                '#url' => Url::fromRoute('esn_membership_manager.file_preview', ['file' => $fileID]),
+                '#attributes' => [
+                    'class' => ['use-ajax', 'button', 'button--small'],
+                    'data-dialog-type' => 'modal',
+                    'data-dialog-options' => Json::encode(['width' => 700, 'minHeight' => 500]),
+                ],
+            ]
+        ];
     }
 
     public function filterFormSubmit(array &$form, FormStateInterface $form_state): void

@@ -7,13 +7,11 @@ use Drupal\Core\Config\ConfigFactoryInterface;
 use Drupal\Core\Controller\ControllerBase;
 use Drupal\Core\Database\Connection;
 use Drupal\Core\Datetime\DrupalDateTime;
-use Drupal\Core\Entity\EntityTypeManagerInterface;
 use Drupal\Core\Logger\LoggerChannelFactoryInterface;
 use Drupal\Core\Logger\LoggerChannelInterface;
 use Drupal\esn_membership_manager\Service\AppleWalletService;
+use Drupal\esn_membership_manager\Service\FileService;
 use Drupal\esn_membership_manager\Service\GoogleService;
-use Drupal\file\FileInterface;
-use Drupal\file\FileRepositoryInterface;
 use Exception;
 use GuzzleHttp\Exception\GuzzleException;
 use Symfony\Component\DependencyInjection\ContainerInterface;
@@ -23,27 +21,24 @@ use Symfony\Component\HttpFoundation\Request;
 class EditController extends ControllerBase
 {
     protected $configFactory;
-    protected $entityTypeManager;
     protected Connection $database;
-    protected FileRepositoryInterface $fileRepository;
+    protected FileService $fileService;
     protected LoggerChannelInterface $logger;
     protected GoogleService $googleService;
     protected AppleWalletService $appleWalletService;
 
     public function __construct(
         ConfigFactoryInterface        $configFactory,
-        EntityTypeManagerInterface    $entityTypeManager,
         Connection                    $database,
-        FileRepositoryInterface       $fileRepository,
+        FileService $fileService,
         LoggerChannelFactoryInterface $loggerFactory,
         GoogleService                 $googleService,
         AppleWalletService            $appleWalletService,
     )
     {
         $this->configFactory = $configFactory;
-        $this->entityTypeManager = $entityTypeManager;
         $this->database = $database;
-        $this->fileRepository = $fileRepository;
+        $this->fileService = $fileService;
         $this->logger = $loggerFactory->get('esn_membership_manager');
         $this->googleService = $googleService;
         $this->appleWalletService = $appleWalletService;
@@ -54,14 +49,11 @@ class EditController extends ControllerBase
         /** @var ConfigFactoryInterface $configFactory */
         $configFactory = $container->get('config.factory');
 
-        /** @var EntityTypeManagerInterface $entityTypeManager */
-        $entityTypeManager = $container->get('entity_type.manager');
-
         /** @var Connection $database */
         $database = $container->get('database');
 
-        /** @var FileRepositoryInterface $fileRepository */
-        $fileRepository = $container->get('file.repository');
+        /** @var FileService $fileService */
+        $fileService = $container->get('esn_membership_manager.file_service');
 
         /** @var LoggerChannelFactoryInterface $loggerFactory */
         $loggerFactory = $container->get('logger.factory');
@@ -74,9 +66,8 @@ class EditController extends ControllerBase
 
         return new static(
             $configFactory,
-            $entityTypeManager,
             $database,
-            $fileRepository,
+            $fileService,
             $loggerFactory,
             $googleService,
             $appleWalletService
@@ -252,25 +243,10 @@ class EditController extends ControllerBase
                 return new JsonResponse(['status' => 'error', 'message' => 'No face photo was found for this application.'], 404);
             }
 
-            $fid = $application['face_photo_fid'];
-            /** @var FileInterface $file */
-            $file = $this->entityTypeManager->getStorage('file')->load($fid);
-
-            if (!$file) {
-                return new JsonResponse(['status' => 'error', 'message' => 'File entity not found.'], 404);
+            if (!$this->fileService->replaceFileData($application['face_photo_fid'], $imageData)) {
+                return new JsonResponse(['status' => 'error', 'message' => 'Unable to write file.'], 500);
             }
 
-            if (class_exists('\Drupal\Core\File\FileExists')) {
-                // Drupal 10.3+
-                /** @noinspection PhpFullyQualifiedNameUsageInspection */
-                // @phpstan-ignore-next-line
-                $this->fileRepository->writeData($imageData, $file->getFileUri(), \Drupal\Core\File\FileExists::Replace);
-            } else {
-                // Drupal 9 / <10.3
-                /** @noinspection PhpFullyQualifiedNameUsageInspection */
-                // @phpstan-ignore-next-line
-                $this->fileRepository->writeData($imageData, $file->getFileUri(), \Drupal\Core\File\FileSystemInterface::EXISTS_REPLACE);
-            }
 
             if ($moduleConfig->get('switch_google_wallet') ?? FALSE) {
                 try {
@@ -284,7 +260,7 @@ class EditController extends ControllerBase
                 try {
                     $pushTokens = $this->database->select('esn_membership_manager_apple_wallet_registrations', 'w')
                         ->fields('w', ['push_token'])
-                        ->condition('serial_number', 'esncard-' . $application['id'])
+                        ->condition('serial_number', 'esncard-' . $applicationID)
                         ->execute()
                         ->fetchCol();
 

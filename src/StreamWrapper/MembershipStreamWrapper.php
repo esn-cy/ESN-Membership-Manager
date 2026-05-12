@@ -43,7 +43,7 @@ class MembershipStreamWrapper extends PrivateStream
         }
 
         return Url::fromRoute('esn_membership_manager.file_download', [
-            'application_id' => $parts[0],
+            'applicationID' => $parts[0],
             'filename' => $parts[1]
         ], ['absolute' => TRUE])->toString();
     }

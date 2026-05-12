@@ -14,6 +14,15 @@ services:
       - '@esn_membership_manager.weeztix_service'
       - '@esn_membership_manager.google_service'
 
+  esn_membership_manager.file_service:
+    class: Drupal\esn_membership_manager\Service\FileService
+    arguments:
+      - '@entity_type.manager'
+      - '@file_system'
+      - '@file.repository'
+      - '@file.usage'
+      - '@logger.factory'
+
   esn_membership_manager.stripe_service:
     class: Drupal\esn_membership_manager\Service\StripeService
     arguments:
@@ -33,8 +42,7 @@ services:
     class: Drupal\esn_membership_manager\Service\GoogleService
     arguments:
       - '@config.factory'
-      - '@entity_type.manager'
-      - '@file_system'
+      - '@esn_membership_manager.file_service'
       - '@logger.factory'
 
   esn_membership_manager.apple_wallet_service:
@@ -43,8 +51,7 @@ services:
       - '@config.factory'
       - '@settings'
       - '@module_handler'
-      - '@entity_type.manager'
-      - '@file_system'
+      - '@esn_membership_manager.file_service'
       - '@http_client'
       - '@logger.factory'
 
