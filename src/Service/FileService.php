@@ -6,6 +6,7 @@ use Drupal\Component\Plugin\Exception\InvalidPluginDefinitionException;
 use Drupal\Component\Plugin\Exception\PluginNotFoundException;
 use Drupal\Core\Entity\EntityStorageException;
 use Drupal\Core\Entity\EntityTypeManagerInterface;
+use Drupal\Core\File\Exception\FileException;
 use Drupal\Core\File\FileSystemInterface;
 use Drupal\Core\Logger\LoggerChannelFactoryInterface;
 use Drupal\Core\Logger\LoggerChannelInterface;
@@ -14,6 +15,7 @@ use Drupal\file\FileRepositoryInterface;
 use Drupal\file\FileUsage\DatabaseFileUsageBackend;
 use Exception;
 use finfo;
+use ValueError;
 
 /**
  * Service for managing files within the ESN Membership Manager module.
@@ -86,6 +88,19 @@ class FileService
     }
 
     /**
+     * Resets the cache for a specific file.
+     *
+     * @param int|string|null $fileID The ID of the file entity to reset.
+     */
+    private function resetFileCache(int|string|null $fileID): void
+    {
+        try {
+            $this->entityTypeManager->getStorage('file')->resetCache([$fileID]);
+        } catch (InvalidPluginDefinitionException|PluginNotFoundException) {
+        }
+    }
+
+    /**
      * Gets the MIME type of a file.
      *
      * @param int|string|null $fileID The ID of the file entity.
@@ -147,6 +162,43 @@ class FileService
         }
 
         return $this->fileSystem->realpath($file->getFileUri());
+    }
+
+    /**
+     * Creates a file in the filesystem and creates a file entity.
+     *
+     * @param string $fileData The file data to be saved.
+     * @param string $directory The directory to save the file in.
+     * @param string $fileName The name of the created file.
+     *
+     * @return string|null  The file ID of the created file, or `null` if the file cannot be created.
+     */
+    public function createFile(string $fileData, string $directory, string $fileName): ?string
+    {
+        if (!$this->fileSystem->prepareDirectory($directory, FileSystemInterface::CREATE_DIRECTORY | FileSystemInterface::MODIFY_PERMISSIONS)) {
+            $this->logger->error('Failed to create or prepare directory: @directory', ['@directory' => $directory]);
+            return null;
+        }
+
+        try {
+            /** @noinspection PhpFullyQualifiedNameUsageInspection */
+            /** @noinspection PhpUnnecessaryFullyQualifiedNameInspection */
+            /** @noinspection PhpDeprecationInspection */
+            $existsBehavior = class_exists('\Drupal\Core\File\FileExists')
+                ? \Drupal\Core\File\FileExists::Replace // Drupal 10.3+
+                : \Drupal\Core\File\FileSystemInterface::EXISTS_REPLACE; // Drupal 9 / <10.3
+
+            $file = $this->fileRepository->writeData($fileData, "$directory/$fileName", $existsBehavior);
+
+            if ($this->saveFile($file->id())) {
+                return $file->id();
+            } else {
+                return null;
+            }
+        } catch (FileException|ValueError|EntityStorageException $e) {
+            $this->logger->error('File @name creation error: @error', ['@name' => $fileName, '@error' => $e->getMessage()]);
+            return null;
+        }
     }
 
     /**
@@ -246,6 +298,7 @@ class FileService
         }
         try {
             $this->fileRepository->move($file, $directory . '/' . $filename);
+            $this->resetFileCache($fileID);
             return true;
         } catch (EntityStorageException $e) {
             $this->logger->error('File @id move error: @error', ['@id' => $fileID, '@error' => $e->getMessage()]);
@@ -294,16 +347,14 @@ class FileService
         $filename = $nameInfo['filename'] . '.' . $extension;
 
         try {
-            if (class_exists('\Drupal\Core\File\FileExists')) {
-                // Drupal 10.3+
-                /** @noinspection PhpFullyQualifiedNameUsageInspection */
-                $this->fileSystem->saveData($fileData, $uri, \Drupal\Core\File\FileExists::Replace);
-            } else {
-                // Drupal 9 / <10.3
-                /** @noinspection PhpUnnecessaryFullyQualifiedNameInspection */
-                /** @noinspection PhpDeprecationInspection */
-                $this->fileSystem->saveData($fileData, $uri, \Drupal\Core\File\FileSystemInterface::EXISTS_REPLACE);
-            }
+            /** @noinspection PhpFullyQualifiedNameUsageInspection */
+            /** @noinspection PhpUnnecessaryFullyQualifiedNameInspection */
+            /** @noinspection PhpDeprecationInspection */
+            $existsBehavior = class_exists('\Drupal\Core\File\FileExists')
+                ? \Drupal\Core\File\FileExists::Replace // Drupal 10.3+
+                : \Drupal\Core\File\FileSystemInterface::EXISTS_REPLACE; // Drupal 9 / <10.3
+
+            $this->fileSystem->saveData($fileData, $uri, $existsBehavior);
 
             $file->setFileUri($uri);
             $file->setFilename($filename);
@@ -315,7 +366,7 @@ class FileService
                 $this->fileSystem->delete($currentURI);
             }
 
-            $this->entityTypeManager->getStorage('file')->resetCache([$fileID]);
+            $this->resetFileCache($fileID);
 
             return true;
         } catch (EntityStorageException $e) {

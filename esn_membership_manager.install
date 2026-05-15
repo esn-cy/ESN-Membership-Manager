@@ -238,6 +238,27 @@ function esn_membership_manager_schema(): array
                 'default' => 'Pending',
                 'not null' => TRUE,
             ],
+            'verified_email' => [
+                'description' => 'Was Mobility Status verified.',
+                'type' => 'int',
+                'size' => 'tiny',
+                'not null' => TRUE,
+                'default' => 0,
+            ],
+            'verified_id' => [
+                'description' => 'Was the personal information verified in this application.',
+                'type' => 'int',
+                'size' => 'tiny',
+                'not null' => TRUE,
+                'default' => 0,
+            ],
+            'verified_status' => [
+                'description' => 'Was the Mobility Status verified.',
+                'type' => 'int',
+                'size' => 'tiny',
+                'not null' => TRUE,
+                'default' => 0,
+            ],
             'date_created' => [
                 'description' => 'Timestamp when the submission was created.',
                 'type' => 'varchar',
@@ -274,6 +295,70 @@ function esn_membership_manager_schema(): array
         'indexes' => [
             'email' => ['email'],
             'approval_status' => ['approval_status']
+        ],
+    ];
+
+    $schema['esn_membership_manager_in_progress_applications'] = [
+        'description' => 'Stores in progress applications.',
+        'fields' => [
+            'id' => [
+                'description' => 'Primary Key: Unique in progress application ID.',
+                'type' => 'serial',
+                'not null' => TRUE,
+            ],
+            'email' => [
+                'description' => 'The verified email used in this application.',
+                'type' => 'varchar',
+                'length' => 255,
+                'not null' => TRUE,
+            ],
+            'name' => [
+                'description' => 'The name as verified.',
+                'type' => 'varchar',
+                'length' => 255,
+            ],
+            'surname' => [
+                'description' => 'The surname as verified.',
+                'type' => 'varchar',
+                'length' => 255,
+            ],
+            'nationality' => [
+                'description' => 'The nationality as verified.',
+                'type' => 'varchar',
+                'length' => 128,
+            ],
+            'dob' => [
+                'description' => 'The date of birth as verified.',
+                'type' => 'varchar',
+                'length' => 20,
+            ],
+            'didit_session_id' => [
+                'description' => 'The session ID provided by Didit.',
+                'type' => 'varchar',
+                'length' => 255,
+            ],
+            'didit_session_token' => [
+                'description' => 'The session token that is used in the Didit verification URL.',
+                'type' => 'varchar',
+                'length' => 255,
+            ],
+            'didit_status' => [
+                'description' => 'The verification status of the Didit session.',
+                'type' => 'varchar',
+                'length' => 128,
+            ],
+            'date_created' => [
+                'description' => 'Timestamp when the session creation occurred.',
+                'type' => 'varchar',
+                'length' => 64,
+                'not null' => TRUE,
+            ],
+        ],
+        'primary key' => ['id'],
+        'unique keys' => [
+            'email' => ['email'],
+            'didit_session_id' => ['didit_session_id'],
+            'didit_session_token' => ['didit_session_token'],
         ],
     ];
 

@@ -63,6 +63,14 @@ services:
       - '@plugin.manager.mail'
       - '@renderer'
 
+  esn_membership_manager.didit_service:
+    class: Drupal\esn_membership_manager\Service\DiditService
+    arguments:
+      - '@config.factory'
+      - '@database'
+      - '@http_client'
+      - '@logger.factory'
+
   stream_wrapper.membership:
     class: Drupal\esn_membership_manager\StreamWrapper\MembershipStreamWrapper
     tags:

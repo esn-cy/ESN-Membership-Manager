@@ -111,6 +111,12 @@ class SettingsForm extends ConfigFormBase
             '#default_value' => $config->get('switch_apple_wallet') ?? FALSE,
         ];
 
+        $form['switches']['switch_didit'] = [
+            '#type' => 'checkbox',
+            '#title' => $this->t('Enable Didit Integration'),
+            '#default_value' => $config->get('switch_didit') ?? FALSE,
+        ];
+
         $form['general'] = [
             '#type' => 'details',
             '#title' => $this->t('General Settings'),
@@ -435,6 +441,31 @@ class SettingsForm extends ConfigFormBase
             '#required' => $config->get('switch_apple_wallet') ?? FALSE
         ];
 
+        $form['didit'] = [
+            '#type' => 'details',
+            '#title' => $this->t('Didit Settings'),
+            '#description' => $this->t('Configuration for the Didit Service.'),
+            '#open' => $config->get('switch_didit') ?? FALSE
+        ];
+
+        $form['didit']['didit_api_key'] = [
+            '#type' => 'textfield',
+            '#title' => $this->t('Application API Key'),
+            '#description' => $this->t('The API key found in Developers > API Keys.'),
+            '#default_value' => $config->get('didit_api_key'),
+            '#disabled' => !$config->get('switch_didit') ?? TRUE,
+            '#required' => $config->get('switch_didit') ?? FALSE
+        ];
+
+        $form['didit']['didit_workflow_id'] = [
+            '#type' => 'textfield',
+            '#title' => $this->t('Workflow ID'),
+            '#description' => $this->t('The ID of the workflow to be used for verification.'),
+            '#default_value' => $config->get('didit_workflow_id'),
+            '#disabled' => !$config->get('switch_didit') ?? TRUE,
+            '#required' => $config->get('switch_didit') ?? FALSE
+        ];
+
         return parent::buildForm($form, $form_state);
     }
 
@@ -497,6 +528,7 @@ class SettingsForm extends ConfigFormBase
             ->set('switch_google_sheets', $form_state->getValue('switch_google_sheets'))
             ->set('switch_google_wallet', $form_state->getValue('switch_google_wallet'))
             ->set('switch_apple_wallet', $form_state->getValue('switch_apple_wallet'))
+            ->set('switch_didit', $form_state->getValue('switch_didit'))
             ->set('organization_name', $form_state->getValue('organization_name'))
             ->set('scheme_name', $form_state->getValue('scheme_name'))
             ->set('guest_scheme_name', $form_state->getValue('guest_scheme_name'))
@@ -519,7 +551,9 @@ class SettingsForm extends ConfigFormBase
             ->set('google_issuer_id', $form_state->getValue('google_issuer_id'))
             ->set('apple_team_id', $form_state->getValue('apple_team_id'))
             ->set('apple_pass_type_id', $form_state->getValue('apple_pass_type_id'))
-            ->set('apple_certificate_password', $form_state->getValue('apple_certificate_password'));
+            ->set('apple_certificate_password', $form_state->getValue('apple_certificate_password'))
+            ->set('didit_api_key', $form_state->getValue('didit_api_key'))
+            ->set('didit_workflow_id', $form_state->getValue('didit_workflow_id'));
 
         $googleCredentials = $form_state->get('parsed_google_credentials');
         if ($googleCredentials) {

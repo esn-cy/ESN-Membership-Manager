@@ -2,25 +2,21 @@
 
 namespace Drupal\esn_membership_manager\Form;
 
-use DateTime;
-use Drupal\Component\Plugin\Exception\InvalidPluginDefinitionException;
-use Drupal\Component\Plugin\Exception\PluginNotFoundException;
+use Drupal\Core\Ajax\AjaxResponse;
+use Drupal\Core\Ajax\RedirectCommand;
 use Drupal\Core\Config\ConfigFactoryInterface;
 use Drupal\Core\Database\Connection;
 use Drupal\Core\Datetime\DrupalDateTime;
-use Drupal\Core\Entity\EntityStorageException;
-use Drupal\Core\Entity\EntityTypeManagerInterface;
 use Drupal\Core\Extension\ModuleHandlerInterface;
-use Drupal\Core\File\FileSystemInterface;
 use Drupal\Core\Form\FormBase;
 use Drupal\Core\Form\FormStateInterface;
 use Drupal\Core\Logger\LoggerChannelFactoryInterface;
 use Drupal\Core\Logger\LoggerChannelInterface;
 use Drupal\Core\Render\Markup;
 use Drupal\Core\Url;
+use Drupal\esn_membership_manager\Service\DiditService;
 use Drupal\esn_membership_manager\Service\EmailManager;
-use Drupal\file\FileInterface;
-use Drupal\file\FileRepositoryInterface;
+use Drupal\esn_membership_manager\Service\FileService;
 use Exception;
 use GuzzleHttp\ClientInterface;
 use GuzzleHttp\Exception\GuzzleException;
@@ -31,12 +27,11 @@ class ApplicationForm extends FormBase
     protected $configFactory;
     protected Connection $database;
     protected EmailManager $emailManager;
-    protected EntityTypeManagerInterface $entityTypeManager;
     protected ModuleHandlerInterface $moduleHandler;
-    protected FileSystemInterface $fileSystem;
-    protected FileRepositoryInterface $fileRepository;
+    protected FileService $fileService;
     protected ClientInterface $httpClient;
     protected LoggerChannelInterface $logger;
+    protected DiditService $diditService;
 
     protected array $nationalities = [];
 
@@ -44,23 +39,21 @@ class ApplicationForm extends FormBase
         ConfigFactoryInterface        $configFactory,
         Connection                    $database,
         EmailManager                  $emailManager,
-        EntityTypeManagerInterface    $entityTypeManager,
         ModuleHandlerInterface        $moduleHandler,
-        FileSystemInterface           $fileSystem,
-        FileRepositoryInterface       $fileRepository,
+        FileService                   $fileService,
         ClientInterface               $httpClient,
-        LoggerChannelFactoryInterface $loggerFactory
+        LoggerChannelFactoryInterface $loggerFactory,
+        DiditService                  $diditService,
     )
     {
         $this->configFactory = $configFactory;
         $this->database = $database;
         $this->emailManager = $emailManager;
-        $this->entityTypeManager = $entityTypeManager;
         $this->moduleHandler = $moduleHandler;
-        $this->fileSystem = $fileSystem;
-        $this->fileRepository = $fileRepository;
+        $this->fileService = $fileService;
         $this->httpClient = $httpClient;
         $this->logger = $loggerFactory->get('esn_membership_manager');
+        $this->diditService = $diditService;
     }
 
     public static function create(ContainerInterface $container): self
@@ -74,17 +67,11 @@ class ApplicationForm extends FormBase
         /** @var EmailManager $emailManager */
         $emailManager = $container->get('esn_membership_manager.email_manager');
 
-        /** @var EntityTypeManagerInterface $entityTypeManager */
-        $entityTypeManager = $container->get('entity_type.manager');
-
         /** @var ModuleHandlerInterface $moduleHandler */
         $moduleHandler = $container->get('module_handler');
 
-        /** @var FileSystemInterface $fileSystem */
-        $fileSystem = $container->get('file_system');
-
-        /** @var FileRepositoryInterface $fileRepository */
-        $fileRepository = $container->get('file.repository');
+        /** @var FileService $fileService */
+        $fileService = $container->get('esn_membership_manager.file_service');
 
         /** @var ClientInterface $httpClient */
         $httpClient = $container->get('http_client');
@@ -92,16 +79,18 @@ class ApplicationForm extends FormBase
         /** @var LoggerChannelFactoryInterface $loggerFactory */
         $loggerFactory = $container->get('logger.factory');
 
+        /** @var DiditService $diditService */
+        $diditService = $container->get('esn_membership_manager.didit_service');
+
         return new static(
             $configFactory,
             $database,
             $emailManager,
-            $entityTypeManager,
             $moduleHandler,
-            $fileSystem,
-            $fileRepository,
+            $fileService,
             $httpClient,
-            $loggerFactory
+            $loggerFactory,
+            $diditService
         );
     }
 
@@ -120,11 +109,14 @@ class ApplicationForm extends FormBase
     {
         $moduleConfig = $this->configFactory->get('esn_membership_manager.settings');
 
-        $form['#attached']['library'][] = 'esn_membership_manager/application_form';
-        $form['#attributes']['class'][] = 'esn-membership-manager-form';
-
         $form['#prefix'] = '<div id="application-form-wrapper">';
         $form['#suffix'] = '</div>';
+
+        $form['#cache'] = [
+            'max-age' => 0,
+        ];
+
+        $form_state->disableCache();
 
         $schemeName = $moduleConfig->get('scheme_name');
 
@@ -132,12 +124,22 @@ class ApplicationForm extends FormBase
         $savedData = $session->get('application_form_saved_data', []);
         $verificationData = $session->get('application_form_verification_data', []);
 
-        $form_state->disableCache();
+        $email = strtolower($session->get('verified_email') ?? $savedData['email'] ?? $form_state->getValue('email') ?? '');
+        if (empty($email)) {
+            $savedData = [];
+            $verificationData = [];
+            $session->remove('application_form_saved_data');
+            $session->remove('application_form_verification_data');
+        }
 
         $isCodeSent = !empty($verificationData['email_code_sent']) || $form_state->get('code_sent');
         $isCodeVerified = !empty($verificationData['email_code_verified']) || $form_state->get('code_verified');
+        $emailExists = !empty($verificationData['email_exists']);
 
-        if (!$isCodeVerified) {
+        if ($isCodeVerified) {
+            $form['#attached']['library'][] = 'esn_membership_manager/application_form';
+            $form['#attributes']['class'][] = 'esn-membership-manager-form';
+        } else {
             $form['#attributes']['class'][] = 'esn-membership-manager-login-form';
             $form['#attached']['library'][] = 'esn_membership_manager/login_form';
         }
@@ -168,6 +170,9 @@ class ApplicationForm extends FormBase
             '#required' => TRUE,
             '#default_value' => $form_state->getValue('email') ?? $savedData['email'] ?? '',
         ];
+        if ($isCodeVerified || $emailExists) {
+            $form['email']['email']['#disabled'] = TRUE;
+        }
 
         $form['email']['actions_wrapper'] = [
             '#type' => 'container',
@@ -177,9 +182,23 @@ class ApplicationForm extends FormBase
         $apiMessage = $form_state->get('api_message');
         if ($apiMessage) {
             $messageType = $form_state->get('api_message_type') ?? 'status';
-            $form['email']['actions_wrapper']['message'] = [
-                '#markup' => '<div class="messages messages--' . $messageType . '">' . $apiMessage . '</div>',
-            ];
+            if ($emailExists) {
+                $apiMessage = $this->t('You have already made an application with this email address.');
+                $messageType = 'status';
+            }
+            if (!$isCodeVerified) {
+                $form['email']['actions_wrapper']['message'] = [
+                    '#markup' => '<div class="messages messages--' . $messageType . '">' . $apiMessage . '</div>',
+                ];
+            } else {
+                $form['email']['actions_wrapper']['message'] = [
+                    '#markup' => '<p class="alert alert-' . ($messageType == 'status' ? 'success' : 'warning') . '">' . $apiMessage . '</p>',
+                ];
+            }
+        }
+
+        if ($emailExists) {
+            return $form;
         }
 
         if (!$isCodeSent && !$isCodeVerified) {
@@ -215,21 +234,153 @@ class ApplicationForm extends FormBase
             return $form;
         }
 
+        $diditEnabled = $moduleConfig->get('switch_didit') ?? false;
+        $verificationStatus = null;
+        $personalFieldsDisabled = false;
+
+        if ($diditEnabled) {
+            try {
+                $application = $this->database->select('esn_membership_manager_in_progress_applications', 'i')
+                    ->fields('i')
+                    ->condition('email', $email)
+                    ->execute()
+                    ->fetchAssoc();
+
+                if (!empty($application)) {
+                    $diditStatus = $application['didit_status'] ?? null;
+                    $diditSessionID = $application['didit_session_id'] ?? null;
+
+                    if (!empty($diditSessionID) && !in_array($diditStatus, ['Approved', 'Declined', 'In Review'])) {
+                        $diditSession = $this->diditService->getSession($diditSessionID);
+                        $updatedStatus = $diditSession['status'] ?? null;
+
+                        if (!empty($updatedStatus)) {
+                            $updateFields = ['didit_status' => $updatedStatus];
+
+                            if (in_array($updatedStatus, ['Approved', 'Declined', 'In Review'])) {
+                                $verifiedDetails = $diditSession['id_verifications'][0];
+                                $nationality = match ($verifiedDetails['nationality']) {
+                                    'GBR' => 'British',
+                                    'SHN' => 'St Helenian / Tristanian',
+                                    'DOM' => 'Dominican',
+                                    default => $this->getNationalities(true)[$verifiedDetails['nationality']]
+                                };
+
+                                $updateFields += [
+                                    'name' => $verifiedDetails['first_name'],
+                                    'surname' => $verifiedDetails['last_name'],
+                                    'nationality' => $nationality,
+                                    'dob' => $verifiedDetails['date_of_birth'],
+                                ];
+                            }
+
+                            $this->database->update('esn_membership_manager_in_progress_applications')
+                                ->fields($updateFields)
+                                ->condition('didit_session_id', $diditSessionID)
+                                ->execute();
+
+                            $application = array_merge($application, $updateFields);
+                            $diditStatus = $updatedStatus;
+                        }
+                    }
+
+                    $verificationStatus = 'Other';
+                    $verificationData = $session->get('application_form_verification_data', []);
+
+                    if ($diditStatus == 'Approved') {
+                        $verificationStatus = 'Success';
+
+                        $savedData = $session->get('application_form_saved_data', []);
+                        $savedData['name'] = $application['name'];
+                        $savedData['surname'] = $application['surname'];
+                        $savedData['nationality'] = $application['nationality'];
+                        $savedData['dob'] = $application['dob'];
+                        $session->set('application_form_saved_data', $savedData);
+
+                        $verificationData['id_verified'] = true;
+                    } elseif ($application['didit_status'] == 'Declined' || $application['didit_status'] == 'In Review') {
+                        $verificationStatus = 'Failed';
+                        $verificationData['id_verified'] = false;
+                    }
+
+                    if (!empty($application['didit_session_token'])) {
+                        $diditVerifyLink = 'https://verify.didit.me/session/' . $application['didit_session_token'];
+                        $verificationData['id_verification_link'] = $diditVerifyLink;
+                    }
+
+                    $session->set('application_form_verification_data', $verificationData);
+                }
+            } catch (Exception $e) {
+                $this->logger->error('Unable to fetch in progress application data. @error.', ['@error' => $e->getMessage()]);
+            }
+        }
+
         $form['personal_details'] = [
             '#type' => 'fieldset',
             '#title' => $this->t('Personal Details'),
         ];
 
+        if (!empty($verificationStatus)) {
+            $personalFieldsDisabled = ($verificationStatus == 'Success');
+
+            switch ($verificationStatus) {
+                case 'Success':
+                    $form['personal_details']['verified_success'] = [
+                        '#markup' => Markup::create('<p class="alert alert-success">' . $this->t('You have successfully verified your identity.') . '</p>'),
+                    ];
+                    break;
+                case 'Failed':
+                    $form['personal_details']['verified_success'] = [
+                        '#markup' => Markup::create('<p class="alert alert-warning">' . $this->t('Your identity verification has failed. Please fill in the following fields manually.') . '</p>'),
+                    ];
+                    break;
+                case 'Other':
+                    $form['personal_details']['online_title'] = [
+                        '#markup' => '<h4 class="verification-subtitle">' . $this->t('Instant (Recommended)') . '</h4>',
+                    ];
+
+                    $form['personal_details']['online_button'] = [
+                        '#type' => 'submit',
+                        '#value' => $this->t('Verify ID Online'),
+                        '#name' => 'didit_button',
+                        '#attributes' => [
+                            'class' => ['btn-primary', 'btn', 'online-verify-btn'],
+                        ],
+                        '#ajax' => [
+                            'callback' => '::redirectToDidit',
+                            'event' => 'click',
+                        ],
+                    ];
+
+                    $form['personal_details']['tos_text'] = [
+                        '#markup' => '<div class="description verification-tos">' . $this->t('By clicking verify you agree with our and Didit\'s ') . '<a href="https://didit.me/terms/identity-verification/" target="_blank">' . $this->t('End User Terms of Service') . '</a>.' . '</div>',
+                    ];
+
+                    $form['personal_details']['divider'] = [
+                        '#markup' => '<div class="verification-divider"><span>' . $this->t('OR') . '</span></div>',
+                    ];
+
+                    $form['personal_details']['manual_title'] = [
+                        '#markup' => '<h4 class="verification-subtitle">' . $this->t('Manual Processing (Up to 7 days)') . '</h4>',
+                    ];
+                    break;
+            }
+        }
+
         $form['personal_details']['name'] = [
             '#type' => 'textfield',
             '#title' => $this->t('Name'),
             '#required' => TRUE,
+            '#disabled' => $personalFieldsDisabled,
+            '#default_value' => $form_state->getValue('name') ?? $savedData['name'] ?? '',
         ];
 
         $form['personal_details']['surname'] = [
             '#type' => 'textfield',
             '#title' => $this->t('Surname'),
             '#required' => TRUE,
+            '#disabled' => $personalFieldsDisabled,
+            '#default_value' => $form_state->getValue('surname') ?? $savedData['surname'] ?? '',
         ];
 
         $form['personal_details']['nationality'] = [
@@ -238,13 +389,35 @@ class ApplicationForm extends FormBase
             '#options' => $this->getNationalities(),
             '#empty_option' => $this->t('- Select -'),
             '#required' => TRUE,
+            '#disabled' => $personalFieldsDisabled,
+            '#default_value' => $form_state->getValue('nationality') ?? $savedData['nationality'] ?? '',
         ];
 
         $form['personal_details']['dob'] = [
             '#type' => 'date',
             '#title' => $this->t('Date of Birth'),
             '#required' => TRUE,
+            '#disabled' => $personalFieldsDisabled,
+            '#default_value' => $form_state->getValue('dob') ?? $savedData['dob'] ?? 0,
         ];
+
+        if (!$personalFieldsDisabled) {
+            $form['personal_details']['id_document'] = [
+                '#type' => 'managed_file',
+                '#title' => $this->t('Copy of ID or Passport'),
+                '#description' => $this->t('Upload a scan of your ID or Passport for verification.'),
+                '#upload_location' => 'membership://temp_uploads/',
+                '#upload_validators' => [
+                    'file_validate_extensions' => ['jpg jpeg png pdf'],
+                    'file_validate_size' => [8 * 1024 * 1024]
+                ],
+                '#attributes' => [
+                    'accept' => 'image/jpeg, image/png, application/pdf',
+                ],
+                '#required' => TRUE,
+                '#default_value' => $form_state->getValue('id_document') ?? $savedData['id_document'] ?? '',
+            ];
+        }
 
         $form['mobility_details'] = [
             '#type' => 'fieldset',
@@ -290,7 +463,7 @@ class ApplicationForm extends FormBase
             '#title' => $this->t('Current Status'),
             '#options' => $statusOptions,
             '#empty_option' => $this->t('- Select -'),
-            '#default_value' => $form_state->getValue('status'),
+            '#default_value' => $form_state->getValue('status') ?? $savedData['status'] ?? '',
             '#required' => TRUE,
             '#ajax' => [
                 'callback' => '::mobilityAjaxCallback',
@@ -337,6 +510,7 @@ class ApplicationForm extends FormBase
                 '#description' => 'You need to enter institution that\'s hosting you here, not the one from your country of origin.',
                 '#title' => $organizationLabel,
                 '#required' => TRUE,
+                '#default_value' => $form_state->getValue('host') ?? $savedData['host'] ?? '',
             ];
 
             $form['mobility_details']['dynamic_container']['proof_help'] = [
@@ -349,10 +523,14 @@ class ApplicationForm extends FormBase
                 '#title' => $this->t('Proof of Status'),
                 '#upload_location' => 'membership://temp_uploads/',
                 '#upload_validators' => [
-                    'file_validate_extensions' => ['pdf jpg jpeg png'],
-                    'file_validate_size' => [5 * 1024 * 1024],
+                    'file_validate_extensions' => ['jpg jpeg png pdf'],
+                    'file_validate_size' => [8 * 1024 * 1024]
+                ],
+                '#attributes' => [
+                    'accept' => 'image/jpeg, image/png, application/pdf',
                 ],
                 '#required' => TRUE,
+                '#default_value' => $form_state->getValue('proof_of_status') ?? $savedData['proof_of_status'] ?? '',
             ];
         }
 
@@ -365,6 +543,7 @@ class ApplicationForm extends FormBase
             '#type' => 'checkbox',
             '#title' => $this->t('Would you like to include an ESNcard in your application?'),
             '#required' => FALSE,
+            '#default_value' => $form_state->getValue('has_esncard') ?? $savedData['has_esncard'] ?? FALSE,
         ];
 
         $form['esncard']['esncard_requirements'] = [
@@ -390,21 +569,7 @@ class ApplicationForm extends FormBase
                     ':input[name="has_esncard"]' => ['checked' => TRUE],
                 ],
             ],
-        ];
-
-        $form['esncard']['esncard_requirements']['id_document'] = [
-            '#type' => 'managed_file',
-            '#title' => $this->t('Copy of ID or Passport'),
-            '#description' => $this->t('Upload a scan of your ID or Passport for verification.'),
-            '#upload_location' => 'membership://temp_uploads/',
-            '#upload_validators' => [
-                'file_validate_extensions' => ['jpg jpeg png pdf'],
-            ],
-            '#states' => [
-                'required' => [
-                    ':input[name="has_esncard"]' => ['checked' => TRUE],
-                ],
-            ],
+            '#default_value' => $form_state->getValue('face_photo') ?? $savedData['face_photo'] ?? '',
         ];
 
         $form['actions'] = [
@@ -433,7 +598,7 @@ class ApplicationForm extends FormBase
         return $form;
     }
 
-    protected function getNationalities(): array
+    protected function getNationalities(bool $getISO = false): array
     {
         if (!empty($this->nationalities)) {
             return $this->nationalities;
@@ -451,14 +616,18 @@ class ApplicationForm extends FormBase
         if (file_exists($path)) {
             if (($handle = fopen($path, "r")) !== FALSE) {
                 while (($data = fgetcsv($handle, 1000, ",", "\"", "\\")) !== FALSE) {
-                    if (empty($data[1])) continue;
-                    $val = trim($data[1]);
-                    $nationalities[$val] = $val;
+                    if ($getISO) {
+                        if (empty($data[0]) || empty($data[1])) continue;
+                        $nationalities[trim($data[0])] = trim($data[1]);
+                    } else {
+                        if (empty($data[1])) continue;
+                        $val = trim($data[1]);
+                        $nationalities[$val] = $val;
+                    }
                 }
                 fclose($handle);
             }
         }
-
         $this->nationalities = $nationalities;
         return $nationalities;
     }
@@ -469,6 +638,28 @@ class ApplicationForm extends FormBase
     public function sendCodeSubmit(array &$form, FormStateInterface $form_state): void
     {
         $email = $form_state->getValue('email');
+
+        $emailExists = $this->database->select('esn_membership_manager_applications', 'a')
+                ->condition('email', $email)
+                ->countQuery()
+                ->execute()
+                ->fetchField() != 0;
+        if ($emailExists) {
+            $form_state->set('api_message', $this->t('You have already made an application with this email address.'));
+            $form_state->set('api_message_type', 'status');
+
+            $session = $this->getRequest()->getSession();
+            $verificationData = $session->get('application_form_verification_data', []);
+            $verificationData['email_exists'] = TRUE;
+            $session->set('application_form_verification_data', $verificationData);
+
+            $savedData = $session->get('application_form_saved_data', []);
+            $savedData['email'] = $email;
+            $session->set('application_form_saved_data', $savedData);
+
+            $form_state->setRebuild();
+            return;
+        }
 
         try {
             $response = $this->httpClient->post(
@@ -535,6 +726,21 @@ class ApplicationForm extends FormBase
                 $form_state->set('api_message', $body['error']);
                 $form_state->set('api_message_type', 'error');
             } else {
+                try {
+                    $this->database->insert('esn_membership_manager_in_progress_applications')
+                        ->fields([
+                            'email' => $email,
+                            'date_created' => (new DrupalDateTime())->format('Y-m-d H:i:s')
+                        ])
+                        ->execute();
+                } catch (Exception $e) {
+                    $this->logger->error('Unable to create in progress application. @error.', ['@error' => $e->getMessage()]);
+                    $form_state->set('api_message', $this->t('There was an issue processing your request. Please try again later.'));
+                    $form_state->set('api_message_type', 'error');
+                    $form_state->setRebuild();
+                    return;
+                }
+
                 $form_state->set('api_message', $body['message'] ?? $this->t('Email address verified.'));
                 $form_state->set('api_message_type', 'status');
                 $form_state->set('code_verified', TRUE);
@@ -557,6 +763,24 @@ class ApplicationForm extends FormBase
         $form_state->setRebuild();
     }
 
+    public function redirectToDidit(array &$form, FormStateInterface $form_state): AjaxResponse
+    {
+        $response = new AjaxResponse();
+
+        $session = $this->getRequest()->getSession();
+        $verificationData = $session->get('application_form_verification_data', []);
+        $verificationLink = $verificationData['id_verification_link'] ?? null;
+
+        if (empty($verificationLink)) {
+            $email = $session->get('application_form_saved_data', [])['email'];
+            $verificationLink = $this->diditService->createVerificationSession($email);
+        }
+
+        $response->addCommand(new RedirectCommand($verificationLink));
+
+        return $response;
+    }
+
     /**
      * AJAX callback to update the actions' wrapper.
      */
@@ -573,49 +797,82 @@ class ApplicationForm extends FormBase
     {
         parent::validateForm($form, $form_state);
 
+        $session = $this->getRequest()->getSession();
+        $verificationData = $session->get('application_form_verification_data', []);
+        $isVerifiedEmail = !empty($verificationData['email_code_verified']);
+        $isVerifiedID = !empty($verificationData['id_verified']);
+
+        if (!$isVerifiedEmail) {
+            return;
+        }
+
         $values = $form_state->getValues();
-        $hasESNcard = (bool)($values['has_esncard'] ?? FALSE);
+        $hasESNcard = $form_state->getValue('has_esncard', false);
+
+        if (empty($values['proof_of_status'])) {
+            $form_state->setErrorByName('proof_of_status', $this->t('Proof of status is missing. Please select your status again and re-upload the file.'));
+            return;
+        }
+
+        if (!$isVerifiedID && empty($values['id_document'])) {
+            $form_state->setErrorByName('id_document', $this->t('ID Document is missing. Please upload your ID document to proceed.'));
+        }
 
         if ($hasESNcard) {
-            if (empty($values['id_document'])) {
-                $form_state->setError($form['esncard']['esncard_requirements']['id_document'], $this->t('A copy of your ID or Passport is required for verification.'));
-            }
             if (empty($values['face_photo'])) {
-                $form_state->setError($form['esncard']['esncard_requirements']['face_photo'], $this->t('A passport style photo is required for the ESNcard.'));
+                $form_state->setErrorByName('face_photo', $this->t('A passport style photo is required for the ESNcard.'));
             }
         }
     }
 
     /**
      * {@inheritdoc}
-     * @throws Exception
      */
     public function submitForm(array &$form, FormStateInterface $form_state): void
     {
         $values = $form_state->getValues();
         $hasESNcard = (bool)$values['has_esncard'];
 
-        try {
-            if (empty($values['proof_of_status'])) {
-                $this->messenger()->addError($this->t('Proof of status is missing. Please select your status again and re-upload the file.'));
-                return;
-            }
+        $session = $this->getRequest()->getSession();
+        $savedData = $session->get('application_form_saved_data', []);
 
-            $proofFID = $this->saveFile($values['proof_of_status']);
-            if ($hasESNcard) {
-                $facePhotoFID = $this->saveFile($values['face_photo']);
-                $idDocFID = $this->saveFile($values['id_document']);
+        $email = $session->get('verified_email') ?? $savedData['email'] ?? $form_state->getValue('email');
+
+        try {
+            $application = $this->database->select('esn_membership_manager_in_progress_applications', 'i')
+                ->fields('i')
+                ->condition('email', $email)
+                ->execute()
+                ->fetchAssoc();
+        } catch (Exception $e) {
+            $this->logger->error('Unable to create in progress application. @error.', ['@error' => $e->getMessage()]);
+            $this->messenger()->addError($this->t('An error occurred fetching your application. Please try again.'));
+            return;
+        }
+
+        $isVerifiedID = $application['didit_status'] == 'Approved';
+
+        $filesExpected = ['proof_of_status'];
+        if (!$isVerifiedID) {
+            $filesExpected[] = 'id_document';
+        }
+        if ($hasESNcard) {
+            $filesExpected[] = 'face_photo';
+        }
+
+        $filesSaved = [];
+        foreach ($filesExpected as $fileKey) {
+            $fileID = $values[$fileKey][0] ?? null;
+
+            if ($this->fileService->saveFile($fileID)) {
+                $filesSaved[] = $fileKey;
             }
-        } catch (Exception) {
+        }
+
+        if (count($filesExpected) != count($filesSaved)) {
             $this->messenger()->addError($this->t('An error occurred while saving your files. Please try again.'));
-            if (!empty($proofFID)) {
-                $this->deleteFile($proofFID);
-            }
-            if (!empty($facePhotoFID) && $hasESNcard) {
-                $this->deleteFile($facePhotoFID);
-            }
-            if (!empty($idDocFID) && $hasESNcard) {
-                $this->deleteFile($idDocFID);
+            foreach ($filesSaved as $savedFile) {
+                $this->fileService->deleteFile($values[$savedFile][0] ?? null);
             }
             return;
         }
@@ -631,9 +888,9 @@ class ApplicationForm extends FormBase
             'international_undergrad' => 'Undergraduate',
             'international_postgrad' => 'Postgraduate',
             'other_study' => 'Study Exchange (Other)',
-            'other_train_traineeship' => 'Traineeship',
-            'other_train_internship' => 'Internship',
-            'other_train_apprenticeship' => 'Apprenticeship',
+            'other_train_traineeship' => 'Traineeship (Other)',
+            'other_train_internship' => 'Internship (Other)',
+            'other_train_apprenticeship' => 'Apprenticeship (Other)',
             'other_volunteer' => 'Volunteer (non-ESN)',
             'esn_volunteer' => 'ESN Volunteer',
             'esn_alumnus' => 'ESN Alumnus',
@@ -642,23 +899,36 @@ class ApplicationForm extends FormBase
             'mobility_ambassador' => 'Mobility Ambassador'
         ];
 
+        try {
+            $dateOfBirth = (new DrupalDateTime($isVerifiedID ? $application['dob'] : $values['dob']))->format('Y-m-d');
+        } catch (Exception) {
+            $this->messenger()->addError($this->t('Your selected date of birth is invalid. Please try again.'));
+            return;
+        }
+
         $fields = [
-            'name' => trim($values['name']),
-            'surname' => trim($values['surname']),
-            'email' => trim($values['email']),
-            'nationality' => $values['nationality'],
-            'dob' => (new DateTime($values['dob']))->format('Y-m-d'),
+            'name' => trim($isVerifiedID ? $application['name'] : $values['name']),
+            'surname' => trim($isVerifiedID ? $application['surname'] : $values['surname']),
+            'email' => trim($email),
+            'nationality' => trim($isVerifiedID ? $application['nationality'] : $values['nationality']),
+            'dob' => $dateOfBirth,
             'mobility_status' => $statuses[$values['status']],
             'host_institution' => trim($values['host']),
-            'proof_fid' => $proofFID,
+            'proof_fid' => $values['proof_of_status'][0],
             'approval_status' => 'Pending',
+            'verified_email' => 1,
+            'verified_id' => (int)$isVerifiedID,
             'date_created' => (new DrupalDateTime())->format('Y-m-d H:i:s'),
         ];
 
+        if ($isVerifiedID) {
+            $pdfData = $this->diditService->getPDF($application['didit_session_id']);
+            $values['id_document'][0] = $this->fileService->createFile($pdfData, "membership://temp_uploads", "id_document_{$application['id']}.pdf");
+        }
+        $fields['id_document_fid'] = $values['id_document'][0];
         if ($hasESNcard) {
-            $fields['esncard'] = TRUE;
-            $fields['face_photo_fid'] = $facePhotoFID;
-            $fields['id_document_fid'] = $idDocFID;
+            $fields['esncard'] = 1;
+            $fields['face_photo_fid'] = $values['face_photo'][0];
         }
 
         try {
@@ -666,103 +936,46 @@ class ApplicationForm extends FormBase
 
             if ($applicationID) {
                 $targetDirectory = 'membership://' . $applicationID;
-                $this->moveFile($proofFID, $targetDirectory, 'status');
+                $this->fileService->moveFile($values['proof_of_status'][0], $targetDirectory, 'status');
+                $this->fileService->moveFile($values['id_document'][0], $targetDirectory, 'id_document');
                 if ($hasESNcard) {
-                    $this->moveFile($facePhotoFID, $targetDirectory, 'face_photo');
-                    $this->moveFile($idDocFID, $targetDirectory, 'id_document');
+                    $this->fileService->moveFile($values['face_photo'][0], $targetDirectory, 'face_photo');
                 }
             }
         } catch (Exception $e) {
+            $this->fileService->deleteFile($values['proof_of_status'][0] ?? null);
+            $this->fileService->deleteFile($values['id_document'][0] ?? null);
+            if ($hasESNcard) {
+                $this->fileService->deleteFile($values['face_photo'][0] ?? null);
+            }
             $this->messenger()->addError($this->t('Error saving application. Please try again.'));
             $this->logger->error($e->getMessage());
             return;
         }
 
-        $emailParams = ['name' => $values['name']];
+        $emailParams = ['name' => trim($isVerifiedID ? $savedData['name'] : $values['name'])];
 
         if ($hasESNcard)
-            $this->emailManager->sendEmail($values['email'], 'both_confirmation', $emailParams);
+            $this->emailManager->sendEmail($email, 'both_confirmation', $emailParams);
         else
-            $this->emailManager->sendEmail($values['email'], 'pass_confirmation', $emailParams);
+            $this->emailManager->sendEmail($email, 'pass_confirmation', $emailParams);
+
+        if (!empty($application['didit_session_id'])) {
+            $this->diditService->deleteSession($application['didit_session_id']);
+        }
+
+        try {
+            $this->database->delete('esn_membership_manager_in_progress_applications')
+                ->condition('id', $application['id'])
+                ->execute();
+        } catch (Exception $e) {
+            $this->logger->error('Unable to delete in progress application. @error', ['@error' => $e->getMessage()]);
+        }
+
+        $session->remove('application_form_saved_data');
+        $session->remove('application_form_verification_data');
 
         $form_state->setRedirect('esn_membership_manager.apply_success');
-    }
-
-    /**
-     * Helper to save managed files permanently.
-     * @throws EntityStorageException
-     */
-    protected function saveFile($fid_array)
-    {
-        if (!empty($fid_array) && is_array($fid_array)) {
-            $fid = reset($fid_array);
-
-            $file = null;
-            try {
-                $file = $this->entityTypeManager->getStorage('file')->load($fid);
-            } catch (InvalidPluginDefinitionException|PluginNotFoundException) {
-            }
-            if ($file) {
-                $file->setPermanent();
-                $file->save();
-                return $fid;
-            }
-        }
-        return NULL;
-    }
-
-    /**
-     * Helper to delete a file.
-     */
-    protected function deleteFile($fid): void
-    {
-        if (empty($fid)) {
-            return;
-        }
-
-        try {
-            /** @var FileInterface $file */
-            $file = $this->entityTypeManager->getStorage('file')->load($fid);
-            $file?->delete();
-        } catch (Exception $e) {
-            $this->logger->error('Error deleting file @fid: @message', [
-                '@fid' => $fid,
-                '@message' => $e->getMessage()
-            ]);
-        }
-    }
-
-    /**
-     * Helper to move a file to a new directory.
-     */
-    protected function moveFile($fid, $directory, $renameTo = null): void
-    {
-        if (empty($fid)) {
-            return;
-        }
-
-        try {
-            /** @var FileInterface $file */
-            $file = $this->entityTypeManager->getStorage('file')->load($fid);
-            if ($file) {
-                if ($this->fileSystem->prepareDirectory($directory, FileSystemInterface::CREATE_DIRECTORY | FileSystemInterface::MODIFY_PERMISSIONS)) {
-                    $filename = $file->getFilename();
-                    if ($renameTo) {
-                        $extension = pathinfo($filename, PATHINFO_EXTENSION);
-                        $filename = $renameTo . '.' . $extension;
-                    }
-                    $this->fileRepository->move($file, $directory . '/' . $filename);
-                } else {
-                    $this->logger->error('Failed to create or prepare directory: @directory', ['@directory' => $directory]);
-                }
-            }
-        } catch (Exception $e) {
-            $this->logger->error('Error moving file @fid to @directory: @message', [
-                '@fid' => $fid,
-                '@directory' => $directory,
-                '@message' => $e->getMessage()
-            ]);
-        }
     }
 
     /** @noinspection PhpUnused

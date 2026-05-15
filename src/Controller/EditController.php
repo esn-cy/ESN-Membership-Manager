@@ -89,6 +89,21 @@ class EditController extends ControllerBase
 
         $moduleConfig = $this->configFactory->get('esn_membership_manager.settings');
 
+        try {
+            $application = $this->database->select('esn_membership_manager_applications', 'a')
+                ->fields('a')
+                ->condition('id', $applicationID)
+                ->execute()
+                ->fetchAssoc();
+        } catch (Exception $e) {
+            $this->logger->error('Select query failed: @message', ['@message' => $e->getMessage()]);
+            return new JsonResponse(['status' => 'error', 'message' => 'There was a problem getting the application.'], 500);
+        }
+
+        if (empty($application)) {
+            return new JsonResponse(['status' => 'error', 'message' => 'Application not found.'], 404);
+        }
+
         $allowedFields = [
             'name',
             'surname',
@@ -101,6 +116,17 @@ class EditController extends ControllerBase
             'esncard_number',
             'date_last_scanned'
         ];
+
+        if ($application['verified_email']) {
+            array_splice($allowedFields, array_search('email', $allowedFields), 1);
+        }
+
+        if ($application['verified_id']) {
+            array_splice($allowedFields, array_search('name', $allowedFields), 1);
+            array_splice($allowedFields, array_search('surname', $allowedFields), 1);
+            array_splice($allowedFields, array_search('nationality', $allowedFields), 1);
+            array_splice($allowedFields, array_search('dob', $allowedFields), 1);
+        }
 
         $fieldsToUpdate = [];
 
@@ -116,21 +142,6 @@ class EditController extends ControllerBase
 
         if (empty($fieldsToUpdate)) {
             return new JsonResponse(['status' => 'error', 'message' => 'No changes detected.'], 400);
-        }
-
-        try {
-            $application = $this->database->select('esn_membership_manager_applications', 'a')
-                ->fields('a')
-                ->condition('id', $applicationID)
-                ->execute()
-                ->fetchAssoc();
-        } catch (Exception $e) {
-            $this->logger->error('Select query failed: @message', ['@message' => $e->getMessage()]);
-            return new JsonResponse(['status' => 'error', 'message' => 'There was a problem getting the application.'], 500);
-        }
-
-        if (empty($application)) {
-            return new JsonResponse(['status' => 'error', 'message' => 'Application not found.'], 404);
         }
 
         if (!empty($fieldsToUpdate['name']) || !empty($fieldsToUpdate['surname'])) {
@@ -246,7 +257,6 @@ class EditController extends ControllerBase
             if (!$this->fileService->replaceFileData($application['face_photo_fid'], $imageData)) {
                 return new JsonResponse(['status' => 'error', 'message' => 'Unable to write file.'], 500);
             }
-
 
             if ($moduleConfig->get('switch_google_wallet') ?? FALSE) {
                 try {

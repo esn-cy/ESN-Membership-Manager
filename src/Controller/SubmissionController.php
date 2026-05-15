@@ -169,13 +169,11 @@ class SubmissionController extends ControllerBase implements ContainerInjectionI
             'mobility_status' => $this->t('Mobility Status'),
             'host_institution' => $this->t('Host Institution'),
             'approval_status' => $this->t('Approval Status'),
-            'proof_fid' => $this->t('Proof of Mobility')
+            'proof_fid' => $this->t('Proof of Mobility'),
+            'id_document_fid' => $this->t('ID Document'),
         ];
         if ($application['esncard']) {
-            $labels += [
-                'id_document_fid' => $this->t('ID Document'),
-                'face_photo_fid' => $this->t('Profile Photo')
-            ];
+            $labels += ['face_photo_fid' => $this->t('Profile Photo')];
         }
         $labels += ['pass_token' => $this->t('Pass Token')];
         if ($application['esncard']) {
@@ -186,6 +184,9 @@ class SubmissionController extends ControllerBase implements ContainerInjectionI
             ];
         }
         $labels += [
+            'verified_email' => $this->t('Verified Email'),
+            'verified_id' => $this->t('Verified ID'),
+            'verified_status' => $this->t('Verified Status'),
             'date_created' => $this->t('Created Date'),
             'date_approved' => $this->t('Date Approved')
         ];
@@ -207,11 +208,25 @@ class SubmissionController extends ControllerBase implements ContainerInjectionI
             'payment_link',
             'payment_link_id',
             'approval_status',
+            'verified_email',
+            'verified_id',
+            'verified_status',
             'date_created',
             'date_paid',
             'date_approved',
             'date_last_modified'
         ];
+
+        if ($application['verified_email']) {
+            $readOnlyKeys[] = 'email';
+        }
+
+        if ($application['verified_id']) {
+            $readOnlyKeys[] = 'name';
+            $readOnlyKeys[] = 'surname';
+            $readOnlyKeys[] = 'nationality';
+            $readOnlyKeys[] = 'dob';
+        }
 
         $fieldData = [];
         foreach ($application as $key => $value) {
@@ -267,6 +282,14 @@ class SubmissionController extends ControllerBase implements ContainerInjectionI
                     $displayValue = Link::fromTextAndUrl($value, Url::fromUri($value, ['attributes' => ['target' => '_blank']]))->toRenderable();
                 } else {
                     $displayValue = '';
+                }
+            }
+
+            if (in_array($key, ['verified_email', 'verified_id', 'verified_status'])) {
+                if (!empty($value)) {
+                    $displayValue = 'YES';
+                } else {
+                    $displayValue = 'NO';
                 }
             }
 
