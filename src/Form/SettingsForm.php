@@ -20,7 +20,6 @@ use Drupal\esn_membership_manager\Service\WeeztixService;
 use Exception;
 use Symfony\Component\DependencyInjection\ContainerInterface;
 use Symfony\Component\HttpFoundation\File\UploadedFile;
-use Symfony\Component\HttpFoundation\RequestStack;
 
 /**
  * Defines a configuration form for ESN Membership Manager settings.
@@ -29,7 +28,6 @@ class SettingsForm extends ConfigFormBase
 {
     protected WeeztixService $weeztixService;
     protected StateInterface $state;
-    protected $requestStack;
     protected FileSystemInterface $fileSystem;
     protected EntityTypeManagerInterface $entityTypeManager;
 
@@ -37,7 +35,6 @@ class SettingsForm extends ConfigFormBase
         ConfigFactoryInterface     $configFactory,
         WeeztixService             $weeztixService,
         StateInterface             $state,
-        RequestStack               $requestStack,
         FileSystemInterface        $fileSystem,
         EntityTypeManagerInterface $entityTypeManager,
     )
@@ -45,7 +42,6 @@ class SettingsForm extends ConfigFormBase
         parent::__construct($configFactory);
         $this->weeztixService = $weeztixService;
         $this->state = $state;
-        $this->requestStack = $requestStack;
         $this->fileSystem = $fileSystem;
         $this->entityTypeManager = $entityTypeManager;
     }
@@ -61,9 +57,6 @@ class SettingsForm extends ConfigFormBase
         /** @var StateInterface $state */
         $state = $container->get('state');
 
-        /** @var RequestStack $requestStack */
-        $requestStack = $container->get('request_stack');
-
         /** @var FileSystemInterface $fileSystem */
         $fileSystem = $container->get('file_system');
 
@@ -74,7 +67,6 @@ class SettingsForm extends ConfigFormBase
             $configFactory,
             $weeztixService,
             $state,
-            $requestStack,
             $fileSystem,
             $entityTypeManager,
         );
@@ -377,7 +369,7 @@ class SettingsForm extends ConfigFormBase
             $redirectURI = Url::fromRoute('esn_membership_manager.weeztix_oauth_callback', [], ['absolute' => TRUE])->toString();
 
             $state = Crypt::randomBytesBase64(64);
-            $session = $this->requestStack->getCurrentRequest()->getSession();
+            $session = $this->getRequest()->getSession();
             $session->set('weeztix_oauth_state', $state);
 
             $authURL = $this->weeztixService->getAuthorizationUrl($redirectURI, $state);
@@ -681,7 +673,7 @@ class SettingsForm extends ConfigFormBase
         return ['esn_membership_manager.settings'];
     }
 
-    public function toggleSectionMode(array &$form, FormStateInterface $form_state): AjaxResponse
+    public function toggleSectionMode(array $form, FormStateInterface $form_state): AjaxResponse
     {
         $response = new AjaxResponse();
 

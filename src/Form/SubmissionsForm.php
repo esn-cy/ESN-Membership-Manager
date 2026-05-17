@@ -16,26 +16,22 @@ use Drupal\esn_membership_manager\Service\FileService;
 use Exception;
 use Symfony\Component\DependencyInjection\ContainerInterface;
 use Symfony\Component\HttpFoundation\JsonResponse;
-use Symfony\Component\HttpFoundation\RequestStack;
 
 class SubmissionsForm extends FormBase
 {
     protected Connection $database;
-    protected $requestStack;
     protected ActionManager $actionManager;
     protected FileService $fileService;
     protected LoggerChannelInterface $logger;
 
     public function __construct(
         Connection                    $database,
-        RequestStack                  $requestStack,
         ActionManager                 $actionManager,
         FileService $fileService,
         LoggerChannelFactoryInterface $loggerFactory
     )
     {
         $this->database = $database;
-        $this->requestStack = $requestStack;
         $this->actionManager = $actionManager;
         $this->fileService = $fileService;
         $this->logger = $loggerFactory->get('esn_membership_manager');
@@ -45,9 +41,6 @@ class SubmissionsForm extends FormBase
     {
         /** @var Connection $database */
         $database = $container->get('database');
-
-        /** @var RequestStack $requestStack */
-        $requestStack = $container->get('request_stack');
 
         /** @var ActionManager $actionManager */
         $actionManager = $container->get('plugin.manager.action');
@@ -60,7 +53,6 @@ class SubmissionsForm extends FormBase
 
         return new static(
             $database,
-            $requestStack,
             $actionManager,
             $fileService,
             $loggerFactory
@@ -80,7 +72,7 @@ class SubmissionsForm extends FormBase
      */
     public function buildForm(array $form, FormStateInterface $form_state): JsonResponse|array
     {
-        $params = $this->requestStack->getCurrentRequest()->query;
+        $params = $this->getRequest()->query;
         $search = $params->get('search', '');
         $status = $params->get('status', '');
         $esncard = $params->get('esncard', '');

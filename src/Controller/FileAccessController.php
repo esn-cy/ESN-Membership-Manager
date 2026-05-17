@@ -3,7 +3,6 @@
 namespace Drupal\esn_membership_manager\Controller;
 
 use Drupal\Core\Controller\ControllerBase;
-use Drupal\Core\Extension\ModuleHandlerInterface;
 use Drupal\Core\Logger\LoggerChannelFactoryInterface;
 use Drupal\Core\Logger\LoggerChannelInterface;
 use Symfony\Component\DependencyInjection\ContainerInterface;
@@ -17,28 +16,21 @@ use Symfony\Component\HttpKernel\Exception\NotFoundHttpException;
  */
 class FileAccessController extends ControllerBase
 {
-    protected $moduleHandler;
     protected LoggerChannelInterface $logger;
 
     public function __construct(
-        ModuleHandlerInterface        $moduleHandler,
         LoggerChannelFactoryInterface $loggerFactory
     )
     {
-        $this->moduleHandler = $moduleHandler;
         $this->logger = $loggerFactory->get('esn_membership_manager');
     }
 
     public static function create(ContainerInterface $container): self
     {
-        /** @var ModuleHandlerInterface $moduleHandler */
-        $moduleHandler = $container->get('module_handler');
-
         /** @var LoggerChannelFactoryInterface $loggerFactory */
         $loggerFactory = $container->get('logger.factory');
 
         return new static(
-            $moduleHandler,
             $loggerFactory
         );
     }
@@ -71,7 +63,7 @@ class FileAccessController extends ControllerBase
             throw new NotFoundHttpException();
         }
 
-        $headers = $this->moduleHandler->invokeAll('file_download', [$uri]);
+        $headers = $this->moduleHandler()->invokeAll('file_download', [$uri]);
 
         if (empty($headers) || (isset($headers[0]) && $headers[0] === -1)) {
             foreach ($headers as $header) {

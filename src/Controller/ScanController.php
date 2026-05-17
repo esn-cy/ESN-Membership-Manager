@@ -2,7 +2,6 @@
 
 namespace Drupal\esn_membership_manager\Controller;
 
-use Drupal\Core\Config\ConfigFactoryInterface;
 use Drupal\Core\Controller\ControllerBase;
 use Drupal\Core\Database\Connection;
 use Drupal\Core\Datetime\DrupalDateTime;
@@ -17,21 +16,18 @@ use Symfony\Component\HttpFoundation\Request;
 
 class ScanController extends ControllerBase
 {
-    protected $configFactory;
     protected Connection $database;
     protected FileService $fileService;
     protected GoogleService $googleService;
     protected LoggerChannelInterface $logger;
 
     public function __construct(
-        ConfigFactoryInterface        $configFactory,
         Connection                    $database,
         FileService                   $fileService,
         GoogleService                 $googleService,
         LoggerChannelFactoryInterface $loggerFactory
     )
     {
-        $this->configFactory = $configFactory;
         $this->database = $database;
         $this->fileService = $fileService;
         $this->googleService = $googleService;
@@ -40,9 +36,6 @@ class ScanController extends ControllerBase
 
     public static function create(ContainerInterface $container): self
     {
-        /** @var ConfigFactoryInterface $configFactory */
-        $configFactory = $container->get('config.factory');
-
         /** @var Connection $database */
         $database = $container->get('database');
 
@@ -56,7 +49,6 @@ class ScanController extends ControllerBase
         $loggerFactory = $container->get('logger.factory');
 
         return new static(
-            $configFactory,
             $database,
             $fileService,
             $googleService,
@@ -148,7 +140,7 @@ class ScanController extends ControllerBase
 
     protected function scanGuest(string $cardNumber): JsonResponse
     {
-        $moduleConfig = $this->configFactory->get('esn_membership_manager.settings');
+        $moduleConfig = $this->config('esn_membership_manager.settings');
 
         try {
             $query = $this->database->select('esn_membership_manager_guest_passes', 'g');

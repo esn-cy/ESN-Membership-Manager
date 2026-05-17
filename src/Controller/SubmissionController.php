@@ -3,7 +3,6 @@
 namespace Drupal\esn_membership_manager\Controller;
 
 use DateTime;
-use Drupal\Core\Config\ConfigFactoryInterface;
 use Drupal\Core\Controller\ControllerBase;
 use Drupal\Core\Database\Connection;
 use Drupal\Core\DependencyInjection\ContainerInjectionInterface;
@@ -24,7 +23,6 @@ use TCPDF;
  */
 class SubmissionController extends ControllerBase implements ContainerInjectionInterface
 {
-    protected $configFactory;
     /**
      * The database connection.
      *
@@ -45,13 +43,11 @@ class SubmissionController extends ControllerBase implements ContainerInjectionI
      *
      */
     public function __construct(
-        ConfigFactoryInterface $configFactory,
         Connection             $database,
         AccountProxyInterface  $currentUser,
         FileService            $fileService
     )
     {
-        $this->configFactory = $configFactory;
         $this->database = $database;
         $this->currentUser = $currentUser;
         $this->fileService = $fileService;
@@ -62,9 +58,6 @@ class SubmissionController extends ControllerBase implements ContainerInjectionI
      */
     public static function create(ContainerInterface $container): self
     {
-        /** @var ConfigFactoryInterface $configFactory */
-        $configFactory = $container->get('config.factory');
-
         /** @var Connection $database */
         $database = $container->get('database');
 
@@ -75,7 +68,6 @@ class SubmissionController extends ControllerBase implements ContainerInjectionI
         $fileService = $container->get('esn_membership_manager.file_service');
 
         return new static(
-            $configFactory,
             $database,
             $currentUser,
             $fileService
@@ -102,6 +94,7 @@ class SubmissionController extends ControllerBase implements ContainerInjectionI
                 ],
             ];
         } elseif ($mime === 'application/pdf') {
+            /** @noinspection HtmlUnknownTarget */
             $build['iframe'] = [
                 '#type' => 'inline_template',
                 '#template' => '<iframe src="{{ url }}" width="100%" height="600px" style="border: none;"></iframe>',
@@ -352,8 +345,6 @@ class SubmissionController extends ControllerBase implements ContainerInjectionI
      */
     public function viewESNcard(int $id): array
     {
-        $moduleConfig = $this->configFactory->get('esn_membership_manager.settings');
-
         $application = $this->database->select('esn_membership_manager_applications', 'a')
             ->fields('a')
             ->condition('id', $id)

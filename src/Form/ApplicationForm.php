@@ -8,7 +8,6 @@ use Drupal\Core\Action\ActionBase;
 use Drupal\Core\Action\ActionManager;
 use Drupal\Core\Ajax\AjaxResponse;
 use Drupal\Core\Ajax\RedirectCommand;
-use Drupal\Core\Config\ConfigFactoryInterface;
 use Drupal\Core\Database\Connection;
 use Drupal\Core\Datetime\DrupalDateTime;
 use Drupal\Core\Entity\EntityTypeManagerInterface;
@@ -30,7 +29,6 @@ use Symfony\Component\DependencyInjection\ContainerInterface;
 
 class ApplicationForm extends FormBase
 {
-    protected $configFactory;
     protected Connection $database;
     protected EmailManager $emailManager;
     protected ModuleHandlerInterface $moduleHandler;
@@ -44,7 +42,6 @@ class ApplicationForm extends FormBase
     protected array $nationalities = [];
 
     public function __construct(
-        ConfigFactoryInterface        $configFactory,
         Connection                    $database,
         EmailManager                  $emailManager,
         ModuleHandlerInterface        $moduleHandler,
@@ -56,7 +53,6 @@ class ApplicationForm extends FormBase
         DiditService                  $diditService,
     )
     {
-        $this->configFactory = $configFactory;
         $this->database = $database;
         $this->emailManager = $emailManager;
         $this->moduleHandler = $moduleHandler;
@@ -70,9 +66,6 @@ class ApplicationForm extends FormBase
 
     public static function create(ContainerInterface $container): self
     {
-        /** @var ConfigFactoryInterface $configFactory */
-        $configFactory = $container->get('config.factory');
-
         /** @var Connection $database */
         $database = $container->get('database');
 
@@ -101,7 +94,6 @@ class ApplicationForm extends FormBase
         $diditService = $container->get('esn_membership_manager.didit_service');
 
         return new static(
-            $configFactory,
             $database,
             $emailManager,
             $moduleHandler,
@@ -127,7 +119,7 @@ class ApplicationForm extends FormBase
      */
     public function buildForm(array $form, FormStateInterface $form_state): array
     {
-        $moduleConfig = $this->configFactory->get('esn_membership_manager.settings');
+        $moduleConfig = $this->config('esn_membership_manager.settings');
 
         $form['#prefix'] = '<div id="application-form-wrapper">';
         $form['#suffix'] = '</div>';
@@ -353,7 +345,7 @@ class ApplicationForm extends FormBase
                     ];
                     break;
                 case 'Failed':
-                    $form['personal_details']['verified_ststus'] = [
+                    $form['personal_details']['verified_status'] = [
                         '#markup' => Markup::create('<p class="alert alert-warning">' . $this->t('Your identity verification has failed. Please fill in the following fields manually.') . '</p>'),
                     ];
                     break;

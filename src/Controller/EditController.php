@@ -3,7 +3,6 @@
 namespace Drupal\esn_membership_manager\Controller;
 
 use DateTime;
-use Drupal\Core\Config\ConfigFactoryInterface;
 use Drupal\Core\Controller\ControllerBase;
 use Drupal\Core\Database\Connection;
 use Drupal\Core\Datetime\DrupalDateTime;
@@ -20,7 +19,6 @@ use Symfony\Component\HttpFoundation\Request;
 
 class EditController extends ControllerBase
 {
-    protected $configFactory;
     protected Connection $database;
     protected FileService $fileService;
     protected LoggerChannelInterface $logger;
@@ -28,7 +26,6 @@ class EditController extends ControllerBase
     protected AppleWalletService $appleWalletService;
 
     public function __construct(
-        ConfigFactoryInterface        $configFactory,
         Connection                    $database,
         FileService $fileService,
         LoggerChannelFactoryInterface $loggerFactory,
@@ -36,7 +33,6 @@ class EditController extends ControllerBase
         AppleWalletService            $appleWalletService,
     )
     {
-        $this->configFactory = $configFactory;
         $this->database = $database;
         $this->fileService = $fileService;
         $this->logger = $loggerFactory->get('esn_membership_manager');
@@ -46,9 +42,6 @@ class EditController extends ControllerBase
 
     public static function create(ContainerInterface $container): self
     {
-        /** @var ConfigFactoryInterface $configFactory */
-        $configFactory = $container->get('config.factory');
-
         /** @var Connection $database */
         $database = $container->get('database');
 
@@ -65,7 +58,6 @@ class EditController extends ControllerBase
         $appleWalletService = $container->get('esn_membership_manager.apple_wallet_service');
 
         return new static(
-            $configFactory,
             $database,
             $fileService,
             $loggerFactory,
@@ -87,7 +79,7 @@ class EditController extends ControllerBase
             return new JsonResponse(['status' => 'error', 'message' => 'An invalid ID was provided.'], 400);
         }
 
-        $moduleConfig = $this->configFactory->get('esn_membership_manager.settings');
+        $moduleConfig = $this->config('esn_membership_manager.settings');
 
         try {
             $application = $this->database->select('esn_membership_manager_applications', 'a')
