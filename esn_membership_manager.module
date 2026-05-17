@@ -72,7 +72,7 @@ function esn_membership_manager_theme($existing, $type, $theme, $path): array
 
         'emm_authentication' => [
             'variables' => array_merge($commonVars, [
-                'organization_name' => 'ESN',
+                'organisation_name' => 'ESN',
                 'authentication_type' => '',
                 'authentication_code' => NULL
             ])

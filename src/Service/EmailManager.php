@@ -36,7 +36,7 @@ class EmailManager
     {
         $moduleConfig = $this->configFactory->get('esn_membership_manager.settings');
         $schemeName = $moduleConfig->get('scheme_name');
-        $organizationName = $moduleConfig->get('organization_name');
+        $organisationName = $moduleConfig->get('organisation_name');
 
         if (str_starts_with($key, 'admin_')) {
             $to = $moduleConfig->get('email_admin_address');
@@ -57,7 +57,7 @@ class EmailManager
             '#google_wallet_link' => $data['google_wallet_link'] ?? NULL,
             '#apple_wallet_link' => $data['apple_wallet_link'] ?? NULL,
 
-            '#organization_name' => $organizationName,
+            '#organisation_name' => $organisationName,
             '#authentication_type' => $data['authentication_type'] ?? NULL,
             '#authentication_code' => $data['authentication_code'] ?? NULL,
         ];
@@ -78,7 +78,7 @@ class EmailManager
         $params = [
             'body' => $htmlBody,
             'scheme_name' => $schemeName,
-            'organization_name' => $organizationName
+            'organisation_name' => $organisationName
         ];
 
         $this->mailManager->mail('esn_membership_manager', $key, $to, 'en', $params);

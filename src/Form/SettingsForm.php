@@ -2,13 +2,20 @@
 
 namespace Drupal\esn_membership_manager\Form;
 
+use Drupal\Component\Plugin\Exception\InvalidPluginDefinitionException;
+use Drupal\Component\Plugin\Exception\PluginNotFoundException;
 use Drupal\Component\Utility\Crypt;
+use Drupal\Core\Ajax\AjaxResponse;
+use Drupal\Core\Ajax\PrependCommand;
+use Drupal\Core\Ajax\ReplaceCommand;
 use Drupal\Core\Config\ConfigFactoryInterface;
+use Drupal\Core\Entity\EntityTypeManagerInterface;
 use Drupal\Core\File\FileSystemInterface;
 use Drupal\Core\Form\ConfigFormBase;
 use Drupal\Core\Form\FormStateInterface;
 use Drupal\Core\State\StateInterface;
 use Drupal\Core\Url;
+use Drupal\esn_accounts_api\Entity\Organisation;
 use Drupal\esn_membership_manager\Service\WeeztixService;
 use Exception;
 use Symfony\Component\DependencyInjection\ContainerInterface;
@@ -24,13 +31,15 @@ class SettingsForm extends ConfigFormBase
     protected StateInterface $state;
     protected $requestStack;
     protected FileSystemInterface $fileSystem;
+    protected EntityTypeManagerInterface $entityTypeManager;
 
     public function __construct(
-        ConfigFactoryInterface $configFactory,
-        WeeztixService         $weeztixService,
-        StateInterface         $state,
-        RequestStack           $requestStack,
-        FileSystemInterface    $fileSystem,
+        ConfigFactoryInterface     $configFactory,
+        WeeztixService             $weeztixService,
+        StateInterface             $state,
+        RequestStack               $requestStack,
+        FileSystemInterface        $fileSystem,
+        EntityTypeManagerInterface $entityTypeManager,
     )
     {
         parent::__construct($configFactory);
@@ -38,6 +47,7 @@ class SettingsForm extends ConfigFormBase
         $this->state = $state;
         $this->requestStack = $requestStack;
         $this->fileSystem = $fileSystem;
+        $this->entityTypeManager = $entityTypeManager;
     }
 
     public static function create(ContainerInterface $container): self
@@ -57,12 +67,16 @@ class SettingsForm extends ConfigFormBase
         /** @var FileSystemInterface $fileSystem */
         $fileSystem = $container->get('file_system');
 
+        /** @var EntityTypeManagerInterface $entityTypeManager */
+        $entityTypeManager = $container->get('entity_type.manager');
+
         return new static(
             $configFactory,
             $weeztixService,
             $state,
             $requestStack,
-            $fileSystem
+            $fileSystem,
+            $entityTypeManager,
         );
     }
 
@@ -124,13 +138,84 @@ class SettingsForm extends ConfigFormBase
             '#open' => TRUE
         ];
 
-        $form['general']['organization_name'] = [
-            '#type' => 'textfield',
-            '#title' => $this->t('Organization Name'),
-            '#description' => $this->t('Enter the name of your NO or section.'),
-            '#default_value' => $config->get('organization_name') ?? 'Erasmus Student Network',
-            '#required' => TRUE
+        try {
+            /** @var Organisation[] $nationalOrganisations */
+            $nationalOrganisations = $this->entityTypeManager->getStorage('esn_organisation')->loadByProperties(['type' => 'country']);
+        } catch (InvalidPluginDefinitionException|PluginNotFoundException) {
+            $form['general']['esn_error'] = [
+                '#type' => 'markup',
+                '#markup' => '<div class="alert alert-warning">' . $this->t('Could not fetch the NOs from the ESN Accounts API. Please ensure that its works properly and try again.') . '</div>',
+            ];
+            return $form;
+        }
+
+        $noNames = [];
+        foreach ($nationalOrganisations as $no) {
+            $noNames[$no->id()] = $no->getTitle();
+        }
+        asort($noNames);
+
+        $form['general']['national_organisation_id'] = [
+            '#type' => 'select',
+            '#title' => $this->t('National Organisation Name'),
+            '#description' => $this->t('Select the name of your National Organisation.'),
+            '#options' => $noNames ?? [],
+            '#empty_option' => $this->t('- Select -'),
+            '#default_value' => $config->get('national_organisation_id') ?? '',
+            '#required' => TRUE,
+            '#ajax' => [
+                'callback' => '::toggleSectionMode',
+                'wrapper' => 'section-mode',
+            ],
         ];
+
+        $form['general']['section_mode'] = [
+            '#type' => 'checkbox',
+            '#title' => $this->t('Enable Section Mode'),
+            '#default_value' => $config->get('section_mode') ?? FALSE,
+            '#ajax' => [
+                'callback' => '::toggleSectionMode',
+                'wrapper' => 'section-mode',
+            ]
+        ];
+
+        $selectedNO = $form_state->getValue('national_organisation_id') ?: $config->get('national_organisation_id');
+        $sectionModeEnabled = $form_state->getValue('section_mode') ?? $config->get('section_mode');
+
+        if ($sectionModeEnabled && !empty($selectedNO)) {
+            /** @var Organisation $nationalOrganisation */
+            /** @noinspection PhpUnhandledExceptionInspection */
+            $nationalOrganisation = $this->entityTypeManager->getStorage('esn_organisation')->load($selectedNO);
+
+            if (!empty($nationalOrganisations)) {
+                /** @var Organisation[] $sections */
+                /** @noinspection PhpUnhandledExceptionInspection */
+                $sections = $this->entityTypeManager->getStorage('esn_organisation')->loadByProperties(['type' => 'section', 'country_code' => $nationalOrganisation->getCountryCode()]);
+
+                foreach ($sections as $section) {
+                    $sectionNames[$section->id()] = $section->getTitle();
+                }
+                asort($sectionNames);
+            }
+        }
+
+        $form['general']['section_wrapper'] = [
+            '#type' => 'container',
+            '#attributes' => ['id' => 'section-mode-wrapper'],
+        ];
+
+        if ($sectionModeEnabled) {
+            $form['general']['section_wrapper']['section_id'] = [
+                '#type' => 'select',
+                '#title' => $this->t('Section Name'),
+                '#description' => $this->t('Select the name of your Section.'),
+                '#options' => $sectionNames ?? [],
+                '#empty_option' => $this->t('- Select -'),
+                '#default_value' => $config->get('organisation_id') ?? '',
+                '#required' => TRUE,
+                '#validated' => TRUE
+            ];
+        }
 
         $form['general']['scheme_name'] = [
             '#type' => 'textfield',
@@ -145,14 +230,6 @@ class SettingsForm extends ConfigFormBase
             '#title' => $this->t('Guest Pass Scheme Name'),
             '#description' => $this->t('Enter the name of the Guest Pass Scheme.'),
             '#default_value' => $config->get('guest_scheme_name') ?? 'ESN Guest Pass',
-            '#required' => TRUE
-        ];
-
-        $form['general']['logo_url'] = [
-            '#type' => 'textfield',
-            '#title' => $this->t('Logo URL'),
-            '#description' => $this->t('Enter the url of the section logo.'),
-            '#default_value' => $config->get('logo_url') ?? 'https://esn.org/sites/default/files/ESN_full-logo-Satellite.png',
             '#required' => TRUE
         ];
 
@@ -523,16 +600,33 @@ class SettingsForm extends ConfigFormBase
     {
         $config = $this->config('esn_membership_manager.settings');
 
+        if ($form_state->getValue('section_mode')) {
+            $sectionMode = true;
+            $sectionID = $form_state->getValue('section_id');
+            /** @var Organisation $selectedOrganisation */
+            /** @noinspection PhpUnhandledExceptionInspection */
+            $selectedOrganisation = $this->entityTypeManager->getStorage('esn_organisation')->load($sectionID);
+        } else {
+            $sectionMode = false;
+            $nationalOrganisationID = $form_state->getValue('national_organisation_id');
+            /** @var Organisation $selectedOrganisation */
+            /** @noinspection PhpUnhandledExceptionInspection */
+            $selectedOrganisation = $this->entityTypeManager->getStorage('esn_organisation')->load($nationalOrganisationID);
+        }
+
         $config
             ->set('switch_weeztix', $form_state->getValue('switch_weeztix'))
             ->set('switch_google_sheets', $form_state->getValue('switch_google_sheets'))
             ->set('switch_google_wallet', $form_state->getValue('switch_google_wallet'))
             ->set('switch_apple_wallet', $form_state->getValue('switch_apple_wallet'))
             ->set('switch_didit', $form_state->getValue('switch_didit'))
-            ->set('organization_name', $form_state->getValue('organization_name'))
+            ->set('national_organisation_id', $form_state->getValue('national_organisation_id'))
+            ->set('organisation_id', $selectedOrganisation->id())
+            ->set('organisation_name', $selectedOrganisation->getTitle())
+            ->set('logo_url', $selectedOrganisation->getRemoteLogoPath())
+            ->set('section_mode', $sectionMode)
             ->set('scheme_name', $form_state->getValue('scheme_name'))
             ->set('guest_scheme_name', $form_state->getValue('guest_scheme_name'))
-            ->set('logo_url', $form_state->getValue('logo_url'))
             ->set('email_from_address', $form_state->getValue('email_from_address'))
             ->set('email_from_name', $form_state->getValue('email_from_name'))
             ->set('email_footer', $form_state->getValue('email_footer'))
@@ -585,6 +679,23 @@ class SettingsForm extends ConfigFormBase
     protected function getEditableConfigNames(): array
     {
         return ['esn_membership_manager.settings'];
+    }
+
+    public function toggleSectionMode(array &$form, FormStateInterface $form_state): AjaxResponse
+    {
+        $response = new AjaxResponse();
+
+        if (empty($form_state->getValue('national_organisation_id')) && $form_state->getValue('section_mode')) {
+            $this->messenger()->addError($this->t('Please select your National Organisation before you enable Section Mode.'));
+
+            $response->addCommand(new PrependCommand('#section-mode-wrapper', ['#type' => 'status_messages']));
+            $response->addCommand(new ReplaceCommand('#section-mode-wrapper', $form['general']['section_wrapper']));
+            return $response;
+        }
+
+        $response->addCommand(new ReplaceCommand('#section-mode-wrapper', $form['general']['section_wrapper']));
+        return $response;
+
     }
 
     /**

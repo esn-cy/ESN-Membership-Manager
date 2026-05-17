@@ -177,6 +177,12 @@ function esn_membership_manager_schema(): array
                 'length' => 20,
                 'not null' => TRUE,
             ],
+            'section' => [
+                'description' => 'Local section.',
+                'type' => 'varchar',
+                'length' => 255,
+                'not null' => TRUE,
+            ],
             'mobility_status' => [
                 'description' => 'The selected mobility status.',
                 'type' => 'varchar',

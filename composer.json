@@ -27,6 +27,7 @@
     }
   },
   "require": {
+    "esn/esn_accounts_api": "^1.1",
     "drupal/simple_oauth": "^6.1",
     "stripe/stripe-php": "^20.1",
     "google/auth": "^1.50",
@@ -54,6 +55,10 @@
     "drupal": {
       "type": "composer",
       "url": "https://packages.drupal.org/8"
+    },
+    "esn": {
+      "type": "composer",
+      "url": "https://packages.esn.org"
     }
   }
 }

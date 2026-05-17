@@ -2,11 +2,14 @@
 
 namespace Drupal\esn_membership_manager\Form;
 
+use Drupal\Component\Plugin\Exception\InvalidPluginDefinitionException;
+use Drupal\Component\Plugin\Exception\PluginNotFoundException;
 use Drupal\Core\Ajax\AjaxResponse;
 use Drupal\Core\Ajax\RedirectCommand;
 use Drupal\Core\Config\ConfigFactoryInterface;
 use Drupal\Core\Database\Connection;
 use Drupal\Core\Datetime\DrupalDateTime;
+use Drupal\Core\Entity\EntityTypeManagerInterface;
 use Drupal\Core\Extension\ModuleHandlerInterface;
 use Drupal\Core\Form\FormBase;
 use Drupal\Core\Form\FormStateInterface;
@@ -14,6 +17,7 @@ use Drupal\Core\Logger\LoggerChannelFactoryInterface;
 use Drupal\Core\Logger\LoggerChannelInterface;
 use Drupal\Core\Render\Markup;
 use Drupal\Core\Url;
+use Drupal\esn_accounts_api\Entity\Organisation;
 use Drupal\esn_membership_manager\Service\DiditService;
 use Drupal\esn_membership_manager\Service\EmailManager;
 use Drupal\esn_membership_manager\Service\FileService;
@@ -30,6 +34,7 @@ class ApplicationForm extends FormBase
     protected ModuleHandlerInterface $moduleHandler;
     protected FileService $fileService;
     protected ClientInterface $httpClient;
+    protected EntityTypeManagerInterface $entityTypeManager;
     protected LoggerChannelInterface $logger;
     protected DiditService $diditService;
 
@@ -42,6 +47,7 @@ class ApplicationForm extends FormBase
         ModuleHandlerInterface        $moduleHandler,
         FileService                   $fileService,
         ClientInterface               $httpClient,
+        EntityTypeManagerInterface $entityTypeManager,
         LoggerChannelFactoryInterface $loggerFactory,
         DiditService                  $diditService,
     )
@@ -52,6 +58,7 @@ class ApplicationForm extends FormBase
         $this->moduleHandler = $moduleHandler;
         $this->fileService = $fileService;
         $this->httpClient = $httpClient;
+        $this->entityTypeManager = $entityTypeManager;
         $this->logger = $loggerFactory->get('esn_membership_manager');
         $this->diditService = $diditService;
     }
@@ -76,6 +83,9 @@ class ApplicationForm extends FormBase
         /** @var ClientInterface $httpClient */
         $httpClient = $container->get('http_client');
 
+        /** @var EntityTypeManagerInterface $entityTypeManager */
+        $entityTypeManager = $container->get('entity_type.manager');
+
         /** @var LoggerChannelFactoryInterface $loggerFactory */
         $loggerFactory = $container->get('logger.factory');
 
@@ -89,6 +99,7 @@ class ApplicationForm extends FormBase
             $moduleHandler,
             $fileService,
             $httpClient,
+            $entityTypeManager,
             $loggerFactory,
             $diditService
         );
@@ -424,6 +435,49 @@ class ApplicationForm extends FormBase
             '#title' => $this->t('Mobility & Status'),
         ];
 
+        try {
+            $organisations = $this->entityTypeManager->getStorage('esn_organisation');
+            $sections = [];
+
+            if (!($moduleConfig->get('section_mode') ?? null)) {
+                $noID = $moduleConfig->get('national_organisation_id');
+                /** @var Organisation $nationalOrganisation */
+                $nationalOrganisation = $organisations->load($noID);
+                if ($nationalOrganisation) {
+                    /** @var Organisation[] $sectionEntities */
+                    $sectionEntities = $organisations->loadByProperties(['type' => 'section', 'country_code' => $nationalOrganisation->getCountryCode()]);
+                    foreach ($sectionEntities as $section) {
+                        $title = $section->getTitle();
+                        $sections[$title] = $title;
+                    }
+                    ksort($sections);
+                }
+            } else {
+                $sectionName = $moduleConfig->get('organisation_name');
+                if ($sectionName) {
+                    $sections[$sectionName] = $sectionName;
+                }
+            }
+
+            if (count($sections) > 1) {
+                $form['mobility_details']['section'] = [
+                    '#type' => 'select',
+                    '#title' => $this->t('Local Section Name'),
+                    '#description' => $this->t('Select your local section.'),
+                    '#options' => $sections,
+                    '#empty_option' => $this->t('- Select -'),
+                    '#default_value' => $form_state->getValue('section') ?? $savedData['section'] ?? '',
+                    '#required' => TRUE,
+                ];
+            } elseif (count($sections) === 1) {
+                $form['mobility_details']['section'] = [
+                    '#type' => 'value',
+                    '#value' => reset($sections),
+                ];
+            }
+        } catch (InvalidPluginDefinitionException|PluginNotFoundException) {
+        }
+
         $statusOptions = [
             'Erasmus+ Programme' => [
                 'erasmus_study' => $this->t('Study Exchange'),
@@ -727,9 +781,9 @@ class ApplicationForm extends FormBase
                 $form_state->set('api_message_type', 'error');
             } else {
                 try {
-                    $this->database->insert('esn_membership_manager_in_progress_applications')
+                    $this->database->merge('esn_membership_manager_in_progress_applications')
+                        ->key('email', $email)
                         ->fields([
-                            'email' => $email,
                             'date_created' => (new DrupalDateTime())->format('Y-m-d H:i:s')
                         ])
                         ->execute();
@@ -912,6 +966,7 @@ class ApplicationForm extends FormBase
             'email' => trim($email),
             'nationality' => trim($isVerifiedID ? $application['nationality'] : $values['nationality']),
             'dob' => $dateOfBirth,
+            'section' => trim($values['section'] ?? 'Unknown Section'),
             'mobility_status' => $statuses[$values['status']],
             'host_institution' => trim($values['host']),
             'proof_fid' => $values['proof_of_status'][0],

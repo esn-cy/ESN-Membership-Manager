@@ -166,6 +166,7 @@ class SubmissionController extends ControllerBase implements ContainerInjectionI
             'email' => $this->t('Email'),
             'nationality' => $this->t('Nationality'),
             'dob' => $this->t('Date of Birth'),
+            'section' => $this->t('Section'),
             'mobility_status' => $this->t('Mobility Status'),
             'host_institution' => $this->t('Host Institution'),
             'approval_status' => $this->t('Approval Status'),
@@ -366,8 +367,6 @@ class SubmissionController extends ControllerBase implements ContainerInjectionI
         $paidDate->setTime(0, 0);
         $validSince = explode('-', $paidDate->format('Y-m-d'));
 
-        $section = preg_replace('/^' . preg_quote('ESN ', '/') . '/', '', $moduleConfig->get('organization_name') ?? 'ESN');
-
         $facePhotoURL = $this->fileService->getFileURL($application['face_photo_fid'] ?? null);
 
         return [
@@ -379,7 +378,7 @@ class SubmissionController extends ControllerBase implements ContainerInjectionI
             '#dob_month' => $dob[1],
             '#dob_year' => substr($dob[0], -2, 2),
             '#host_institution' => $application['host_institution'],
-            '#section' => $section,
+            '#section' => $application['section'],
             '#valid_since_day' => $validSince[2],
             '#valid_since_month' => $validSince[1],
             '#valid_since_year' => substr($validSince[0], -2, 2),

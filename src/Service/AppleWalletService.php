@@ -94,7 +94,7 @@ class AppleWalletService
                         [
                             'key' => 'esn_section',
                             'label' => 'ESN Section',
-                            'value' => $moduleConfig->get('organization_name')
+                            'value' => $data['section']
                         ],
                         [
                             'key' => 'valid_since',
@@ -172,7 +172,7 @@ class AppleWalletService
 
         return [
             'formatVersion' => 1,
-            'organizationName' => $moduleConfig->get('organization_name') ?? 'Erasmus Student Network',
+            'organizationName' => $moduleConfig->get('organisation_name') ?? 'Erasmus Student Network',
             'teamIdentifier' => $moduleConfig->get('apple_team_id'),
             'passTypeIdentifier' => $moduleConfig->get('apple_pass_type_id'),
             'foregroundColor' => 'rgb(255, 255, 255)',

@@ -575,7 +575,7 @@ class GoogleService
                 [
                     'id' => 'esn_section',
                     'header' => 'ESN Section',
-                    'body' => $config->get('organization_name')
+                    'body' => $data['section']
                 ],
                 [
                     'id' => 'valid_since',

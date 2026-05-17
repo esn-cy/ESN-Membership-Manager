@@ -110,6 +110,7 @@ class EditController extends ControllerBase
             'email',
             'nationality',
             'dob',
+            'section',
             'mobility_status',
             'host_institution',
             'pass_token',
