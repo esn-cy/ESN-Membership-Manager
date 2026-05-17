@@ -38,7 +38,8 @@
     "ext-gd": "*",
     "ext-pdo": "*",
     "ext-openssl": "*",
-    "ext-fileinfo": "*"
+    "ext-fileinfo": "*",
+    "ext-simplexml": "*"
   },
   "require-dev": {
     "drupal/core": "^10"

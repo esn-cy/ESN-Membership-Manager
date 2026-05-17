@@ -197,19 +197,25 @@
     {% set show_id = not show_proof and urls.id is not empty %}
     {% set show_photo = not show_proof and not show_id and urls.photo is not empty %}
     {% set no_docs = not show_proof and not show_id and not show_photo %}
+    {% set is_proof_pdf = urls.proof ? urls.proof|lower ends with '.pdf' : false %}
+    {% set is_id_pdf = urls.id ? urls.id|lower ends with '.pdf' : false %}
 
     <div class="pane left-pane">
         <div class="doc-viewer"
              style="display: flex; flex-direction: column; overflow: hidden; position: relative;{% if no_docs %} justify-content: center;{% endif %}">
             <iframe id="main-preview"
-                    {% if urls.proof %}src="{{ urls.proof }}"{% endif %}
-                    style="{% if show_proof %}display: block;{% else %}display: none;{% endif %} width: 100%; height: 100%; border: none;"
+                    {% if show_proof and is_proof_pdf %}
+                        src="{{ urls.proof }}"
+                    {% elseif show_id and is_id_pdf %}
+                        src="{{ urls.id }}"
+                    {% endif %}
+                    style="{% if (show_proof and is_proof_pdf) or (show_id and is_id_pdf) %}display: block;{% else %}display: none;{% endif %} width: 100%; height: 100%; border: none;"
                     title="Document Preview">
             </iframe>
             <div id="image-preview-container"
-                 style="{% if show_id or show_photo %}display: flex;{% else %}display: none;{% endif %} width: 100%; height: 100%; justify-content: center; align-items: center; overflow: hidden; position: relative;">
+                 style="{% if (show_proof and not is_proof_pdf) or (show_id and not is_id_pdf) or show_photo %}display: flex;{% else %}display: none;{% endif %} width: 100%; height: 100%; justify-content: center; align-items: center; overflow: hidden; position: relative;">
                 <img id="image-preview"
-                     src="{% if show_id %}{{ urls.id }}{% elseif show_photo %}{{ urls.photo }}{% endif %}"
+                     src="{% if show_proof and not is_proof_pdf %}{{ urls.proof }}{% elseif show_id and not is_id_pdf %}{{ urls.id }}{% elseif show_photo %}{{ urls.photo }}{% endif %}"
                      style="max-width: 100%; max-height: 100%;"
                      alt="File Preview">
 

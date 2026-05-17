@@ -229,6 +229,11 @@ class SubmissionController extends ControllerBase implements ContainerInjectionI
             $readOnlyKeys[] = 'dob';
         }
 
+        if ($application['verified_status']) {
+            $readOnlyKeys[] = 'mobility_status';
+            $readOnlyKeys[] = 'host_institution';
+        }
+
         $fieldData = [];
         foreach ($application as $key => $value) {
             if (!$application['esncard'] && in_array($key, ['face_photo_fid', 'esncard_number', 'payment_link', 'payment_link_id', 'date_paid']))

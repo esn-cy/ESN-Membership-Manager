@@ -129,6 +129,11 @@ class EditController extends ControllerBase
             array_splice($allowedFields, array_search('dob', $allowedFields), 1);
         }
 
+        if ($application['verified_status']) {
+            array_splice($allowedFields, array_search('mobility_status', $allowedFields), 1);
+            array_splice($allowedFields, array_search('host_institution', $allowedFields), 1);
+        }
+
         $fieldsToUpdate = [];
 
         foreach ($allowedFields as $field) {

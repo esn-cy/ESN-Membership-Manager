@@ -4,6 +4,8 @@ namespace Drupal\esn_membership_manager\Form;
 
 use Drupal\Component\Plugin\Exception\InvalidPluginDefinitionException;
 use Drupal\Component\Plugin\Exception\PluginNotFoundException;
+use Drupal\Core\Action\ActionBase;
+use Drupal\Core\Action\ActionManager;
 use Drupal\Core\Ajax\AjaxResponse;
 use Drupal\Core\Ajax\RedirectCommand;
 use Drupal\Core\Config\ConfigFactoryInterface;
@@ -35,6 +37,7 @@ class ApplicationForm extends FormBase
     protected FileService $fileService;
     protected ClientInterface $httpClient;
     protected EntityTypeManagerInterface $entityTypeManager;
+    protected ActionManager $actionManager;
     protected LoggerChannelInterface $logger;
     protected DiditService $diditService;
 
@@ -48,6 +51,7 @@ class ApplicationForm extends FormBase
         FileService                   $fileService,
         ClientInterface               $httpClient,
         EntityTypeManagerInterface $entityTypeManager,
+        ActionManager              $actionManager,
         LoggerChannelFactoryInterface $loggerFactory,
         DiditService                  $diditService,
     )
@@ -59,6 +63,7 @@ class ApplicationForm extends FormBase
         $this->fileService = $fileService;
         $this->httpClient = $httpClient;
         $this->entityTypeManager = $entityTypeManager;
+        $this->actionManager = $actionManager;
         $this->logger = $loggerFactory->get('esn_membership_manager');
         $this->diditService = $diditService;
     }
@@ -86,6 +91,9 @@ class ApplicationForm extends FormBase
         /** @var EntityTypeManagerInterface $entityTypeManager */
         $entityTypeManager = $container->get('entity_type.manager');
 
+        /** @var ActionManager $actionManager */
+        $actionManager = $container->get('plugin.manager.action');
+
         /** @var LoggerChannelFactoryInterface $loggerFactory */
         $loggerFactory = $container->get('logger.factory');
 
@@ -100,6 +108,7 @@ class ApplicationForm extends FormBase
             $fileService,
             $httpClient,
             $entityTypeManager,
+            $actionManager,
             $loggerFactory,
             $diditService
         );
@@ -249,14 +258,17 @@ class ApplicationForm extends FormBase
         $verificationStatus = null;
         $personalFieldsDisabled = false;
 
+        try {
+            $application = $this->database->select('esn_membership_manager_in_progress_applications', 'i')
+                ->fields('i')
+                ->condition('email', $email)
+                ->execute()
+                ->fetchAssoc();
+        } catch (Exception) {
+        }
+
         if ($diditEnabled) {
             try {
-                $application = $this->database->select('esn_membership_manager_in_progress_applications', 'i')
-                    ->fields('i')
-                    ->condition('email', $email)
-                    ->execute()
-                    ->fetchAssoc();
-
                 if (!empty($application)) {
                     $diditStatus = $application['didit_status'] ?? null;
                     $diditSessionID = $application['didit_session_id'] ?? null;
@@ -278,10 +290,10 @@ class ApplicationForm extends FormBase
                                 };
 
                                 $updateFields += [
-                                    'name' => $verifiedDetails['first_name'],
-                                    'surname' => $verifiedDetails['last_name'],
-                                    'nationality' => $nationality,
-                                    'dob' => $verifiedDetails['date_of_birth'],
+                                    'id_name' => $verifiedDetails['first_name'],
+                                    'id_surname' => $verifiedDetails['last_name'],
+                                    'id_nationality' => $nationality,
+                                    'id_dob' => $verifiedDetails['date_of_birth'],
                                 ];
                             }
 
@@ -302,10 +314,10 @@ class ApplicationForm extends FormBase
                         $verificationStatus = 'Success';
 
                         $savedData = $session->get('application_form_saved_data', []);
-                        $savedData['name'] = $application['name'];
-                        $savedData['surname'] = $application['surname'];
-                        $savedData['nationality'] = $application['nationality'];
-                        $savedData['dob'] = $application['dob'];
+                        $savedData['name'] = $application['id_name'];
+                        $savedData['surname'] = $application['id_surname'];
+                        $savedData['nationality'] = $application['id_nationality'];
+                        $savedData['dob'] = $application['id_dob'];
                         $session->set('application_form_saved_data', $savedData);
 
                         $verificationData['id_verified'] = true;
@@ -336,12 +348,12 @@ class ApplicationForm extends FormBase
 
             switch ($verificationStatus) {
                 case 'Success':
-                    $form['personal_details']['verified_success'] = [
+                    $form['personal_details']['verified_status'] = [
                         '#markup' => Markup::create('<p class="alert alert-success">' . $this->t('You have successfully verified your identity.') . '</p>'),
                     ];
                     break;
                 case 'Failed':
-                    $form['personal_details']['verified_success'] = [
+                    $form['personal_details']['verified_ststus'] = [
                         '#markup' => Markup::create('<p class="alert alert-warning">' . $this->t('Your identity verification has failed. Please fill in the following fields manually.') . '</p>'),
                     ];
                     break;
@@ -512,6 +524,47 @@ class ApplicationForm extends FormBase
             ]
         ];
 
+        $statusFieldsDisabled = false;
+
+        if (!empty($application)) {
+            $esnStatus = $application['esn_status'] ?? null;
+            if (!empty($esnStatus)) {
+                switch ($esnStatus) {
+                    case 'Failed':
+                        $form['mobility_details']['verified_status'] = [
+                            '#markup' => Markup::create('<p class="alert alert-warning">' . $this->t('There was an issue signing you in. Please fill in the following fields manually.') . '</p>'),
+                        ];
+                        break;
+                    case 'No Roles':
+                        $form['mobility_details']['verified_status'] = [
+                            '#markup' => Markup::create('<p class="alert alert-warning">' . $this->t('You don\'t have any roles associated with your account. Please fill in the following fields manually.') . '</p>'),
+                        ];
+                        break;
+                    case 'Foreign Roles':
+                        $form['mobility_details']['verified_status'] = [
+                            '#markup' => Markup::create('<p class="alert alert-warning">' . $this->t("You don't have any roles in {$moduleConfig->get('organisation_name')}. Please fill in the following fields manually.") . '</p>'),
+                        ];
+                        break;
+                    case 'Success':
+                        $form['mobility_details']['verified_status'] = [
+                            '#markup' => Markup::create('<p class="alert alert-success">' . $this->t('You have successfully verified your status.') . '</p>'),
+                        ];
+
+                        $savedData = $session->get('application_form_saved_data', []);
+                        $savedData['status'] = strtolower(str_replace(' ', '_', $application['status_mobility']));
+                        $savedData['host'] = $application['status_host_institution'];
+                        $session->set('application_form_saved_data', $savedData);
+
+                        $verificationData = $session->get('application_form_verification_data', []);
+                        $verificationData['status_verified'] = true;
+                        $session->set('application_form_verification_data', $verificationData);
+
+                        $statusFieldsDisabled = true;
+                        break;
+                }
+            }
+        }
+
         $form['mobility_details']['status'] = [
             '#type' => 'select',
             '#title' => $this->t('Current Status'),
@@ -519,6 +572,7 @@ class ApplicationForm extends FormBase
             '#empty_option' => $this->t('- Select -'),
             '#default_value' => $form_state->getValue('status') ?? $savedData['status'] ?? '',
             '#required' => TRUE,
+            '#disabled' => $statusFieldsDisabled,
             '#ajax' => [
                 'callback' => '::mobilityAjaxCallback',
                 'wrapper' => 'mobility-dynamic-wrapper',
@@ -530,7 +584,7 @@ class ApplicationForm extends FormBase
             '#attributes' => ['id' => 'mobility-dynamic-wrapper'],
         ];
 
-        $status = $form_state->getValue('status') ?? $form_state->getUserInput()['status'] ?? NULL;
+        $status = $form_state->getValue('status') ?? $savedData['status'] ?? $form_state->getUserInput()['status'] ?? NULL;
 
         $organizationLabel = $this->t('Host Institution');
         $proofLabelText = $this->t('Appropriate Certification');
@@ -559,33 +613,63 @@ class ApplicationForm extends FormBase
         }
 
         if ($showDynamicFields) {
+            if (!$statusFieldsDisabled && str_starts_with($status, 'esn_')) {
+                $form['mobility_details']['dynamic_container']['online_title'] = [
+                    '#markup' => '<h4 class="verification-subtitle">' . $this->t('Instant (Recommended)') . '</h4>',
+                ];
+
+                $form['mobility_details']['dynamic_container']['online_button'] = [
+                    '#type' => 'submit',
+                    '#value' => $this->t('Login with ESN Accounts'),
+                    '#name' => 'esn_button',
+                    '#attributes' => [
+                        'class' => ['btn-primary', 'btn', 'online-verify-btn'],
+                    ],
+                    '#ajax' => [
+                        'callback' => '::redirectToESNAccounts',
+                        'event' => 'click',
+                    ],
+                ];
+
+                $form['mobility_details']['dynamic_container']['divider'] = [
+                    '#markup' => '<div class="verification-divider"><span>' . $this->t('OR') . '</span></div>',
+                ];
+
+                $form['mobility_details']['dynamic_container']['manual_title'] = [
+                    '#markup' => '<h4 class="verification-subtitle">' . $this->t('Manual Processing (Up to 7 days)') . '</h4>',
+                ];
+            }
+
             $form['mobility_details']['dynamic_container']['host'] = [
                 '#type' => 'textfield',
                 '#description' => 'You need to enter institution that\'s hosting you here, not the one from your country of origin.',
                 '#title' => $organizationLabel,
                 '#required' => TRUE,
+                '#disabled' => $statusFieldsDisabled,
                 '#default_value' => $form_state->getValue('host') ?? $savedData['host'] ?? '',
             ];
 
-            $form['mobility_details']['dynamic_container']['proof_help'] = [
-                '#type' => 'item',
-                '#markup' => '<div class="description">' . $this->t('Please upload your <strong>@proof</strong>.', ['@proof' => $proofLabelText]) . '</div>',
-            ];
+            if (!$statusFieldsDisabled) {
+                $form['mobility_details']['dynamic_container']['proof_help'] = [
+                    '#type' => 'item',
+                    '#markup' => '<div class="description">' . $this->t('Please upload your <strong>@proof</strong>.', ['@proof' => $proofLabelText]) . '</div>',
+                ];
 
-            $form['mobility_details']['dynamic_container']['proof_of_status'] = [
-                '#type' => 'managed_file',
-                '#title' => $this->t('Proof of Status'),
-                '#upload_location' => 'membership://temp_uploads/',
-                '#upload_validators' => [
-                    'file_validate_extensions' => ['jpg jpeg png pdf'],
-                    'file_validate_size' => [8 * 1024 * 1024]
-                ],
-                '#attributes' => [
-                    'accept' => 'image/jpeg, image/png, application/pdf',
-                ],
-                '#required' => TRUE,
-                '#default_value' => $form_state->getValue('proof_of_status') ?? $savedData['proof_of_status'] ?? '',
-            ];
+                $form['mobility_details']['dynamic_container']['proof_of_status'] = [
+                    '#type' => 'managed_file',
+                    '#title' => $this->t('Proof of Status'),
+                    '#upload_location' => 'membership://temp_uploads/',
+                    '#upload_validators' => [
+                        'file_validate_extensions' => ['jpg jpeg png pdf'],
+                        'file_validate_size' => [8 * 1024 * 1024]
+                    ],
+                    '#attributes' => [
+                        'accept' => 'image/jpeg, image/png, application/pdf',
+                    ],
+                    '#required' => TRUE,
+                    '#default_value' => $form_state->getValue('proof_of_status') ?? '',
+                ];
+            }
         }
 
         $form['esncard'] = [
@@ -835,6 +919,31 @@ class ApplicationForm extends FormBase
         return $response;
     }
 
+    public function redirectToESNAccounts(array &$form, FormStateInterface $form_state): AjaxResponse
+    {
+        $response = new AjaxResponse();
+
+        try {
+            $token = strtoupper(md5(uniqid(rand(), true)));
+
+            $serviceLink = Url::fromRoute('esn_membership_manager.apply_verify_esn', [], ['absolute' => true])->toString() . '?token=' . $token;
+
+            $verificationLink = 'https://accounts.esn.org/cas/login?service=' . urlencode($serviceLink);
+
+            $session = $this->getRequest()->getSession();
+            $this->database->update('esn_membership_manager_in_progress_applications')
+                ->fields(['esn_token' => $token])
+                ->condition('email', $session->get('application_form_saved_data', [])['email'])
+                ->execute();
+
+            $response->addCommand(new RedirectCommand($verificationLink));
+        } catch (Exception $e) {
+            $this->logger->error('Failed to redirect to ESN Accounts: @message', ['@message' => $e->getMessage()]);
+        }
+
+        return $response;
+    }
+
     /**
      * AJAX callback to update the actions' wrapper.
      */
@@ -855,6 +964,7 @@ class ApplicationForm extends FormBase
         $verificationData = $session->get('application_form_verification_data', []);
         $isVerifiedEmail = !empty($verificationData['email_code_verified']);
         $isVerifiedID = !empty($verificationData['id_verified']);
+        $isVerifiedStatus = !empty($verificationData['status_verified']);
 
         if (!$isVerifiedEmail) {
             return;
@@ -863,7 +973,7 @@ class ApplicationForm extends FormBase
         $values = $form_state->getValues();
         $hasESNcard = $form_state->getValue('has_esncard', false);
 
-        if (empty($values['proof_of_status'])) {
+        if (!$isVerifiedStatus && empty($values['proof_of_status'])) {
             $form_state->setErrorByName('proof_of_status', $this->t('Proof of status is missing. Please select your status again and re-upload the file.'));
             return;
         }
@@ -905,8 +1015,12 @@ class ApplicationForm extends FormBase
         }
 
         $isVerifiedID = $application['didit_status'] == 'Approved';
+        $isVerifiedStatus = $application['esn_status'] == 'Success';
 
-        $filesExpected = ['proof_of_status'];
+        $filesExpected = [];
+        if (!$isVerifiedStatus) {
+            $filesExpected[] = 'proof_of_status';
+        }
         if (!$isVerifiedID) {
             $filesExpected[] = 'id_document';
         }
@@ -954,28 +1068,31 @@ class ApplicationForm extends FormBase
         ];
 
         try {
-            $dateOfBirth = (new DrupalDateTime($isVerifiedID ? $application['dob'] : $values['dob']))->format('Y-m-d');
+            $dateOfBirth = (new DrupalDateTime($isVerifiedID ? $application['id_dob'] : $values['dob']))->format('Y-m-d');
         } catch (Exception) {
             $this->messenger()->addError($this->t('Your selected date of birth is invalid. Please try again.'));
             return;
         }
 
         $fields = [
-            'name' => trim($isVerifiedID ? $application['name'] : $values['name']),
-            'surname' => trim($isVerifiedID ? $application['surname'] : $values['surname']),
+            'name' => trim($isVerifiedID ? $application['id_name'] : $values['name']),
+            'surname' => trim($isVerifiedID ? $application['id_surname'] : $values['surname']),
             'email' => trim($email),
-            'nationality' => trim($isVerifiedID ? $application['nationality'] : $values['nationality']),
+            'nationality' => trim($isVerifiedID ? $application['id_nationality'] : $values['nationality']),
             'dob' => $dateOfBirth,
             'section' => trim($values['section'] ?? 'Unknown Section'),
-            'mobility_status' => $statuses[$values['status']],
-            'host_institution' => trim($values['host']),
-            'proof_fid' => $values['proof_of_status'][0],
+            'mobility_status' => trim($isVerifiedStatus ? $application['status_mobility'] : $statuses[$values['status']]),
+            'host_institution' => trim($isVerifiedStatus ? $application['status_host_institution'] : $values['host']),
             'approval_status' => 'Pending',
             'verified_email' => 1,
             'verified_id' => (int)$isVerifiedID,
+            'verified_status' => (int)$isVerifiedStatus,
             'date_created' => (new DrupalDateTime())->format('Y-m-d H:i:s'),
         ];
 
+        if (!$isVerifiedStatus) {
+            $fields['proof_fid'] = $values['proof_of_status'][0];
+        }
         if ($isVerifiedID) {
             $pdfData = $this->diditService->getPDF($application['didit_session_id']);
             $values['id_document'][0] = $this->fileService->createFile($pdfData, "membership://temp_uploads", "id_document_{$application['id']}.pdf");
@@ -991,14 +1108,18 @@ class ApplicationForm extends FormBase
 
             if ($applicationID) {
                 $targetDirectory = 'membership://' . $applicationID;
-                $this->fileService->moveFile($values['proof_of_status'][0], $targetDirectory, 'status');
+                if (!$isVerifiedStatus) {
+                    $this->fileService->moveFile($values['proof_of_status'][0], $targetDirectory, 'status');
+                }
                 $this->fileService->moveFile($values['id_document'][0], $targetDirectory, 'id_document');
                 if ($hasESNcard) {
                     $this->fileService->moveFile($values['face_photo'][0], $targetDirectory, 'face_photo');
                 }
             }
         } catch (Exception $e) {
-            $this->fileService->deleteFile($values['proof_of_status'][0] ?? null);
+            if (!$isVerifiedStatus) {
+                $this->fileService->deleteFile($values['proof_of_status'][0] ?? null);
+            }
             $this->fileService->deleteFile($values['id_document'][0] ?? null);
             if ($hasESNcard) {
                 $this->fileService->deleteFile($values['face_photo'][0] ?? null);
@@ -1008,12 +1129,22 @@ class ApplicationForm extends FormBase
             return;
         }
 
-        $emailParams = ['name' => trim($isVerifiedID ? $savedData['name'] : $values['name'])];
+        if (!$hasESNcard && $isVerifiedStatus && $isVerifiedID) {
+            if ($this->actionManager->hasDefinition('esn_membership_manager_approve')) {
+                /** @var ActionBase $action */
+                /** @noinspection PhpUnhandledExceptionInspection */
+                $action = $this->actionManager->createInstance('esn_membership_manager_approve');
 
-        if ($hasESNcard)
-            $this->emailManager->sendEmail($email, 'both_confirmation', $emailParams);
-        else
-            $this->emailManager->sendEmail($email, 'pass_confirmation', $emailParams);
+                $action->execute($applicationID);
+            }
+        } else {
+            $emailParams = ['name' => trim($isVerifiedID ? $savedData['name'] : $values['name'])];
+
+            if ($hasESNcard)
+                $this->emailManager->sendEmail($email, 'both_confirmation', $emailParams);
+            else
+                $this->emailManager->sendEmail($email, 'pass_confirmation', $emailParams);
+        }
 
         if (!empty($application['didit_session_id'])) {
             $this->diditService->deleteSession($application['didit_session_id']);

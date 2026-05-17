@@ -153,6 +153,14 @@ esn_membership_manager.apply:
   requirements:
     _access: 'TRUE'
 
+esn_membership_manager.apply_verify_esn:
+  path: '/memberships/apply/verify/esn-accounts'
+  defaults:
+    _controller: '\Drupal\esn_membership_manager\Controller\ESNAccountsController::callback'
+    _title: 'ESN Accounts Verification'
+  requirements:
+    _access: 'TRUE'
+
 esn_membership_manager.apply_success:
   path: '/memberships/apply/success'
   defaults:

@@ -135,7 +135,7 @@ function esn_membership_manager_mail($key, &$message, $params): void
     $message['headers']['MIME-Version'] = '1.0';
 
     $scheme = $params['scheme_name'] ?? 'ESN Pass';
-    $organization = $params['organization_name'] ?? 'ESN';
+    $organization = $params['organisation_name'] ?? 'ESN';
 
     switch ($key) {
         case 'pass_approval':

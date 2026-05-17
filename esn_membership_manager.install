@@ -318,23 +318,23 @@ function esn_membership_manager_schema(): array
                 'length' => 255,
                 'not null' => TRUE,
             ],
-            'name' => [
-                'description' => 'The name as verified.',
+            'id_name' => [
+                'description' => 'The name as verified from the ID verification provider.',
                 'type' => 'varchar',
                 'length' => 255,
             ],
-            'surname' => [
-                'description' => 'The surname as verified.',
+            'id_surname' => [
+                'description' => 'The surname as verified from the ID verification provider.',
                 'type' => 'varchar',
                 'length' => 255,
             ],
-            'nationality' => [
-                'description' => 'The nationality as verified.',
+            'id_nationality' => [
+                'description' => 'The nationality as verified from the ID verification provider.',
                 'type' => 'varchar',
                 'length' => 128,
             ],
-            'dob' => [
-                'description' => 'The date of birth as verified.',
+            'id_dob' => [
+                'description' => 'The date of birth as verified from the ID verification provider.',
                 'type' => 'varchar',
                 'length' => 20,
             ],
@@ -353,6 +353,36 @@ function esn_membership_manager_schema(): array
                 'type' => 'varchar',
                 'length' => 128,
             ],
+            'status_name' => [
+                'description' => 'The name as returned from the status verification provider.',
+                'type' => 'varchar',
+                'length' => 255,
+            ],
+            'status_surname' => [
+                'description' => 'The surname as returned from the status verification provider.',
+                'type' => 'varchar',
+                'length' => 255,
+            ],
+            'status_mobility' => [
+                'description' => 'The mobility status as verified on the status verification provider.',
+                'type' => 'varchar',
+                'length' => 64,
+            ],
+            'status_host_institution' => [
+                'description' => 'The host institution as verified on the status verification provider.',
+                'type' => 'varchar',
+                'length' => 255,
+            ],
+            'esn_token' => [
+                'description' => 'The token used for verification for the ESN Accounts session.',
+                'type' => 'varchar',
+                'length' => 128,
+            ],
+            'esn_status' => [
+                'description' => 'The verification status of the ESN Accounts session.',
+                'type' => 'varchar',
+                'length' => 128,
+            ],
             'date_created' => [
                 'description' => 'Timestamp when the session creation occurred.',
                 'type' => 'varchar',
@@ -365,6 +395,7 @@ function esn_membership_manager_schema(): array
             'email' => ['email'],
             'didit_session_id' => ['didit_session_id'],
             'didit_session_token' => ['didit_session_token'],
+            'esn_token' => ['esn_token'],
         ],
     ];
 
