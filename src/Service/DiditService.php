@@ -52,7 +52,6 @@ class DiditService
                     'workflow_id' => $workflowID,
                     'callback' => Url::fromRoute('esn_membership_manager.apply', [], ['absolute' => TRUE])->toString(),
                     'callback_method' => 'initiator',
-                    'metadata' => json_encode(['email' => $email]),
                 ])
             ]);
         } catch (GuzzleException $e) {

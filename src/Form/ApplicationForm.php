@@ -707,6 +707,14 @@ class ApplicationForm extends FormBase
             '#weight' => 100,
         ];
 
+        $form['submit_legal'] = [
+            '#markup' => '<div class="description verification-tos" style="font-size: inherit; color: inherit;">' .
+                $this->t('By submitting this application you agree to our ') .
+                '<a href="' . Url::fromRoute('esn_membership_manager.terms_of_service', [], ['absolute' => true])->toString() . '" target="_blank">' . $this->t('Terms of Service') . '</a> and ' .
+                '<a href="' . Url::fromRoute('esn_membership_manager.privacy_policy', [], ['absolute' => true])->toString() . '" target="_blank">' . $this->t('Privacy Policy') . '</a>.' .
+                '</div>',
+        ];
+
         $form['actions']['submit'] = [
             '#type' => 'submit',
             '#value' => $this->t('Submit Application'),

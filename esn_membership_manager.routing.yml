@@ -169,6 +169,22 @@ esn_membership_manager.apply_success:
   requirements:
     _access: 'TRUE'
 
+esn_membership_manager.terms_of_service:
+  path: '/memberships/terms-of-service'
+  defaults:
+    _controller: '\Drupal\esn_membership_manager\Page\LegalPages::tosPage'
+    _title: 'Terms of Service'
+  requirements:
+    _access: 'TRUE'
+
+esn_membership_manager.privacy_policy:
+  path: '/memberships/privacy-policy'
+  defaults:
+    _controller: '\Drupal\esn_membership_manager\Page\LegalPages::privacyPage'
+    _title: 'Privacy Policy'
+  requirements:
+    _access: 'TRUE'
+
 esn_membership_manager.submissions:
   path: '/memberships/submissions'
   defaults:

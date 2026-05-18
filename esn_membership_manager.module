@@ -1,5 +1,6 @@
 <?php /** @noinspection PhpUnused */
 
+use Drupal\Core\Datetime\DrupalDateTime;
 use Drupal\Core\Logger\LoggerChannelInterface;
 use Drupal\Core\Render\Markup;
 use Drupal\Core\StreamWrapper\StreamWrapperManager;
@@ -287,7 +288,7 @@ function esn_membership_manager_cron(): void
 
     // 2. PII & Face Photos: Deleted after 1 year relative to status
     $query1Y = $database->select('esn_membership_manager_applications', 'a')
-        ->fields('a', ['id', 'email', 'approval_status', 'esncard', 'payment_link_id', 'face_photo_fid']);
+        ->fields('a', ['id', 'email', 'dob', 'approval_status', 'esncard', 'payment_link_id', 'face_photo_fid']);
 
     // Create the conditional retention logic group for 1 year
     $retentionCondition = $query1Y->orConditionGroup();
@@ -373,7 +374,7 @@ function esn_membership_manager_cron(): void
                     'name' => 'Anonymized',
                     'surname' => 'Anonymized',
                     'email' => $row->id . '@anonymized.email',
-                    'dob' => '1970-01-01',
+                    'dob' => (new DrupalDateTime($row->dob))->format('Y-01-01'),
                     'face_photo_fid' => NULL,
                     'payment_link' => NULL,
                     'payment_link_id' => NULL,
