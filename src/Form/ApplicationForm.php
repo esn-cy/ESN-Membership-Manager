@@ -246,10 +246,6 @@ class ApplicationForm extends FormBase
             return $form;
         }
 
-        $diditEnabled = $moduleConfig->get('switch_didit') ?? false;
-        $verificationStatus = null;
-        $personalFieldsDisabled = false;
-
         try {
             $application = $this->database->select('esn_membership_manager_in_progress_applications', 'i')
                 ->fields('i')
@@ -259,51 +255,24 @@ class ApplicationForm extends FormBase
         } catch (Exception) {
         }
 
-        if ($diditEnabled) {
-            try {
-                if (!empty($application)) {
-                    $diditStatus = $application['didit_status'] ?? null;
-                    $diditSessionID = $application['didit_session_id'] ?? null;
+        $form['personal_details'] = [
+            '#type' => 'fieldset',
+            '#title' => $this->t('Personal Details'),
+        ];
 
-                    if (!empty($diditSessionID) && !in_array($diditStatus, ['Approved', 'Declined', 'In Review'])) {
-                        $diditSession = $this->diditService->getSession($diditSessionID);
-                        $updatedStatus = $diditSession['status'] ?? null;
+        $personalFieldsDisabled = false;
+        if (($moduleConfig->get('switch_didit') ?? false) && !empty($application)) {
+            $verificationData = $session->get('application_form_verification_data', []);
+            $verificationData['id_verification_token'] = $application['didit_session_token'];
+            $session->set('application_form_verification_data', $verificationData);
 
-                        if (!empty($updatedStatus)) {
-                            $updateFields = ['didit_status' => $updatedStatus];
-
-                            if (in_array($updatedStatus, ['Approved', 'Declined', 'In Review'])) {
-                                $verifiedDetails = $diditSession['id_verifications'][0];
-                                $nationality = match ($verifiedDetails['nationality']) {
-                                    'GBR' => 'British',
-                                    'SHN' => 'St Helenian / Tristanian',
-                                    'DOM' => 'Dominican',
-                                    default => $this->getNationalities(true)[$verifiedDetails['nationality']]
-                                };
-
-                                $updateFields += [
-                                    'id_name' => $verifiedDetails['first_name'],
-                                    'id_surname' => $verifiedDetails['last_name'],
-                                    'id_nationality' => $nationality,
-                                    'id_dob' => $verifiedDetails['date_of_birth'],
-                                ];
-                            }
-
-                            $this->database->update('esn_membership_manager_in_progress_applications')
-                                ->fields($updateFields)
-                                ->condition('didit_session_id', $diditSessionID)
-                                ->execute();
-
-                            $application = array_merge($application, $updateFields);
-                            $diditStatus = $updatedStatus;
-                        }
-                    }
-
-                    $verificationStatus = 'Other';
-                    $verificationData = $session->get('application_form_verification_data', []);
-
-                    if ($diditStatus == 'Approved') {
-                        $verificationStatus = 'Success';
+            $diditStatus = $application['didit_status'] ?? null;
+            if (!empty($diditStatus)) {
+                switch ($diditStatus) {
+                    case 'Approved':
+                        $form['personal_details']['verified_status'] = [
+                            '#markup' => Markup::create('<p class="alert alert-success">' . $this->t('You have successfully verified your identity.') . '</p>'),
+                        ];
 
                         $savedData = $session->get('application_form_saved_data', []);
                         $savedData['name'] = $application['id_name'];
@@ -313,73 +282,59 @@ class ApplicationForm extends FormBase
                         $session->set('application_form_saved_data', $savedData);
 
                         $verificationData['id_verified'] = true;
-                    } elseif ($application['didit_status'] == 'Declined' || $application['didit_status'] == 'In Review') {
-                        $verificationStatus = 'Failed';
-                        $verificationData['id_verified'] = false;
-                    }
+                        $session->set('application_form_verification_data', $verificationData);
 
-                    if (!empty($application['didit_session_token'])) {
-                        $diditVerifyLink = 'https://verify.didit.me/session/' . $application['didit_session_token'];
-                        $verificationData['id_verification_link'] = $diditVerifyLink;
-                    }
-
-                    $session->set('application_form_verification_data', $verificationData);
+                        $personalFieldsDisabled = true;
+                        break;
+                    case 'Declined':
+                    case 'In Review':
+                        $form['personal_details']['verified_status'] = [
+                            '#markup' => Markup::create('<p class="alert alert-warning">' . $this->t('Your identity verification has failed. Please fill in the following fields manually.') . '</p>'),
+                        ];
+                        break;
+                    case 'Failed':
+                        $form['personal_details']['verified_status'] = [
+                            '#markup' => Markup::create('<p class="alert alert-warning">' . $this->t('There was an issue verifying your identity. Please fill in the following fields manually.') . '</p>'),
+                        ];
+                        break;
+                    default:
+                        $form['personal_details']['verified_status'] = [
+                            '#markup' => Markup::create('<p class="alert alert-warning">' . $this->t('Please fill in the following fields manually.') . '</p>'),
+                        ];
+                        break;
                 }
-            } catch (Exception $e) {
-                $this->logger->error('Unable to fetch in progress application data. @error.', ['@error' => $e->getMessage()]);
             }
         }
 
-        $form['personal_details'] = [
-            '#type' => 'fieldset',
-            '#title' => $this->t('Personal Details'),
-        ];
+        if (!$personalFieldsDisabled) {
+            $form['personal_details']['online_title'] = [
+                '#markup' => '<h4 class="verification-subtitle">' . $this->t('Instant (Recommended)') . '</h4>',
+            ];
 
-        if (!empty($verificationStatus)) {
-            $personalFieldsDisabled = ($verificationStatus == 'Success');
+            $form['personal_details']['online_button'] = [
+                '#type' => 'submit',
+                '#value' => $this->t('Verify ID Online'),
+                '#name' => 'didit_button',
+                '#attributes' => [
+                    'class' => ['btn-primary', 'btn', 'online-verify-btn'],
+                ],
+                '#ajax' => [
+                    'callback' => '::redirectToDidit',
+                    'event' => 'click',
+                ],
+            ];
 
-            switch ($verificationStatus) {
-                case 'Success':
-                    $form['personal_details']['verified_status'] = [
-                        '#markup' => Markup::create('<p class="alert alert-success">' . $this->t('You have successfully verified your identity.') . '</p>'),
-                    ];
-                    break;
-                case 'Failed':
-                    $form['personal_details']['verified_status'] = [
-                        '#markup' => Markup::create('<p class="alert alert-warning">' . $this->t('Your identity verification has failed. Please fill in the following fields manually.') . '</p>'),
-                    ];
-                    break;
-                case 'Other':
-                    $form['personal_details']['online_title'] = [
-                        '#markup' => '<h4 class="verification-subtitle">' . $this->t('Instant (Recommended)') . '</h4>',
-                    ];
+            $form['personal_details']['tos_text'] = [
+                '#markup' => '<div class="description verification-tos">' . $this->t('By clicking verify you agree with our and Didit\'s ') . '<a href="https://didit.me/terms/identity-verification/" target="_blank">' . $this->t('End User Terms of Service') . '</a>.' . '</div>',
+            ];
 
-                    $form['personal_details']['online_button'] = [
-                        '#type' => 'submit',
-                        '#value' => $this->t('Verify ID Online'),
-                        '#name' => 'didit_button',
-                        '#attributes' => [
-                            'class' => ['btn-primary', 'btn', 'online-verify-btn'],
-                        ],
-                        '#ajax' => [
-                            'callback' => '::redirectToDidit',
-                            'event' => 'click',
-                        ],
-                    ];
+            $form['personal_details']['divider'] = [
+                '#markup' => '<div class="verification-divider"><span>' . $this->t('OR') . '</span></div>',
+            ];
 
-                    $form['personal_details']['tos_text'] = [
-                        '#markup' => '<div class="description verification-tos">' . $this->t('By clicking verify you agree with our and Didit\'s ') . '<a href="https://didit.me/terms/identity-verification/" target="_blank">' . $this->t('End User Terms of Service') . '</a>.' . '</div>',
-                    ];
-
-                    $form['personal_details']['divider'] = [
-                        '#markup' => '<div class="verification-divider"><span>' . $this->t('OR') . '</span></div>',
-                    ];
-
-                    $form['personal_details']['manual_title'] = [
-                        '#markup' => '<h4 class="verification-subtitle">' . $this->t('Manual Processing (Up to 7 days)') . '</h4>',
-                    ];
-                    break;
-            }
+            $form['personal_details']['manual_title'] = [
+                '#markup' => '<h4 class="verification-subtitle">' . $this->t('Manual Processing (Up to 7 days)') . '</h4>',
+            ];
         }
 
         $form['personal_details']['name'] = [
@@ -907,11 +862,13 @@ class ApplicationForm extends FormBase
 
         $session = $this->getRequest()->getSession();
         $verificationData = $session->get('application_form_verification_data', []);
-        $verificationLink = $verificationData['id_verification_link'] ?? null;
+        $token = $verificationData['id_verification_token'] ?? null;
 
-        if (empty($verificationLink)) {
+        if (empty($token)) {
             $email = $session->get('application_form_saved_data', [])['email'];
             $verificationLink = $this->diditService->createVerificationSession($email);
+        } else {
+            $verificationLink = 'https://verify.didit.me/session/' . $token;
         }
 
         $response->addCommand(new RedirectCommand($verificationLink));

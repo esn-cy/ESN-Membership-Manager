@@ -50,7 +50,7 @@ class DiditService
                 ],
                 'body' => json_encode([
                     'workflow_id' => $workflowID,
-                    'callback' => Url::fromRoute('esn_membership_manager.apply', [], ['absolute' => TRUE])->toString(),
+                    'callback' => Url::fromRoute('esn_membership_manager.apply_verify_id', [], ['absolute' => TRUE])->toString(),
                     'callback_method' => 'initiator',
                 ])
             ]);
