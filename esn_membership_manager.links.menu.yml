@@ -13,14 +13,14 @@ esn_membership_manager.apply:
   route_name: esn_membership_manager.apply
   weight: 1
 
-esn_membership_manager.submissions:
-  title: "Submissions"
+esn_membership_manager.view_applications:
+  title: "View Applications"
   description: "View all applications"
   parent: esn_membership_manager.category
-  route_name: esn_membership_manager.submissions
+  route_name: esn_membership_manager.view_applications
   weight: 2
   options:
-    _permission: "view submissions"
+    _permission: "view applications"
 
 esn_membership_manager.scan:
   title: "Scan ESNcards / Passes"

@@ -24,12 +24,12 @@ use Symfony\Component\DependencyInjection\ContainerInterface;
  *
  * @Action(
  *   id = "esn_membership_manager_approve",
- *   label = @Translation("Approve Submissions"),
+ *   label = @Translation("Approve Application"),
  *   type = "system",
  *   confirm = TRUE
  * )
  */
-class ApproveSubmission extends ActionBase implements ContainerFactoryPluginInterface
+class ApproveApplication extends ActionBase implements ContainerFactoryPluginInterface
 {
     protected ConfigFactoryInterface $configFactory;
     protected Connection $database;
@@ -147,7 +147,7 @@ class ApproveSubmission extends ActionBase implements ContainerFactoryPluginInte
 
             if ($count == 0) {
                 $this->logger->warning(
-                    'Submission @id requested ESNcard but none are available.',
+                    'Application @id requested ESNcard but none are available.',
                     ['@id' => $id]
                 );
                 throw new Exception('No available ESNcards');
@@ -158,12 +158,12 @@ class ApproveSubmission extends ActionBase implements ContainerFactoryPluginInte
 
                 $paymentLink = $this->stripeService->createPaymentLink($id, $isESNer);
             } catch (ApiErrorException $e) {
-                $this->logger->error('Stripe API error for submission @id: @message', ['@id' => $id, '@message' => $e->getMessage()]);
+                $this->logger->error('Stripe API error for application @id: @message', ['@id' => $id, '@message' => $e->getMessage()]);
                 throw new Exception('Stripe API Error');
             }
 
             if (!$paymentLink) {
-                $this->logger->error('Failed to create payment link for submission @id.', ['@id' => $id]);
+                $this->logger->error('Failed to create payment link for application @id.', ['@id' => $id]);
                 throw new Exception('Failed to create payment link');
             }
 
@@ -208,7 +208,7 @@ class ApproveSubmission extends ActionBase implements ContainerFactoryPluginInte
                 $this->emailManager->sendEmail($application['email'], 'pass_approval', $emailFields);
             }
 
-            $this->logger->notice('Approved submission @id.', ['@id' => $id]);
+            $this->logger->notice('Approved application @id.', ['@id' => $id]);
             return;
         } catch (Exception $e) {
             $this->logger->error('Updating Application @id failed: @message', ['@id' => $id, '@message' => $e->getMessage()]);
@@ -221,7 +221,7 @@ class ApproveSubmission extends ActionBase implements ContainerFactoryPluginInte
      */
     public function access($object, ?AccountInterface $account = NULL, $return_as_object = FALSE): bool|AccessResultInterface
     {
-        $access = AccessResult::allowedIfHasPermission($account, 'approve submission');
+        $access = AccessResult::allowedIfHasPermission($account, 'approve applications');
         return $return_as_object ? $access : $access->isAllowed();
     }
 }

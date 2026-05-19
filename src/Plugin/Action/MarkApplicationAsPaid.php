@@ -18,16 +18,16 @@ use Exception;
 use Symfony\Component\DependencyInjection\ContainerInterface;
 
 /**
- * Declines an application.
+ * Marks an application as paid.
  *
  * @Action(
  *   id = "esn_membership_manager_mark_paid",
- *   label = @Translation("Mark Submissions as Paid"),
+ *   label = @Translation("Mark Application as Paid"),
  *   type = "system",
  *   confirm = TRUE
  * )
  */
-class MarkSubmissionAsPaid extends ActionBase implements ContainerFactoryPluginInterface
+class MarkApplicationAsPaid extends ActionBase implements ContainerFactoryPluginInterface
 {
     protected Connection $database;
     protected LockBackendInterface $lock;
@@ -91,7 +91,7 @@ class MarkSubmissionAsPaid extends ActionBase implements ContainerFactoryPluginI
     public function execute(?int $applicationID = NULL, ?string $linkID = NULL): string
     {
         if (empty($applicationID)) {
-            $this->logger->warning('MarkSubmissionAsPaid executed without a valid Application ID.');
+            $this->logger->warning('Mark Application as Paid executed without a valid Application ID.');
             return 'Did not run due to an empty Application ID';
         }
 
@@ -194,7 +194,7 @@ class MarkSubmissionAsPaid extends ActionBase implements ContainerFactoryPluginI
      */
     public function access($object, ?AccountInterface $account = NULL, $return_as_object = FALSE): bool|AccessResultInterface
     {
-        $access = AccessResult::allowedIfHasPermission($account, 'mark submission as paid');
+        $access = AccessResult::allowedIfHasPermission($account, 'mark applications as paid');
         return $return_as_object ? $access : $access->isAllowed();
     }
 }

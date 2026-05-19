@@ -104,7 +104,7 @@ class IssueCard extends ActionBase implements ContainerFactoryPluginInterface
                 ->condition('id', $id)
                 ->execute();
 
-            $this->logger->notice('Declined submission @id', ['@id' => $id]);
+            $this->logger->notice('Issued application @id', ['@id' => $id]);
         } catch (Exception $e) {
             $this->logger->error('Unable to mark card as issued @id: @message', ['@id' => $id, '@message' => $e->getMessage()]);
             throw new Exception('Failed to complete issuance process');
@@ -117,7 +117,7 @@ class IssueCard extends ActionBase implements ContainerFactoryPluginInterface
      */
     public function access($object, ?AccountInterface $account = NULL, $return_as_object = FALSE): bool|AccessResultInterface
     {
-        $access = AccessResult::allowedIfHasPermission($account, 'issue card');
+        $access = AccessResult::allowedIfHasPermission($account, 'issue cards');
         return $return_as_object ? $access : $access->isAllowed();
     }
 }

@@ -6,7 +6,8 @@
 <img src="./assets/images/esnAward.svg" align="right" height="150" alt="Winner of the IT Award at the ESN Awards 2026"/>
 
 ESN Membership Manager is a robust Drupal module designed to streamline the management of memberships within the Erasmus
-Student Network (ESN). It provides a comprehensive framework for handling submissions for both Free Passes and ESNcards,
+Student Network (ESN). It provides a comprehensive framework for handling applications for both Free Passes and
+ESNcards,
 integrating seamlessly with your existing Drupal infrastructure.
 
 ## Features

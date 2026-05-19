@@ -1,42 +1,42 @@
-view submissions:
-  title: "View Submissions"
-  description: "Allows users to view the submissions"
+view applications:
+  title: "View Applications"
+  description: "Allows users to view the applications"
   restrict access: false
 
-edit submission:
-  title: "Edit Submission"
-  description: "Allows users to edit submissions"
+edit applications:
+  title: "Edit Application"
+  description: "Allows users to edit applications"
   restrict access: false
 
-approve submission:
-  title: "Approve Submission"
-  description: "Allows users to approve submissions"
+approve applications:
+  title: "Approve Application"
+  description: "Allows users to approve applications"
   restrict access: false
 
-decline submission:
-  title: "Decline Submission"
-  description: "Allows users to decline submissions"
+decline applications:
+  title: "Decline Application"
+  description: "Allows users to decline applications"
   restrict access: false
 
-delete submission:
-  title: "Delete Submission"
-  description: "Allows users to delete submissions"
+delete applications:
+  title: "Delete Application"
+  description: "Allows users to delete applications"
   restrict access: false
 
-mark submission as paid:
-  title: "Mark Submission as Paid"
-  description: "Allows users to mark submissions as paid"
+mark applications as paid:
+  title: "Mark Application as Paid"
+  description: "Allows users to mark applications as paid"
 
-blacklist submission:
-  title: "Blacklist Submission"
+blacklist applications:
+  title: "Blacklist Application"
   description: "Allows users to blacklists a Free Pass"
 
-issue card:
-  title: "Issue Card"
+issue cards:
+  title: "Issue Cards"
   description: "Allows users to mark cards as issued"
 
-deliver card:
-  title: "Deliver Card"
+deliver cards:
+  title: "Deliver Cards"
   description: "Allows users to mark cards as delivered"
 
 scan cards:

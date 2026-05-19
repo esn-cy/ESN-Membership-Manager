@@ -22,12 +22,12 @@ use Symfony\Component\DependencyInjection\ContainerInterface;
  *
  * @Action(
  *   id = "esn_membership_manager_delete",
- *   label = @Translation("Delete Submissions"),
+ *   label = @Translation("Delete Application"),
  *   type = "system",
  *   confirm = TRUE
  * )
  */
-class DeleteSubmission extends ActionBase implements ContainerFactoryPluginInterface
+class DeleteApplication extends ActionBase implements ContainerFactoryPluginInterface
 {
     protected ConfigFactoryInterface $configFactory;
     protected Connection $database;
@@ -178,9 +178,9 @@ class DeleteSubmission extends ActionBase implements ContainerFactoryPluginInter
                 ->condition('referrer_id', $id)
                 ->execute();
 
-            $this->logger->notice('Deleted submission @id', ['@id' => $id]);
+            $this->logger->notice('Deleted application @id', ['@id' => $id]);
         } catch (Exception $e) {
-            $this->logger->error('Unable to delete submission @id: @message', ['@id' => $id, '@message' => $e->getMessage()]);
+            $this->logger->error('Unable to delete application @id: @message', ['@id' => $id, '@message' => $e->getMessage()]);
             throw new Exception('Failed to complete deletion process');
         }
     }
@@ -190,7 +190,7 @@ class DeleteSubmission extends ActionBase implements ContainerFactoryPluginInter
      */
     public function access($object, ?AccountInterface $account = NULL, $return_as_object = FALSE): bool|AccessResultInterface
     {
-        $access = AccessResult::allowedIfHasPermission($account, 'delete submission');
+        $access = AccessResult::allowedIfHasPermission($account, 'delete applications');
         return $return_as_object ? $access : $access->isAllowed();
     }
 }

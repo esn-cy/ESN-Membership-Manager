@@ -142,7 +142,7 @@ function esn_membership_manager_schema(): array
         'description' => 'Stores ESN Pass and ESNcard applications.',
         'fields' => [
             'id' => [
-                'description' => 'Primary Key: Unique submission ID.',
+                'description' => 'Primary Key: Unique application ID.',
                 'type' => 'serial',
                 'unsigned' => TRUE,
                 'not null' => TRUE,
@@ -266,13 +266,13 @@ function esn_membership_manager_schema(): array
                 'default' => 0,
             ],
             'date_created' => [
-                'description' => 'Timestamp when the submission was created.',
+                'description' => 'Timestamp when the application was created.',
                 'type' => 'varchar',
                 'length' => 64,
                 'not null' => TRUE,
             ],
             'date_approved' => [
-                'description' => 'Timestamp when the submission was approved.',
+                'description' => 'Timestamp when the application was approved.',
                 'type' => 'varchar',
                 'length' => 64,
             ],

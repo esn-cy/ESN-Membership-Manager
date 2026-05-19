@@ -1,7 +1,7 @@
 {
   "name": "esn-cy/esn-membership-manager",
   "type": "drupal-module",
-  "description": "Provides a framework to accept submissions for both Free Passes and ESNcards.",
+  "description": "Provides a framework to accept applications for both Free Passes and ESNcards.",
   "license": "Apache-2.0",
   "homepage": "https://github.com/esn-cy/esn-membership-manager",
   "readme": "README.MD",

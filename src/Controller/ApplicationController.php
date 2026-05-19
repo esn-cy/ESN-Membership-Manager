@@ -7,7 +7,6 @@ use Drupal\Core\Controller\ControllerBase;
 use Drupal\Core\Database\Connection;
 use Drupal\Core\DependencyInjection\ContainerInjectionInterface;
 use Drupal\Core\Link;
-use Drupal\Core\Session\AccountProxyInterface;
 use Drupal\Core\Url;
 use Drupal\esn_membership_manager\Service\FileService;
 use Drupal\file\FileInterface;
@@ -19,9 +18,9 @@ use Symfony\Component\HttpFoundation\ResponseHeaderBag;
 use TCPDF;
 
 /**
- * Controller for viewing submission details.
+ * Controller for viewing application details.
  */
-class SubmissionController extends ControllerBase implements ContainerInjectionInterface
+class ApplicationController extends ControllerBase implements ContainerInjectionInterface
 {
     /**
      * The database connection.
@@ -30,26 +29,18 @@ class SubmissionController extends ControllerBase implements ContainerInjectionI
      */
     protected Connection $database;
 
-    /**
-     * The current user.
-     * @var AccountProxyInterface
-     */
-    protected $currentUser;
-
     protected FileService $fileService;
 
     /**
-     * Constructs a SubmissionController object.
+     * Constructs a ApplicationController object.
      *
      */
     public function __construct(
         Connection             $database,
-        AccountProxyInterface  $currentUser,
         FileService            $fileService
     )
     {
         $this->database = $database;
-        $this->currentUser = $currentUser;
         $this->fileService = $fileService;
     }
 
@@ -61,15 +52,11 @@ class SubmissionController extends ControllerBase implements ContainerInjectionI
         /** @var Connection $database */
         $database = $container->get('database');
 
-        /** @var AccountProxyInterface $currentUser */
-        $currentUser = $container->get('current_user');
-
         /** @var FileService $fileService */
         $fileService = $container->get('esn_membership_manager.file_service');
 
         return new static(
             $database,
-            $currentUser,
             $fileService
         );
     }
@@ -129,16 +116,16 @@ class SubmissionController extends ControllerBase implements ContainerInjectionI
     }
 
     /**
-     * Views a submission in a modal.
+     * Views an application in a modal.
      *
      * @param int $id
-     *   The submission ID.
+     *   The application ID.
      *
      * @return array
      *   A render array suitable for a modal.
      * @throws Exception
      */
-    public function viewSubmission(int $id): array
+    public function viewApplication(int $id): array
     {
         $application = $this->database->select('esn_membership_manager_applications', 'a')
             ->fields('a')
@@ -301,7 +288,7 @@ class SubmissionController extends ControllerBase implements ContainerInjectionI
         }
 
         return [
-            '#theme' => 'emm_submission_view',
+            '#theme' => 'emm_application_view',
             '#id' => $id,
             '#fieldData' => $fieldData,
             '#urls' => [
@@ -310,9 +297,9 @@ class SubmissionController extends ControllerBase implements ContainerInjectionI
                 'photo' => $photoURL,
             ],
             '#permissions' => [
-                'edit' => $this->currentUser->hasPermission('edit submission'),
-                'approve' => $this->currentUser->hasPermission('approve submission'),
-                'decline' => $this->currentUser->hasPermission('decline submission'),
+                'edit' => $this->currentUser()->hasPermission('edit applications'),
+                'approve' => $this->currentUser()->hasPermission('approve applications'),
+                'decline' => $this->currentUser()->hasPermission('decline applications'),
             ],
             '#apiURLs' => [
                 'update' => Url::fromRoute('esn_membership_manager.edit')->toString(),
@@ -324,7 +311,7 @@ class SubmissionController extends ControllerBase implements ContainerInjectionI
     }
 
     /**
-     * Display a success page for application submission.
+     * Display a success page for application.
      */
     public function successPage(): array
     {
@@ -334,10 +321,10 @@ class SubmissionController extends ControllerBase implements ContainerInjectionI
     }
 
     /**
-     * Views the ESNcard for a submission.
+     * Views the ESNcard for an application.
      *
      * @param int $id
-     *   The submission ID.
+     *   The application ID.
      *
      * @return array
      *   A render array.

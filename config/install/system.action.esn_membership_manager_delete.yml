@@ -4,7 +4,7 @@ dependencies:
   module:
     - esn_membership_manager
 id: esn_membership_manager_delete
-label: "Delete Submissions"
+label: "Delete Application"
 type: system
 plugin: esn_membership_manager_delete
 configuration: { }

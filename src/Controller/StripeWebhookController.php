@@ -7,7 +7,7 @@ use Drupal\Core\Controller\ControllerBase;
 use Drupal\Core\Database\Connection;
 use Drupal\Core\Logger\LoggerChannelFactoryInterface;
 use Drupal\Core\Logger\LoggerChannelInterface;
-use Drupal\esn_membership_manager\Plugin\Action\MarkSubmissionAsPaid;
+use Drupal\esn_membership_manager\Plugin\Action\MarkApplicationAsPaid;
 use Drupal\esn_membership_manager\Service\StripeService;
 use Exception;
 use Symfony\Component\DependencyInjection\ContainerInterface;
@@ -94,12 +94,12 @@ class StripeWebhookController extends ControllerBase
 
         try {
             if ($this->actionManager->hasDefinition('esn_membership_manager_mark_paid')) {
-                /** @var MarkSubmissionAsPaid $action */
+                /** @var MarkApplicationAsPaid $action */
                 $action = $this->actionManager->createInstance('esn_membership_manager_mark_paid');
                 $resultString = $action->execute($applicationID, $linkID);
             } else {
-                $this->logger->error('Mark Submissions as Paid Action plugin not found.');
-                return new Response('Webhook processing failed: Mark Submissions as Paid Action plugin not found.', 500);
+                $this->logger->error('Mark Application as Paid Action plugin not found.');
+                return new Response('Webhook processing failed: Mark Application as Paid Action plugin not found.', 500);
             }
         } catch (Exception $e) {
             return new Response('Webhook processing failed: ' . $e->getMessage(), 500);

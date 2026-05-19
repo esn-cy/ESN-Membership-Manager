@@ -271,9 +271,9 @@
     </div>
 
     <div class="pane right-pane">
-        <h3>Submission Details</h3>
+        <h3>Application Details</h3>
         <div class="scrollable-content">
-            <form id="submission-form" onsubmit="return false;">
+            <form id="application-form" onsubmit="return false;">
                 <table class="details-table">
                     <thead>
                     <tr>
@@ -317,7 +317,7 @@
             <div class="actions">
                 {% if is_paid %}
                     <button type="button" id="btn-esncard" class="button"
-                            onclick="window.open('/memberships/submissions/{{ id }}/esncard', 'esncardWindow', 'width=660,height=320,popup=1,toolbar=0,location=0,menubar=0')">
+                            onclick="window.open('/memberships/applications/{{ id }}/esncard', 'esncardWindow', 'width=660,height=320,popup=1,toolbar=0,location=0,menubar=0')">
                         View ESNcard
                     </button>
                 {% endif %}
@@ -524,7 +524,7 @@
     }
 
     async function doSave(id) {
-        const form = document.getElementById("submission-form");
+        const form = document.getElementById("application-form");
         const data = {"id": id};
 
         form.querySelectorAll("input.seamless-input").forEach(function (input) {

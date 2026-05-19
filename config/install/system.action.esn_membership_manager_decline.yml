@@ -4,7 +4,7 @@ dependencies:
   module:
     - esn_membership_manager
 id: esn_membership_manager_decline
-label: "Decline Submissions"
+label: "Decline Application"
 type: system
 plugin: esn_membership_manager_decline
 configuration: { }

@@ -37,7 +37,7 @@ esn_membership_manager.edit:
     _controller: '\Drupal\esn_membership_manager\Controller\EditController::editApplication'
     _title: 'Edit Application'
   requirements:
-    _permission: 'edit submission'
+    _permission: 'edit applications'
   methods: [ POST ]
   options:
     _auth: [ 'oauth2', 'cookie' ]
@@ -48,7 +48,7 @@ esn_membership_manager.crop:
     _controller: '\Drupal\esn_membership_manager\Controller\EditController::cropPhoto'
     _title: 'Crop Photo'
   requirements:
-    _permission: 'edit submission'
+    _permission: 'edit applications'
   methods: [ POST ]
   options:
     _auth: [ 'oauth2', 'cookie' ]
@@ -164,7 +164,7 @@ esn_membership_manager.apply_verify_esn:
 esn_membership_manager.apply_success:
   path: '/memberships/apply/success'
   defaults:
-    _controller: '\Drupal\esn_membership_manager\Controller\SubmissionController::successPage'
+    _controller: '\Drupal\esn_membership_manager\Controller\ApplicationController::successPage'
     _title: 'Application Received'
   requirements:
     _access: 'TRUE'
@@ -185,13 +185,13 @@ esn_membership_manager.privacy_policy:
   requirements:
     _access: 'TRUE'
 
-esn_membership_manager.submissions:
-  path: '/memberships/submissions'
+esn_membership_manager.view_applications:
+  path: '/memberships/applications'
   defaults:
-    _form: '\Drupal\esn_membership_manager\Form\SubmissionsForm'
-    _title: 'Application Submissions'
+    _form: '\Drupal\esn_membership_manager\Form\ViewApplicationsForm'
+    _title: 'View Applications'
   requirements:
-    _permission: 'view submissions'
+    _permission: 'view applications'
 
 esn_membership_manager.scan_page:
   path: '/memberships/scan'
@@ -246,40 +246,40 @@ esn_membership_manager.file_download:
 esn_membership_manager.file_preview:
   path: '/memberships/files/{file}/preview'
   defaults:
-    _controller: '\Drupal\esn_membership_manager\Controller\SubmissionController::preview'
+    _controller: '\Drupal\esn_membership_manager\Controller\ApplicationController::preview'
     _title: 'File Preview'
   requirements:
-    _permission: 'view submissions'
+    _permission: 'view applications'
   options:
     parameters:
       file:
         type: entity:file
 
-esn_membership_manager.submission_view:
-  path: '/memberships/submissions/{id}/view'
+esn_membership_manager.application_view:
+  path: '/memberships/application/{id}/view'
   defaults:
-    _controller: '\Drupal\esn_membership_manager\Controller\SubmissionController::viewSubmission'
-    _title: 'View Submission'
+    _controller: '\Drupal\esn_membership_manager\Controller\ApplicationController::viewApplication'
+    _title: 'View Application'
   requirements:
-    _permission: 'view submissions'
+    _permission: 'view applications'
   methods: [ GET, POST ]
 
 esn_membership_manager.esncard_view:
-  path: '/memberships/submissions/{id}/esncard'
+  path: '/memberships/applications/{id}/esncard'
   defaults:
-    _controller: '\Drupal\esn_membership_manager\Controller\SubmissionController::viewESNcard'
+    _controller: '\Drupal\esn_membership_manager\Controller\ApplicationController::viewESNcard'
     _title: 'View ESNcard'
   requirements:
-    _permission: 'view submissions'
+    _permission: 'view applications'
   methods: [ GET ]
 
 esn_membership_manager.face_pdf:
-  path: '/memberships/submissions/face-pdf'
+  path: '/memberships/applications/face-pdf'
   defaults:
-    _controller: '\Drupal\esn_membership_manager\Controller\SubmissionController::generateFacePDF'
+    _controller: '\Drupal\esn_membership_manager\Controller\ApplicationController::generateFacePDF'
     _title: 'Generate ESNcard Pictures PDF'
   requirements:
-    _permission: 'view submissions'
+    _permission: 'view applications'
 
 esn_membership_manager.add_to_google_wallet:
   path: '/memberships/google-wallet/{identifier}'

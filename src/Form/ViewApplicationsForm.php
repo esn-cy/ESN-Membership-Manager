@@ -17,7 +17,7 @@ use Exception;
 use Symfony\Component\DependencyInjection\ContainerInterface;
 use Symfony\Component\HttpFoundation\JsonResponse;
 
-class SubmissionsForm extends FormBase
+class ViewApplicationsForm extends FormBase
 {
     protected Connection $database;
     protected ActionManager $actionManager;
@@ -64,11 +64,11 @@ class SubmissionsForm extends FormBase
      */
     public function getFormId(): string
     {
-        return 'esn_membership_manager_submissions';
+        return 'esn_membership_manager_applications';
     }
 
     /**
-     * Builds the submissions list page.
+     * Builds the applications list page.
      */
     public function buildForm(array $form, FormStateInterface $form_state): JsonResponse|array
     {
@@ -84,7 +84,7 @@ class SubmissionsForm extends FormBase
 
         $form['filters'] = [
             '#type' => 'details',
-            '#title' => $this->t('Filter submissions'),
+            '#title' => $this->t('Filter applications'),
             '#open' => TRUE,
             '#weight' => -20,
         ];
@@ -294,7 +294,7 @@ class SubmissionsForm extends FormBase
                     'data' => [
                         '#type' => 'link',
                         '#title' => $this->t('View'),
-                        '#url' => Url::fromRoute('esn_membership_manager.submission_view', ['id' => $row->id]),
+                        '#url' => Url::fromRoute('esn_membership_manager.application_view', ['id' => $row->id]),
                         '#attributes' => [
                             'class' => ['use-ajax', 'button', 'button--small'],
                             'data-dialog-type' => 'modal',
@@ -309,7 +309,7 @@ class SubmissionsForm extends FormBase
             '#type' => 'tableselect',
             '#header' => $header,
             '#options' => $rows,
-            '#empty' => $this->t('No submissions found.'),
+            '#empty' => $this->t('No applications found.'),
         ];
         $form['pager'] = [
             '#type' => 'pager',
@@ -348,12 +348,12 @@ class SubmissionsForm extends FormBase
         if (!empty($values['pass'])) $queryParams['pass'] = $values['pass'];
         if (!empty($values['sort_by'])) $queryParams['sort_by'] = $values['sort_by'];
         if (!empty($values['sort_order'])) $queryParams['sort_order'] = $values['sort_order'];
-        $form_state->setRedirect('esn_membership_manager.submissions', [], ['query' => $queryParams]);
+        $form_state->setRedirect('esn_membership_manager.view_applications', [], ['query' => $queryParams]);
     }
 
     public function filterFormReset(array &$form, FormStateInterface $form_state): void
     {
-        $form_state->setRedirect('esn_membership_manager.submissions', [], ['query' => []]);
+        $form_state->setRedirect('esn_membership_manager.view_applications', [], ['query' => []]);
     }
 
     public function submitForm(array &$form, FormStateInterface $form_state): void

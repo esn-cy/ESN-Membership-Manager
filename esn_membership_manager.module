@@ -79,7 +79,7 @@ function esn_membership_manager_theme($existing, $type, $theme, $path): array
             ])
         ],
 
-        'emm_submission_view' => [
+        'emm_application_view' => [
             'variables' => [
                 'id' => NULL,
                 'fieldData' => [],
@@ -194,7 +194,7 @@ function esn_membership_manager_file_download($uri): array|int|null
 
     if ($scheme === 'membership') {
         $currentUser = Drupal::currentUser();
-        if ($currentUser->hasPermission('view submissions')) {
+        if ($currentUser->hasPermission('view applications')) {
             return [
                 'Content-Type' => Drupal::service('file.mime_type.guesser')->guessMimeType($uri),
                 'Cache-Control' => 'private',

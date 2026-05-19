@@ -29,7 +29,7 @@ class StripeService
     }
 
     /**
-     * Create a Stripe payment link for the given submission.
+     * Create a Stripe payment link for the given application.
      *
      * @param int $id The application ID.
      * @param bool $isESNer If the applicant deserves the ESNer price.
