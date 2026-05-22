@@ -731,6 +731,8 @@ class ApplicationForm extends FormBase
 
     /**
      * Submit handler for sending the verification code.
+     * @noinspection PhpParameterByRefIsNotUsedAsReferenceInspection
+     * @noinspection PhpUnusedParameterInspection
      */
     public function sendCodeSubmit(array &$form, FormStateInterface $form_state): void
     {
@@ -805,6 +807,10 @@ class ApplicationForm extends FormBase
         $form_state->setRebuild();
     }
 
+    /**
+     * @noinspection PhpParameterByRefIsNotUsedAsReferenceInspection
+     * @noinspection PhpUnusedParameterInspection
+     */
     public function verifyCodeSubmit(array &$form, FormStateInterface $form_state): void
     {
         $email = strtolower($form_state->getValue('email'));
@@ -868,6 +874,10 @@ class ApplicationForm extends FormBase
         $form_state->setRebuild();
     }
 
+    /**
+     * @noinspection PhpParameterByRefIsNotUsedAsReferenceInspection
+     * @noinspection PhpUnusedParameterInspection
+     */
     public function redirectToDidit(array &$form, FormStateInterface $form_state): AjaxResponse
     {
         $response = new AjaxResponse();
@@ -915,6 +925,8 @@ class ApplicationForm extends FormBase
 
     /**
      * AJAX callback to update the actions' wrapper.
+     * @noinspection PhpParameterByRefIsNotUsedAsReferenceInspection
+     * @noinspection PhpUnusedParameterInspection
      */
     public function updateForm(array &$form, FormStateInterface $form_state): array
     {
@@ -1151,7 +1163,8 @@ class ApplicationForm extends FormBase
         $form_state->setRedirect('esn_membership_manager.apply_success');
     }
 
-    /** @noinspection PhpUnused
+    /**
+     * @noinspection PhpParameterByRefIsNotUsedAsReferenceInspection
      * @noinspection PhpUnusedParameterInspection
      */
     public function mobilityAjaxCallback(array &$form, FormStateInterface $form_state)

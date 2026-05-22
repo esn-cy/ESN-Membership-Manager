@@ -68,6 +68,7 @@ class EmailManager
                 $htmlBody = $this->renderer->renderInIsolation($renderArray);
             } else {
                 // Drupal 9 / <10.3
+                /** @noinspection PhpDeprecationInspection */
                 $htmlBody = $this->renderer->renderPlain($renderArray);
             }
         } catch (Exception $e) {

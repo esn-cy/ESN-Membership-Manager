@@ -1,3 +1,5 @@
+// noinspection JSUnusedGlobalSymbols,JSUnresolvedReference
+
 (function (Drupal, once) {
     'use strict';
 
