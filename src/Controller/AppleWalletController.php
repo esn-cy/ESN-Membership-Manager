@@ -2,13 +2,16 @@
 
 namespace Drupal\esn_membership_manager\Controller;
 
-use DateTime;
 use Drupal\Core\Controller\ControllerBase;
 use Drupal\Core\Database\Connection;
 use Drupal\Core\Datetime\DrupalDateTime;
 use Drupal\Core\Logger\LoggerChannelFactoryInterface;
 use Drupal\Core\Logger\LoggerChannelInterface;
 use Drupal\Core\Site\Settings;
+use Drupal\esn_membership_manager\Entity\Application\ApplicationField;
+use Drupal\esn_membership_manager\Entity\Application\ApplicationStorage;
+use Drupal\esn_membership_manager\Entity\GuestPass\GuestPassField;
+use Drupal\esn_membership_manager\Entity\GuestPass\GuestPassStorage;
 use Drupal\esn_membership_manager\Service\AppleWalletService;
 use Exception;
 use Symfony\Component\DependencyInjection\ContainerInterface;
@@ -85,21 +88,13 @@ class AppleWalletController extends ControllerBase
         }
 
         try {
-            $query = $this->database->select('esn_membership_manager_applications', 'a');
-            $query->fields('a');
+            /** @var ApplicationStorage $storage */
+            $storage = $this->entityTypeManager()->getStorage('membership_application');
 
             if ($isESNcard) {
-                $query->condition('esncard_number', $identifier);
+                $application = $storage->getByESNcard($identifier);
             } elseif ($isPass) {
-                $query->condition('pass_token', $identifier);
-            }
-
-            $application = $query->execute()->fetchAssoc();
-
-            if (empty($application['date_last_modified'])) {
-                $lastModifiedDate = new DateTime($application['date_created']);
-            } else {
-                $lastModifiedDate = new DateTime($application['date_last_modified']);
+                $application = $storage->getByPassToken($identifier);
             }
         } catch (Exception $e) {
             $this->logger->error('Creation of Apple Wallet Pass failed: @message', ['@message' => $e->getMessage()]);
@@ -108,6 +103,12 @@ class AppleWalletController extends ControllerBase
 
         if (empty($application)) {
             throw new NotFoundHttpException('No application was provided.', null, 404);
+        }
+
+        if (empty($application->getDateLastModified())) {
+            $lastModifiedDate = $application->getDateCreated();
+        } else {
+            $lastModifiedDate = $application->getDateLastModified();
         }
 
         try {
@@ -126,7 +127,7 @@ class AppleWalletController extends ControllerBase
 
         $response = new Response($passData);
         $response->setPublic();
-        $response->setLastModified($lastModifiedDate);
+        $response->setLastModified($lastModifiedDate?->getPhpDateTime());
         $response->headers->set('Content-Type', 'application/vnd.apple.pkpass');
         $response->headers->set('Content-Disposition', 'attachment; filename="esn_membership_manager.pkpass"');
 
@@ -136,34 +137,28 @@ class AppleWalletController extends ControllerBase
     protected function downloadGuest(string $identifier): Response
     {
         try {
-            $query = $this->database->select('esn_membership_manager_guest_passes', 'g');
-            $query->addField('g', 'id', 'id');
-            $query->addField('g', 'name', 'guest_name');
-            $query->addField('g', 'surname', 'guest_surname');
-            $query->addField('g', 'date_approved', 'date_approved');
-            $query->addField('a', 'name', 'referer_name');
-            $query->addField('a', 'surname', 'referer_surname');
-            $query->addField('a', 'mobility_status', 'referer_mobility_status');
-            $query->condition('g.guest_pass_token', $identifier);
-            $query->join('esn_membership_manager_applications', 'a', 'a.id = g.referrer_id');
-            $application = $query->execute()->fetchAssoc();
+            /** @var GuestPassStorage $storage */
+            $storage = $this->entityTypeManager()->getStorage('membership_guest');
 
-            if (empty($application['date_last_modified'])) {
-                $lastModifiedDate = new DateTime($application['date_created']);
-            } else {
-                $lastModifiedDate = new DateTime($application['date_last_modified']);
-            }
+            $guestPass = $storage->getByPassToken($identifier);
+            $referer = $guestPass?->getReferer();
         } catch (Exception $e) {
             $this->logger->error('Scan query failed: @message', ['@message' => $e->getMessage()]);
             throw new HttpException(500, 'There was a problem getting the guest pass.');
         }
 
-        if (empty($application)) {
+        if (empty($guestPass) || empty($referer)) {
             throw new NotFoundHttpException('Guest Pass not found.', null, 404);
         }
 
+        if (empty($guestPass->getDateLastModified())) {
+            $lastModifiedDate = $guestPass->getDateCreated();
+        } else {
+            $lastModifiedDate = $guestPass->getDateLastModified();
+        }
+
         try {
-            $passData = $this->appleWalletService->createGuestPass($application);
+            $passData = $this->appleWalletService->createGuestPass($guestPass, $referer);
             if (empty($passData)) {
                 throw new Exception();
             }
@@ -174,7 +169,7 @@ class AppleWalletController extends ControllerBase
 
         $response = new Response($passData);
         $response->setPublic();
-        $response->setLastModified($lastModifiedDate);
+        $response->setLastModified($lastModifiedDate?->getPhpDateTime());
         $response->headers->set('Content-Type', 'application/vnd.apple.pkpass');
         $response->headers->set('Content-Disposition', 'attachment; filename="esn_membership_manager.pkpass"');
         return $response;
@@ -229,7 +224,7 @@ class AppleWalletController extends ControllerBase
                         'pass_type_identifier' => $passTypeIdentifier,
                         'serial_number' => $serialNumber,
                         'push_token' => $pushToken,
-                        'date_created' => (new DrupalDateTime())->format('Y-m-d H:i:s'),
+                        'date_created' => (new DrupalDateTime())->format('Y-m-d\TH:i:s'),
                     ])
                     ->execute();
             } catch (Exception $e) {
@@ -290,32 +285,33 @@ class AppleWalletController extends ControllerBase
                 continue;
             }
 
-            if ($isGuest) {
-                $table = 'esn_membership_manager_guest_passes';
-                $id = str_replace('guest-', '', $serialNumber);
-            } else {
-                $table = 'esn_membership_manager_applications';
-                $id = $isESNcard ?
-                    str_replace('esncard-', '', $serialNumber) :
-                    str_replace('free_pass-', '', $serialNumber);
-
-            }
-
             try {
-                $dates = $this->database->select($table, 't')
-                    ->fields('t', ['date_created', 'date_last_modified'])
-                    ->condition('id', $id)
-                    ->execute()
-                    ->fetchAssoc();
+                if ($isGuest) {
+                    $id = str_replace('guest-', '', $serialNumber);
 
-                if (empty($dates['date_last_modified'])) {
-                    $lastModifiedDate = new DateTime($dates['date_created']);
+                    /** @var GuestPassStorage $storage */
+                    $storage = $this->entityTypeManager()->getStorage('membership_guest');
                 } else {
-                    $lastModifiedDate = new DateTime($dates['date_last_modified']);
+                    $id = $isESNcard ?
+                        str_replace('esncard-', '', $serialNumber) :
+                        str_replace('free_pass-', '', $serialNumber);
+
+                    /** @var ApplicationStorage $storage */
+                    $storage = $this->entityTypeManager()->getStorage('membership_application');
                 }
             } catch (Exception $e) {
                 $this->logger->error('Unable to retrieve the last modified date for @serial: @error.', ['@serial' => $serialNumber, '@error' => $e->getMessage()]);
                 continue;
+            }
+
+            $pass = $storage->load($id);
+            if (empty($pass)) {
+                continue;
+            }
+            if (empty($pass->getDateLastModified())) {
+                $lastModifiedDate = $pass->getDateCreated();
+            } else {
+                $lastModifiedDate = $pass->getDateLastModified();
             }
 
             $lastUpdateEpoch = $lastModifiedDate->getTimestamp();
@@ -356,7 +352,6 @@ class AppleWalletController extends ControllerBase
             return new JsonResponse(['error' => 'Unexpected serial number structure.'], 400);
         }
 
-        $table = $type == 'guest' ? 'esn_membership_manager_guest_passes' : 'esn_membership_manager_applications';
         $id = match ($type) {
             'card' => str_replace('esncard-', '', $serialNumber),
             'pass' => str_replace('free_pass-', '', $serialNumber),
@@ -364,34 +359,34 @@ class AppleWalletController extends ControllerBase
         };
 
         try {
-            $query = $this->database->select($table, 't');
             if ($type == 'guest') {
-                $query->fields('t', ['guest_pass_token']);
+                /** @var GuestPassStorage $storage */
+                $storage = $this->entityTypeManager()->getStorage('membership_guest');
             } else {
-                $query->fields('t', ['pass_token', 'esncard_number']);
+                /** @var ApplicationStorage $storage */
+                $storage = $this->entityTypeManager()->getStorage('membership_application');
             }
-            $identifiers = $query->condition('id', $id)
-                ->execute()
-                ->fetchAssoc();
         } catch (Exception $e) {
             $this->logger->error('Unable to retrieve the application for @serial: @error.', ['@serial' => $serialNumber, '@error' => $e->getMessage()]);
             return new JsonResponse(['error' => 'Unable to retrieve the application.'], 500);
         }
 
-        if (empty($identifiers)) {
+        $pass = $storage->load($id);
+
+        if (empty($pass)) {
             return new JsonResponse(['error' => 'Application not found.'], 404);
         }
 
-        if (empty($identifiers['esncard_number']) && $type == 'card') {
+        if ($type == 'card' && empty($pass->getValue(ApplicationField::ESNcardNumber))) {
             return new JsonResponse(['error' => 'Application not found.'], 404);
         }
 
         try {
             return $this->download(
                 match ($type) {
-                    'card' => $identifiers['esncard_number'],
-                    'pass' => $identifiers['pass_token'],
-                    'guest' => $identifiers['guest_pass_token'],
+                    'card' => $pass->getValue(ApplicationField::ESNcardNumber),
+                    'pass' => $pass->getValue(ApplicationField::PassToken),
+                    'guest' => $pass->getValue(GuestPassField::PassToken),
                 }
             );
         } catch (BadRequestHttpException|HttpException|NotFoundHttpException $e) {

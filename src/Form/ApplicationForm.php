@@ -19,6 +19,9 @@ use Drupal\Core\Logger\LoggerChannelInterface;
 use Drupal\Core\Render\Markup;
 use Drupal\Core\Url;
 use Drupal\esn_accounts_api\Entity\Organisation;
+use Drupal\esn_membership_manager\Entity\Application\ApplicationField;
+use Drupal\esn_membership_manager\Entity\Application\ApplicationInterface;
+use Drupal\esn_membership_manager\Entity\Application\ApplicationStorage;
 use Drupal\esn_membership_manager\Service\DiditService;
 use Drupal\esn_membership_manager\Service\EmailManager;
 use Drupal\esn_membership_manager\Service\FileService;
@@ -26,6 +29,7 @@ use Exception;
 use GuzzleHttp\ClientInterface;
 use GuzzleHttp\Exception\GuzzleException;
 use Symfony\Component\DependencyInjection\ContainerInterface;
+use TheNetworg\OAuth2\Client\Provider\Azure;
 
 class ApplicationForm extends FormBase
 {
@@ -732,11 +736,19 @@ class ApplicationForm extends FormBase
     {
         $email = $form_state->getValue('email');
 
-        $emailExists = $this->database->select('esn_membership_manager_applications', 'a')
-                ->condition('email', $email)
-                ->countQuery()
-                ->execute()
-                ->fetchField() != 0;
+        try {
+            /** @var ApplicationStorage $storage */
+            $storage = $this->entityTypeManager->getStorage('membership_application');
+
+            $emailExists = $storage->countByEmail($email) > 0;
+        } catch (Exception $e) {
+            $this->logger->error('Unable to check for duplicate emails. @error', ['@error' => $e->getMessage()]);
+            $form_state->set('api_message', 'Unable to complete operation. Please try again later');
+            $form_state->set('api_message_type', 'error');
+            $form_state->setRebuild();
+            return;
+        }
+
         if ($emailExists) {
             $form_state->set('api_message', $this->t('You have already made an application with this email address.'));
             $form_state->set('api_message_type', 'status');
@@ -795,7 +807,7 @@ class ApplicationForm extends FormBase
 
     public function verifyCodeSubmit(array &$form, FormStateInterface $form_state): void
     {
-        $email = $form_state->getValue('email');
+        $email = strtolower($form_state->getValue('email'));
         $code = $form_state->getValue('verification_code');
 
         try {
@@ -823,7 +835,7 @@ class ApplicationForm extends FormBase
                     $this->database->merge('esn_membership_manager_in_progress_applications')
                         ->key('email', $email)
                         ->fields([
-                            'date_created' => (new DrupalDateTime())->format('Y-m-d H:i:s')
+                            'date_created' => (new DrupalDateTime())->format('Y-m-d\TH:i:s')
                         ])
                         ->execute();
                 } catch (Exception $e) {
@@ -957,7 +969,7 @@ class ApplicationForm extends FormBase
         $session = $this->getRequest()->getSession();
         $savedData = $session->get('application_form_saved_data', []);
 
-        $email = $session->get('verified_email') ?? $savedData['email'] ?? $form_state->getValue('email');
+        $email = strtolower(trim($session->get('verified_email') ?? $savedData['email'] ?? $form_state->getValue('email')));
 
         try {
             $application = $this->database->select('esn_membership_manager_in_progress_applications', 'i')
@@ -989,7 +1001,7 @@ class ApplicationForm extends FormBase
         foreach ($filesExpected as $fileKey) {
             $fileID = $values[$fileKey][0] ?? null;
 
-            if ($this->fileService->saveFile($fileID)) {
+            if ($this->fileService->saveFile($fileID, null)) {
                 $filesSaved[] = $fileKey;
             }
         }
@@ -997,7 +1009,7 @@ class ApplicationForm extends FormBase
         if (count($filesExpected) != count($filesSaved)) {
             $this->messenger()->addError($this->t('An error occurred while saving your files. Please try again.'));
             foreach ($filesSaved as $savedFile) {
-                $this->fileService->deleteFile($values[$savedFile][0] ?? null);
+                $this->fileService->deleteFile($values[$savedFile][0] ?? null, null);
             }
             return;
         }
@@ -1032,58 +1044,76 @@ class ApplicationForm extends FormBase
         }
 
         $fields = [
-            'name' => trim($isVerifiedID ? $application['id_name'] : $values['name']),
-            'surname' => trim($isVerifiedID ? $application['id_surname'] : $values['surname']),
-            'email' => trim($email),
-            'nationality' => trim($isVerifiedID ? $application['id_nationality'] : $values['nationality']),
-            'dob' => $dateOfBirth,
-            'section' => trim($values['section'] ?? 'Unknown Section'),
-            'mobility_status' => trim($isVerifiedStatus ? $application['status_mobility'] : $statuses[$values['status']]),
-            'host_institution' => trim($isVerifiedStatus ? $application['status_host_institution'] : $values['host']),
-            'approval_status' => 'Pending',
-            'verified_email' => 1,
-            'verified_id' => (int)$isVerifiedID,
-            'verified_status' => (int)$isVerifiedStatus,
-            'date_created' => (new DrupalDateTime())->format('Y-m-d H:i:s'),
+            ApplicationField::Name->value => trim($isVerifiedID ? $application['id_name'] : $values['name']),
+            ApplicationField::Surname->value => trim($isVerifiedID ? $application['id_surname'] : $values['surname']),
+            ApplicationField::Email->value => $email,
+            ApplicationField::Nationality->value => trim($isVerifiedID ? $application['id_nationality'] : $values['nationality']),
+            ApplicationField::DateOfBirth->value => $dateOfBirth,
+            ApplicationField::Section->value => trim($values['section'] ?? 'Unknown Section'),
+            ApplicationField::MobilityStatus->value => trim($isVerifiedStatus ? $application['status_mobility'] : $statuses[$values['status']]),
+            ApplicationField::HostInstitution->value => trim($isVerifiedStatus ? $application['status_host_institution'] : $values['host']),
+            ApplicationField::ApprovalStatus->value => 'Pending',
+            ApplicationField::HasVerifiedEmail->value => 1,
+            ApplicationField::HasVerifiedID->value => (int)$isVerifiedID,
+            ApplicationField::HasVerifiedStatus->value => (int)$isVerifiedStatus,
+            ApplicationField::DateCreated->value => (new DrupalDateTime())->format('Y-m-d\TH:i:s'),
         ];
 
         if (!$isVerifiedStatus) {
-            $fields['proof_fid'] = $values['proof_of_status'][0];
+            $fields[ApplicationField::StatusProofFileID->value] = $values['proof_of_status'][0];
         }
         if ($isVerifiedID) {
             $pdfData = $this->diditService->getPDF($application['didit_session_id']);
-            $values['id_document'][0] = $this->fileService->createFile($pdfData, "membership://temp_uploads", "id_document_{$application['id']}.pdf");
+            $values['id_document'][0] = $this->fileService->createFile($pdfData, "membership://temp_uploads", "id_document_{$application['id']}.pdf", null);
         }
-        $fields['id_document_fid'] = $values['id_document'][0];
+        $fields[ApplicationField::IdentityDocumentFileID->value] = $values['id_document'][0];
         if ($hasESNcard) {
             $fields['esncard'] = 1;
-            $fields['face_photo_fid'] = $values['face_photo'][0];
+            $fields[ApplicationField::FacePhotoFileID->value] = $values['face_photo'][0];
         }
 
+        $savedApplication = null;
         try {
-            $applicationID = $this->database->insert('esn_membership_manager_applications')->fields($fields)->execute();
+            /** @var ApplicationStorage $storage */
+            $storage = $this->entityTypeManager->getStorage('membership_application');
 
-            if ($applicationID) {
-                $targetDirectory = 'membership://' . $applicationID;
-                if (!$isVerifiedStatus) {
-                    $this->fileService->moveFile($values['proof_of_status'][0], $targetDirectory, 'status');
+            /** @var ApplicationInterface $savedApplication */
+            $savedApplication = $storage->create($fields);
+
+            $violations = $savedApplication->validate();
+            if ($violations->count() > 0) {
+                foreach ($violations as $violation) {
+                    $this->messenger()->addError($this->t('Validation failed: @message', ['@message' => $violation->getMessage()]));
                 }
-                $this->fileService->moveFile($values['id_document'][0], $targetDirectory, 'id_document');
-                if ($hasESNcard) {
-                    $this->fileService->moveFile($values['face_photo'][0], $targetDirectory, 'face_photo');
-                }
+                return;
+            }
+
+            $savedApplication->save();
+
+            $targetDirectory = 'membership://' . $savedApplication->id();
+            if (!$isVerifiedStatus) {
+                $this->fileService->moveFile($values['proof_of_status'][0], $targetDirectory, 'status');
+            }
+            $this->fileService->moveFile($values['id_document'][0], $targetDirectory, 'id_document');
+            if ($hasESNcard) {
+                $this->fileService->moveFile($values['face_photo'][0], $targetDirectory, 'face_photo');
             }
         } catch (Exception $e) {
             if (!$isVerifiedStatus) {
-                $this->fileService->deleteFile($values['proof_of_status'][0] ?? null);
+                $this->fileService->deleteFile($values['proof_of_status'][0] ?? null, $savedApplication?->id());
             }
-            $this->fileService->deleteFile($values['id_document'][0] ?? null);
+            $this->fileService->deleteFile($values['id_document'][0] ?? null, $savedApplication?->id());
             if ($hasESNcard) {
-                $this->fileService->deleteFile($values['face_photo'][0] ?? null);
+                $this->fileService->deleteFile($values['face_photo'][0] ?? null, $savedApplication?->id());
             }
             $this->messenger()->addError($this->t('Error saving application. Please try again.'));
             $this->logger->error($e->getMessage());
             return;
+        }
+
+        foreach ($filesExpected as $fileKey) {
+            $fileID = $values[$fileKey][0] ?? null;
+            $this->fileService->saveFile($fileID, $savedApplication->id());
         }
 
         if (!$hasESNcard && $isVerifiedStatus && $isVerifiedID) {
@@ -1092,7 +1122,7 @@ class ApplicationForm extends FormBase
                 /** @noinspection PhpUnhandledExceptionInspection */
                 $action = $this->actionManager->createInstance('esn_membership_manager_approve');
 
-                $action->execute($applicationID);
+                $action->execute($savedApplication);
             }
         } else {
             $emailParams = ['name' => trim($isVerifiedID ? $savedData['name'] : $values['name'])];

@@ -3,32 +3,33 @@
 namespace Drupal\esn_membership_manager\Controller;
 
 use Drupal\Core\Controller\ControllerBase;
-use Drupal\Core\Database\Connection;
 use Drupal\Core\Datetime\DrupalDateTime;
 use Drupal\Core\Logger\LoggerChannelFactoryInterface;
 use Drupal\Core\Logger\LoggerChannelInterface;
+use Drupal\esn_membership_manager\Entity\Application\ApplicationField;
+use Drupal\esn_membership_manager\Entity\Application\ApplicationStorage;
+use Drupal\esn_membership_manager\Entity\GuestPass\GuestPassField;
+use Drupal\esn_membership_manager\Entity\GuestPass\GuestPassStorage;
 use Drupal\esn_membership_manager\Service\FileService;
 use Drupal\esn_membership_manager\Service\GoogleService;
 use Exception;
 use Symfony\Component\DependencyInjection\ContainerInterface;
 use Symfony\Component\HttpFoundation\JsonResponse;
 use Symfony\Component\HttpFoundation\Request;
+use Symfony\Component\HttpKernel\Exception\NotFoundHttpException;
 
 class ScanController extends ControllerBase
 {
-    protected Connection $database;
     protected FileService $fileService;
     protected GoogleService $googleService;
     protected LoggerChannelInterface $logger;
 
     public function __construct(
-        Connection                    $database,
         FileService                   $fileService,
         GoogleService                 $googleService,
         LoggerChannelFactoryInterface $loggerFactory
     )
     {
-        $this->database = $database;
         $this->fileService = $fileService;
         $this->googleService = $googleService;
         $this->logger = $loggerFactory->get('esn_membership_manager');
@@ -36,9 +37,6 @@ class ScanController extends ControllerBase
 
     public static function create(ContainerInterface $container): self
     {
-        /** @var Connection $database */
-        $database = $container->get('database');
-
         /** @var FileService $fileService */
         $fileService = $container->get('esn_membership_manager.file_service');
 
@@ -49,7 +47,6 @@ class ScanController extends ControllerBase
         $loggerFactory = $container->get('logger.factory');
 
         return new static(
-            $database,
             $fileService,
             $googleService,
             $loggerFactory
@@ -59,45 +56,43 @@ class ScanController extends ControllerBase
     public function scanCard(Request $request): JsonResponse
     {
         $body = json_decode($request->getContent(), TRUE) ?? [];
-        $cardNumber = $body['card'] ?? NULL;
+        $identifier = $body['card'] ?? NULL;
 
-        if (empty($cardNumber)) {
+        if (empty($identifier)) {
             return new JsonResponse(['status' => 'error', 'message' => 'No card number was provided.'], 400);
         }
 
-        $isESNcard = preg_match("/^\d\d\d\d\d\d\d[A-Z][A-Z][A-Z][A-Z0-9]$/", $cardNumber) == 1;
-        $isPass = preg_match("/^[A-F0-9]{32}$/", $cardNumber) == 1;
-        $isGuest = preg_match("/^GUEST[A-F0-9]{27}$/", $cardNumber) == 1;
+        $isESNcard = preg_match("/^\d\d\d\d\d\d\d[A-Z][A-Z][A-Z][A-Z0-9]$/", $identifier) == 1;
+        $isPass = preg_match("/^[A-F0-9]{32}$/", $identifier) == 1;
+        $isGuest = preg_match("/^GUEST[A-F0-9]{27}$/", $identifier) == 1;
 
         if (!$isESNcard && !$isPass && !$isGuest) {
             return new JsonResponse(['status' => 'error', 'message' => 'An invalid card number was provided.'], 400);
         }
 
         if ($isGuest) {
-            return $this->scanGuest($cardNumber);
+            return $this->scanGuest($identifier);
         }
 
         try {
-            $query = $this->database->select('esn_membership_manager_applications', 'a');
-            $query->fields('a');
+            /** @var ApplicationStorage $storage */
+            $storage = $this->entityTypeManager()->getStorage('membership_application');
 
             if ($isESNcard) {
-                $query->condition('esncard_number', $cardNumber);
+                $application = $storage->getByESNcard($identifier);
             } elseif ($isPass) {
-                $query->condition('pass_token', $cardNumber);
+                $application = $storage->getByPassToken($identifier);
             }
-
-            $application = $query->execute()->fetchAssoc();
         } catch (Exception $e) {
             $this->logger->error('Scan query failed: @message', ['@message' => $e->getMessage()]);
             return new JsonResponse(['status' => 'error', 'message' => 'There was a problem getting the card/pass.'], 500);
         }
 
-        if (!$application) {
+        if (empty($application)) {
             return new JsonResponse(['status' => 'error', 'message' => 'Card/Pass not found.'], 404);
         }
 
-        if ($application['approval_status'] == 'Blacklisted')
+        if ($application->getValue(ApplicationField::ApprovalStatus) == 'Blacklisted')
             return new JsonResponse([
                 'name' => 'BLACKLISTED',
                 'surname' => 'BLACKLISTED',
@@ -109,69 +104,52 @@ class ScanController extends ControllerBase
                 'profileImageURL' => '',
             ], 200);
 
-        $lastScanDate = $application['date_last_scanned'] ?? NULL;
+        $profileImageURL = $this->fileService->getFileURL(!empty($application->getFacePhoto()) ? $application->getFacePhoto()->id() : null);
 
-        $profileImageURL = $this->fileService->getFileURL($application['face_photo_fid'] ?? NULL);
+        $application->updateLastScanned();
 
         try {
-            $updateFields = [];
-            $updateFields['date_last_scanned'] = (new DrupalDateTime())->format('Y-m-d H:i:s');
-
-            $this->database->update('esn_membership_manager_applications')
-                ->fields($updateFields)
-                ->condition('id', $application['id'])
-                ->execute();
+            $application->save();
         } catch (Exception $e) {
             $this->logger->error('Scan update failed: @message', ['@message' => $e->getMessage()]);
             return new JsonResponse(['status' => 'error', 'message' => 'Unable to update last scan date.'], 500);
         }
 
         return new JsonResponse([
-            'name' => $application['name'],
-            'surname' => $application['surname'],
-            'nationality' => $application['nationality'],
-            'mobilityStatus' => $application['mobility_status'],
-            'datePaid' => !empty($application['date_paid']) ? (new DrupalDateTime($application['date_paid']))->format('Y-m-d') : null,
-            'dateApproved' => !empty($application['date_approved']) ? (new DrupalDateTime($application['date_approved']))->format('Y-m-d') : null,
-            'lastScanDate' => !empty($lastScanDate) ? (new DrupalDateTime($lastScanDate))->format('Y-m-d') : null,
+            'name' => $application->getValue(ApplicationField::Name),
+            'surname' => $application->getValue(ApplicationField::Surname),
+            'nationality' => $application->getValue(ApplicationField::Nationality),
+            'mobilityStatus' => $application->getValue(ApplicationField::MobilityStatus),
+            'datePaid' => !empty($application->getDatePaid()) ? $application->getDatePaid()->format('Y-m-d') : null,
+            'dateApproved' => !empty($application->getDateApproved()) ? $application->getDateApproved()->format('Y-m-d') : null,
+            'lastScanDate' => !empty($application->getDateLastScanned()) ? $application->getDateLastScanned()->format('Y-m-d') : null,
             'profileImageURL' => $profileImageURL,
         ], 200);
     }
 
-    protected function scanGuest(string $cardNumber): JsonResponse
+    protected function scanGuest(string $identifier): JsonResponse
     {
         $moduleConfig = $this->config('esn_membership_manager.settings');
 
         try {
-            $query = $this->database->select('esn_membership_manager_guest_passes', 'g');
-            $query->addField('g', 'id', 'id');
-            $query->addField('g', 'name', 'guest_name');
-            $query->addField('g', 'surname', 'guest_surname');
-            $query->addField('g', 'date_approved', 'date_approved');
-            $query->addField('g', 'date_redeemed', 'date_redeemed');
-            $query->addField('a', 'name', 'referer_name');
-            $query->addField('a', 'surname', 'referer_surname');
-            $query->addField('a', 'mobility_status', 'referer_mobility_status');
-            $query->condition('g.guest_pass_token', $cardNumber);
-            $query->join('esn_membership_manager_applications', 'a', 'a.id = g.referrer_id');
-            $application = $query->execute()->fetchAssoc();
+            /** @var GuestPassStorage $storage */
+            $storage = $this->entityTypeManager()->getStorage('membership_guest');
+
+            $guestPass = $storage->getByPassToken($identifier);
+            $referrer = $guestPass?->getReferer();
         } catch (Exception $e) {
             $this->logger->error('Scan query failed: @message', ['@message' => $e->getMessage()]);
             return new JsonResponse(['status' => 'error', 'message' => 'There was a problem getting the guest pass.'], 500);
         }
 
-        if (!$application) {
-            return new JsonResponse(['status' => 'error', 'message' => 'Guest Pass not found.'], 404);
+        if (empty($guestPass) || empty($referrer)) {
+            throw new NotFoundHttpException('Guest Pass not found.', null, 404);
         }
 
         try {
-            $updateFields = [];
-            $updateFields['date_redeemed'] = (new DrupalDateTime())->format('Y-m-d H:i:s');
+            $guestPass->setValue(GuestPassField::DateRedeemed, (new DrupalDateTime())->format('Y-m-d\TH:i:s'));
 
-            $this->database->update('esn_membership_manager_guest_passes')
-                ->fields($updateFields)
-                ->condition('id', $application['id'])
-                ->execute();
+            $guestPass->save();
         } catch (Exception $e) {
             $this->logger->error('Scan update failed: @message', ['@message' => $e->getMessage()]);
             return new JsonResponse(['status' => 'error', 'message' => 'Unable to update redeemed date.'], 500);
@@ -179,19 +157,19 @@ class ScanController extends ControllerBase
 
         if ($moduleConfig->get('switch_google_wallet') ?? FALSE) {
             try {
-                $this->googleService->deleteObject($application['id'], 'guest');
+                $this->googleService->deleteObject($guestPass->id(), 'guest');
             } catch (Exception) {
             }
         }
 
         return new JsonResponse([
-            'name' => $application['guest_name'],
-            'surname' => $application['guest_surname'],
-            'refererName' => $application['referer_name'],
-            'refererSurname' => $application['referer_surname'],
-            'refererMobilityStatus' => $application['referer_mobility_status'],
-            'dateApproved' => !empty($application['date_approved']) ? (new DrupalDateTime($application['date_approved']))->format('Y-m-d') : null,
-            'dateRedeemed' => !empty($application['date_redeemed']) ? (new DrupalDateTime($application['date_redeemed']))->format('Y-m-d') : null,
+            'name' => $guestPass->getValue(GuestPassField::Name),
+            'surname' => $guestPass->getValue(GuestPassField::Surname),
+            'refererName' => $referrer->getValue(ApplicationField::Name),
+            'refererSurname' => $referrer->getValue(ApplicationField::Surname),
+            'refererMobilityStatus' => $referrer->getValue(ApplicationField::MobilityStatus),
+            'dateApproved' => !empty($guestPass->getDateApproved()) ? $guestPass->getDateApproved()->format('Y-m-d') : null,
+            'dateRedeemed' => !empty($guestPass->getDateRedeemed()) ? $guestPass->getDateRedeemed()->format('Y-m-d') : null,
         ], 200);
     }
 }

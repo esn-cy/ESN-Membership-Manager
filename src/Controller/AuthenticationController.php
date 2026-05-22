@@ -6,6 +6,7 @@ use Drupal\Core\Controller\ControllerBase;
 use Drupal\Core\Database\Connection;
 use Drupal\Core\Logger\LoggerChannelFactoryInterface;
 use Drupal\Core\Logger\LoggerChannelInterface;
+use Drupal\esn_membership_manager\Entity\Application\ApplicationStorage;
 use Drupal\esn_membership_manager\Service\EmailManager;
 use Exception;
 use Symfony\Component\DependencyInjection\ContainerInterface;
@@ -67,12 +68,11 @@ class AuthenticationController extends ControllerBase
                 try {
                     $successMessage = 'A code was sent to your email address.';
                     $emailHeader = 'Login';
-                    $exists = (bool)$this->database->select('esn_membership_manager_applications', 'a')
-                        ->fields('a', ['id'])
-                        ->condition('email', $email)
-                        ->range(0, 1)
-                        ->execute()
-                        ->fetchField();
+
+                    /** @var ApplicationStorage $storage */
+                    $storage = $this->entityTypeManager()->getStorage('membership_application');
+
+                    $exists = $storage->countByEmail($email) > 0;
                 } catch (Exception $e) {
                     $this->logger->error('Authentication code creation failed: @message', ['@message' => $e->getMessage()]);
                     return new JsonResponse(['error' => 'There was an issue while processing your request. Please try again later.'], 500);

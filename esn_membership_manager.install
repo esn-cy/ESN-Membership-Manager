@@ -2,8 +2,12 @@
 
 use Drupal\Component\Plugin\Exception\InvalidPluginDefinitionException;
 use Drupal\Component\Plugin\Exception\PluginNotFoundException;
+use Drupal\Core\Datetime\DrupalDateTime;
 use Drupal\Core\Entity\EntityStorageException;
 use Drupal\Core\File\FileSystemInterface;
+use Drupal\Core\StringTranslation\TranslatableMarkup;
+use Drupal\esn_membership_manager\Entity\Application\ApplicationField;
+use Drupal\esn_membership_manager\Entity\Application\ApplicationStorage;
 use Drupal\user\Entity\Role;
 
 /**
@@ -138,172 +142,6 @@ function esn_membership_manager_schema(): array
         ],
     ];
 
-    $schema['esn_membership_manager_applications'] = [
-        'description' => 'Stores ESN Pass and ESNcard applications.',
-        'fields' => [
-            'id' => [
-                'description' => 'Primary Key: Unique application ID.',
-                'type' => 'serial',
-                'unsigned' => TRUE,
-                'not null' => TRUE,
-            ],
-            'name' => [
-                'description' => 'First Name.',
-                'type' => 'varchar',
-                'length' => 255,
-                'not null' => TRUE,
-            ],
-            'surname' => [
-                'description' => 'Surname.',
-                'type' => 'varchar',
-                'length' => 255,
-                'not null' => TRUE,
-            ],
-            'email' => [
-                'description' => 'User Email.',
-                'type' => 'varchar',
-                'length' => 255,
-                'not null' => TRUE,
-            ],
-            'nationality' => [
-                'description' => 'Nationality.',
-                'type' => 'varchar',
-                'length' => 128,
-                'not null' => TRUE,
-            ],
-            'dob' => [
-                'description' => 'Date of Birth.',
-                'type' => 'varchar',
-                'length' => 20,
-                'not null' => TRUE,
-            ],
-            'section' => [
-                'description' => 'Local section.',
-                'type' => 'varchar',
-                'length' => 255,
-                'not null' => TRUE,
-            ],
-            'mobility_status' => [
-                'description' => 'The selected mobility status.',
-                'type' => 'varchar',
-                'length' => 128,
-                'not null' => TRUE,
-            ],
-            'host_institution' => [
-                'description' => 'Host University or Organization.',
-                'type' => 'varchar',
-                'length' => 255,
-                'not null' => TRUE,
-            ],
-            'proof_fid' => [
-                'description' => 'File ID for Proof of Status.',
-                'type' => 'int',
-                'unsigned' => TRUE,
-            ],
-            'id_document_fid' => [
-                'description' => 'File ID for ID Document Scan.',
-                'type' => 'int',
-                'unsigned' => TRUE,
-            ],
-            'face_photo_fid' => [
-                'description' => 'File ID for Passport Style Photo.',
-                'type' => 'int',
-                'unsigned' => TRUE,
-            ],
-            'esncard' => [
-                'description' => 'Was ESNcard selected.',
-                'type' => 'int',
-                'size' => 'tiny',
-                'not null' => TRUE,
-                'default' => 0,
-            ],
-            'pass_token' => [
-                'description' => 'Unique user token for QR code.',
-                'type' => 'varchar',
-                'length' => 64,
-            ],
-            'esncard_number' => [
-                'description' => 'ESNcard number.',
-                'type' => 'varchar',
-                'length' => 64,
-            ],
-            'payment_link' => [
-                'description' => 'Stripe Payment link.',
-                'type' => 'varchar',
-                'length' => 255,
-            ],
-            'payment_link_id' => [
-                'description' => 'Stripe Payment link ID.',
-                'type' => 'varchar',
-                'length' => 255,
-            ],
-            'approval_status' => [
-                'description' => 'Current status (Pending, Paid, etc).',
-                'type' => 'varchar',
-                'length' => 32,
-                'default' => 'Pending',
-                'not null' => TRUE,
-            ],
-            'verified_email' => [
-                'description' => 'Was Mobility Status verified.',
-                'type' => 'int',
-                'size' => 'tiny',
-                'not null' => TRUE,
-                'default' => 0,
-            ],
-            'verified_id' => [
-                'description' => 'Was the personal information verified in this application.',
-                'type' => 'int',
-                'size' => 'tiny',
-                'not null' => TRUE,
-                'default' => 0,
-            ],
-            'verified_status' => [
-                'description' => 'Was the Mobility Status verified.',
-                'type' => 'int',
-                'size' => 'tiny',
-                'not null' => TRUE,
-                'default' => 0,
-            ],
-            'date_created' => [
-                'description' => 'Timestamp when the application was created.',
-                'type' => 'varchar',
-                'length' => 64,
-                'not null' => TRUE,
-            ],
-            'date_approved' => [
-                'description' => 'Timestamp when the application was approved.',
-                'type' => 'varchar',
-                'length' => 64,
-            ],
-            'date_paid' => [
-                'description' => 'Timestamp when payment was submitted.',
-                'type' => 'varchar',
-                'length' => 64,
-            ],
-            'date_last_scanned' => [
-                'description' => 'Timestamp when the last scan was performed.',
-                'type' => 'varchar',
-                'length' => 64,
-            ],
-            'date_last_modified' => [
-                'description' => 'Timestamp when the application was last modified.',
-                'type' => 'varchar',
-                'length' => 64,
-            ],
-        ],
-        'primary key' => ['id'],
-        'unique keys' => [
-            'email' => ['email'],
-            'pass_token' => ['pass_token'],
-            'esncard_number' => ['esncard_number'],
-        ],
-        'indexes' => [
-            'email' => ['email'],
-            'approval_status' => ['approval_status']
-        ],
-    ];
-
     $schema['esn_membership_manager_in_progress_applications'] = [
         'description' => 'Stores in progress applications.',
         'fields' => [
@@ -433,84 +271,9 @@ function esn_membership_manager_schema(): array
             ],
         ],
         'primary key' => ['id'],
-        'foreign keys' => [
-            'email' => ['table' => 'esn_membership_manager_applications', 'columns' => ['email' => 'email']],
-        ],
         'unique keys' => [
             'unique_code' => ['code'],
             'email_type' => ['email', 'type']
-        ],
-    ];
-
-    $schema['esn_membership_manager_guest_passes'] = [
-        'description' => 'Stores Guest Passes.',
-        'fields' => [
-            'id' => [
-                'description' => 'Guest Pass ID.',
-                'type' => 'serial',
-                'unsigned' => TRUE,
-                'not null' => TRUE,
-            ],
-            'referrer_id' => [
-                'description' => 'Referrer Application ID.',
-                'type' => 'int',
-                'unsigned' => TRUE,
-                'not null' => TRUE,
-            ],
-            'name' => [
-                'description' => 'First Name.',
-                'type' => 'varchar',
-                'length' => 255,
-                'not null' => TRUE,
-            ],
-            'surname' => [
-                'description' => 'Surname.',
-                'type' => 'varchar',
-                'length' => 255,
-                'not null' => TRUE,
-            ],
-            'email' => [
-                'description' => 'Pass holder email.',
-                'type' => 'varchar',
-                'length' => 255,
-                'not null' => TRUE,
-            ],
-            'guest_pass_token' => [
-                'description' => 'Unique guest pass token for QR code.',
-                'type' => 'varchar',
-                'length' => 64,
-            ],
-            'date_created' => [
-                'description' => 'Timestamp when the guest pass was requested.',
-                'type' => 'varchar',
-                'length' => 64,
-                'not null' => TRUE,
-            ],
-            'date_approved' => [
-                'description' => 'Timestamp when the guest pass was approved.',
-                'type' => 'varchar',
-                'length' => 64,
-            ],
-            'date_redeemed' => [
-                'description' => 'Timestamp when the guest pass was redeemed.',
-                'type' => 'varchar',
-                'length' => 64,
-            ],
-            'date_last_modified' => [
-                'description' => 'Timestamp when the application was last modified.',
-                'type' => 'varchar',
-                'length' => 64,
-            ],
-        ],
-        'primary key' => ['id'],
-        'foreign keys' => [
-            'referrer_id' => ['table' => 'esn_membership_manager_applications', 'columns' => ['referrer_id' => 'id']],
-        ],
-        'unique keys' => [
-            'pass_token' => ['guest_pass_token'],
-        ],
-        'indexes' => [
-            'email' => ['email'],
         ],
     ];
 
@@ -560,9 +323,6 @@ function esn_membership_manager_schema(): array
             ],
         ],
         'primary key' => ['id'],
-        'foreign keys' => [
-            'email' => ['table' => 'esn_membership_manager_applications', 'columns' => ['application_id' => 'id']],
-        ],
         'unique keys' => [
             'device_serial' => ['device_library_identifier', 'serial_number'],
         ],
@@ -572,4 +332,85 @@ function esn_membership_manager_schema(): array
     ];
 
     return $schema;
+}
+
+/**
+ * @throws InvalidPluginDefinitionException
+ * @throws PluginNotFoundException
+ */
+function esn_membership_manager_update_3001(&$sandbox): ?TranslatableMarkup
+{
+    $database = Drupal::database();
+    $entityTypeManager = Drupal::entityTypeManager();
+    $updateManager = Drupal::entityDefinitionUpdateManager();
+
+    if (!isset($sandbox['total'])) {
+        $sandbox['total'] = (int)$database->query('SELECT COUNT(id) FROM {esn_membership_manager_applications}')->fetchField();
+        $sandbox['current'] = 0;
+
+        if (!$updateManager->getEntityType('membership_application')) {
+            $updateManager->installEntityType($entityTypeManager->getDefinition('membership_application'));
+        }
+
+        if ($sandbox['total'] === 0) {
+            $sandbox['#finished'] = 1;
+            return t('No records to migrate.');
+        }
+    }
+
+    /** @var ApplicationStorage $storage */
+    $storage = $entityTypeManager->getStorage('membership_application');
+
+    $query = $database->select('esn_membership_manager_applications', 'a')
+        ->fields('a')
+        ->range($sandbox['current'], 50)
+        ->orderBy('id');
+
+    $results = $query->execute()->fetchAll();
+
+    foreach ($results as $row) {
+        $storage->create()
+            ->set('id', $row->id)
+            ->setValue(ApplicationField::Name, $row->name)
+            ->setValue(ApplicationField::Surname, $row->surname)
+            ->setValue(ApplicationField::Email, $row->email)
+            ->setValue(ApplicationField::Nationality, $row->nationality)
+            ->setValue(ApplicationField::DateOfBirth, $row->dob)
+            ->setValue(ApplicationField::MobilityStatus, $row->mobility_status)
+            ->setValue(ApplicationField::Section, $row->section)
+            ->setValue(ApplicationField::HostInstitution, $row->host_institution)
+            ->setValue(ApplicationField::StatusProofFileID, $row->proof_fid)
+            ->setValue(ApplicationField::IdentityDocumentFileID, $row->id_document_fid)
+            ->setValue(ApplicationField::FacePhotoFileID, $row->face_photo_fid)
+            ->setValue(ApplicationField::HasVerifiedEmail, $row->verified_email)
+            ->setValue(ApplicationField::HasVerifiedID, $row->verified_id)
+            ->setValue(ApplicationField::HasVerifiedStatus, $row->verified_status)
+            ->setValue(ApplicationField::HasESNcard, $row->esncard)
+            ->setValue(ApplicationField::PassToken, $row->pass_token)
+            ->setValue(ApplicationField::ESNcardNumber, $row->esncard_number)
+            ->setValue(ApplicationField::PaymentLink, $row->payment_link)
+            ->setValue(ApplicationField::PaymentLinkID, $row->payment_link_id)
+            ->setValue(ApplicationField::ApprovalStatus, $row->approval_status)
+            ->setValue(ApplicationField::DateCreated, $row->date_created ? (new DrupalDateTime($row->date_created))->format('Y-m-d\TH:i:s') : null)
+            ->setValue(ApplicationField::DateApproved, $row->date_approved ? (new DrupalDateTime($row->date_approved))->format('Y-m-d\TH:i:s') : null)
+            ->setValue(ApplicationField::DatePaid, $row->date_paid ? (new DrupalDateTime($row->date_paid))->format('Y-m-d\TH:i:s') : null)
+            ->setValue(ApplicationField::DateLastScanned, $row->date_last_scanned ? (new DrupalDateTime($row->date_last_scanned))->format('Y-m-d\TH:i:s') : null)
+            ->setValue(ApplicationField::DateLastModified, $row->date_last_modified ? (new DrupalDateTime($row->date_last_modified))->format('Y-m-d\TH:i:s') : null)
+            ->enforceIsNew()
+            ->save();
+
+        $sandbox['current']++;
+    }
+
+    if ($sandbox['total'] > 0) {
+        $sandbox['#finished'] = $sandbox['current'] / $sandbox['total'];
+    } else {
+        $sandbox['#finished'] = 1;
+    }
+
+    if ($sandbox['#finished'] >= 1) {
+        return t("Successfully migrated all {$sandbox['total']} applications to the new entity format.");
+    }
+
+    return null;
 }

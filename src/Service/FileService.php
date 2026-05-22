@@ -7,6 +7,7 @@ use Drupal\Component\Plugin\Exception\PluginNotFoundException;
 use Drupal\Core\Entity\EntityStorageException;
 use Drupal\Core\Entity\EntityTypeManagerInterface;
 use Drupal\Core\File\Exception\FileException;
+use Drupal\Core\File\Exception\NotRegularDirectoryException;
 use Drupal\Core\File\FileSystemInterface;
 use Drupal\Core\Logger\LoggerChannelFactoryInterface;
 use Drupal\Core\Logger\LoggerChannelInterface;
@@ -170,10 +171,11 @@ class FileService
      * @param string $fileData The file data to be saved.
      * @param string $directory The directory to save the file in.
      * @param string $fileName The name of the created file.
+     * @param int|string|null $applicationID The ID of the application that the file belongs to.
      *
      * @return string|null  The file ID of the created file, or `null` if the file cannot be created.
      */
-    public function createFile(string $fileData, string $directory, string $fileName): ?string
+    public function createFile(string $fileData, string $directory, string $fileName, int|string|null $applicationID): ?string
     {
         if (!$this->fileSystem->prepareDirectory($directory, FileSystemInterface::CREATE_DIRECTORY | FileSystemInterface::MODIFY_PERMISSIONS)) {
             $this->logger->error('Failed to create or prepare directory: @directory', ['@directory' => $directory]);
@@ -190,7 +192,7 @@ class FileService
 
             $file = $this->fileRepository->writeData($fileData, "$directory/$fileName", $existsBehavior);
 
-            if ($this->saveFile($file->id())) {
+            if ($this->saveFile($file->id(), $applicationID)) {
                 return $file->id();
             } else {
                 return null;
@@ -205,10 +207,11 @@ class FileService
      * Sets a file's status to permanent, saves it, and adds a usage record.
      *
      * @param int|string|null $fileID The ID of the file entity.
+     * @param int|string|null $applicationID The ID of the application that the file belongs to.
      *
      * @return bool True if the file was successfully saved and marked as used, false otherwise.
      */
-    public function saveFile(int|string|null $fileID): bool
+    public function saveFile(int|string|null $fileID, int|string|null $applicationID): bool
     {
         $file = $this->getFile($fileID);
         if (empty($file)) {
@@ -223,7 +226,9 @@ class FileService
             return false;
         }
 
-        $this->fileUsage->add($file, 'esn_membership_manager', 'file', $fileID);
+        if (!empty($applicationID)) {
+            $this->fileUsage->add($file, 'esn_membership_manager', 'membership_application', $applicationID);
+        }
 
         return true;
     }
@@ -232,10 +237,11 @@ class FileService
      * Deletes a file entity and its associated usage records.
      *
      * @param int|string|null $fileID The ID of the file entity.
+     * @param int|string|null $applicationID The ID of the application that the file belongs to.
      *
      * @return bool True if the file was successfully deleted, false otherwise.
      */
-    public function deleteFile(int|string|null $fileID): bool
+    public function deleteFile(int|string|null $fileID, int|string|null $applicationID): bool
     {
         $file = $this->getFile($fileID);
         if (empty($file)) {
@@ -244,10 +250,34 @@ class FileService
 
         try {
             $file->delete();
-            $this->fileUsage->delete($file, 'esn_membership_manager', 'file', $fileID, 0);
+            if (!empty($applicationID)) {
+                $this->fileUsage->delete($file, 'esn_membership_manager', 'membership_application', $applicationID, 0);
+            }
             return true;
         } catch (Exception $e) {
             $this->logger->error('File @id delete error: @error', ['@id' => $fileID, '@error' => $e->getMessage()]);
+            return false;
+        }
+    }
+
+    /**
+     * Checks if a directory is empty.
+     *
+     * @param string $path The URI or path to the directory.
+     *
+     * @return bool True if the directory is empty, false if not.
+     */
+    public function isDirectoryEmpty(string $path): bool
+    {
+        if (!str_starts_with($path, 'membership://')) {
+            return false;
+        }
+
+        try {
+            $contents = $this->fileSystem->scanDirectory($path, '/.*/', ['recurse' => false]);
+
+            return empty($contents);
+        } catch (NotRegularDirectoryException) {
             return false;
         }
     }
@@ -372,8 +402,6 @@ class FileService
         } catch (EntityStorageException $e) {
             $this->logger->error('File @id replace data error: @error', ['@id' => $fileID, '@error' => $e->getMessage()]);
             return false;
-        } catch (InvalidPluginDefinitionException|PluginNotFoundException) {
-            return true;
         }
     }
 

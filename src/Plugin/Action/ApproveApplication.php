@@ -13,6 +13,8 @@ use Drupal\Core\Logger\LoggerChannelInterface;
 use Drupal\Core\Plugin\ContainerFactoryPluginInterface;
 use Drupal\Core\Session\AccountInterface;
 use Drupal\Core\Url;
+use Drupal\esn_membership_manager\Entity\Application\ApplicationField;
+use Drupal\esn_membership_manager\Entity\Application\ApplicationInterface;
 use Drupal\esn_membership_manager\Service\EmailManager;
 use Drupal\esn_membership_manager\Service\StripeService;
 use Exception;
@@ -90,51 +92,37 @@ class ApproveApplication extends ActionBase implements ContainerFactoryPluginInt
      * {@inheritdoc}
      * @throws Exception
      */
-    public function execute(?int $id = null): void
+    public function execute(?ApplicationInterface $application = null): void
     {
-        if (empty($id)) {
+        if (empty($application)) {
             return;
         }
 
-        try {
-            $application = $this->database->select('esn_membership_manager_applications', 'a')
-                ->fields('a')
-                ->condition('id', $id)
-                ->execute()
-                ->fetchAssoc();
-        } catch (Exception $e) {
-            $this->logger->error('Failed to load application @id: @message', ['@id' => $id, '@message' => $e->getMessage()]);
-            throw new Exception('Failed to load application');
-        }
-
-        if (empty($application)) {
-            $this->logger->warning('Application @id was not found', ['@id' => $id]);
-            throw new Exception('Application not found');
-        }
-
-        if ($application['approval_status'] != 'Pending') {
-            $this->logger->warning('Application @id cannot be marked as delivered because its current status is @status.', ['@id' => $id, '@status' => $application['approval_status']]);
+        if ($application->getValue(ApplicationField::ApprovalStatus) != 'Pending') {
+            $this->logger->warning('Application @id cannot be marked as delivered because its current status is @status.',
+                [
+                    '@id' => $application->id(),
+                    '@status' => $application->getValue(ApplicationField::ApprovalStatus)
+                ]
+            );
             throw new Exception('This status cannot be applied');
         }
 
         $moduleConfig = $this->configFactory->get('esn_membership_manager.settings');
 
-        $now = (new DrupalDateTime())->format('Y-m-d H:i:s');
-
         $token = strtoupper(md5(uniqid(rand(), true)));
 
-        $updateFields = [
-            'pass_token' => $token,
-            'approval_status' => 'Approved',
-            'date_approved' => $now,
-        ];
+        $application
+            ->setValue(ApplicationField::PassToken, $token)
+            ->setValue(ApplicationField::ApprovalStatus, 'Approved')
+            ->setValue(ApplicationField::DateApproved, (new DrupalDateTime())->format('Y-m-d\TH:i:s'));
 
         $emailFields = [
-            'name' => $application['name'],
+            'name' => $application->getValue(ApplicationField::Name),
             'pass_token' => $token,
         ];
 
-        if ($application['esncard']) {
+        if ($application->getValue(ApplicationField::HasESNcard)) {
             try {
                 $query = $this->database->select('esn_membership_manager_cards');
                 $query->addExpression('COUNT(*)', 'count');
@@ -148,38 +136,35 @@ class ApproveApplication extends ActionBase implements ContainerFactoryPluginInt
             if ($count == 0) {
                 $this->logger->warning(
                     'Application @id requested ESNcard but none are available.',
-                    ['@id' => $id]
+                    ['@id' => $application->id()]
                 );
                 throw new Exception('No available ESNcards');
             }
 
             try {
-                $isESNer = $application['mobility_status'] == 'ESN Volunteer' || $application['mobility_status'] == 'ESN Alumnus';
+                $mobilityStatus = $application->getValue(ApplicationField::MobilityStatus);
+                $isESNer = $mobilityStatus == 'ESN Volunteer' || $mobilityStatus == 'ESN Alumnus';
 
-                $paymentLink = $this->stripeService->createPaymentLink($id, $isESNer);
+                $paymentLink = $this->stripeService->createPaymentLink($application->id(), $isESNer);
             } catch (ApiErrorException $e) {
-                $this->logger->error('Stripe API error for application @id: @message', ['@id' => $id, '@message' => $e->getMessage()]);
+                $this->logger->error('Stripe API error for application @id: @message', ['@id' => $application->id(), '@message' => $e->getMessage()]);
                 throw new Exception('Stripe API Error');
             }
 
             if (!$paymentLink) {
-                $this->logger->error('Failed to create payment link for application @id.', ['@id' => $id]);
+                $this->logger->error('Failed to create payment link for application @id.', ['@id' => $application->id()]);
                 throw new Exception('Failed to create payment link');
             }
 
-            $updateFields += [
-                'payment_link' => $paymentLink->url,
-                'payment_link_id' => $paymentLink->id,
-            ];
+            $application
+                ->setValue(ApplicationField::PaymentLink, $paymentLink->url)
+                ->setValue(ApplicationField::PaymentLinkID, $paymentLink->id);
 
             $emailFields += ['payment_link' => $paymentLink->url];
         }
 
         try {
-            $this->database->update('esn_membership_manager_applications')
-                ->fields($updateFields)
-                ->condition('id', $id)
-                ->execute();
+            $application->save();
 
             if ($moduleConfig->get('switch_google_wallet') ?? FALSE) {
                 $googleWalletLink = Url::fromRoute(
@@ -202,16 +187,16 @@ class ApproveApplication extends ActionBase implements ContainerFactoryPluginInt
                 'apple_wallet_link' => $appleWalletLink ?? '',
             ];
 
-            if ($application['esncard']) {
-                $this->emailManager->sendEmail($application['email'], 'both_approval', $emailFields);
+            if ($application->getValue(ApplicationField::HasESNcard)) {
+                $this->emailManager->sendEmail($application->getValue(ApplicationField::Email), 'both_approval', $emailFields);
             } else {
-                $this->emailManager->sendEmail($application['email'], 'pass_approval', $emailFields);
+                $this->emailManager->sendEmail($application->getValue(ApplicationField::Email), 'pass_approval', $emailFields);
             }
 
-            $this->logger->notice('Approved application @id.', ['@id' => $id]);
+            $this->logger->notice('Approved application @id.', ['@id' => $application->id()]);
             return;
         } catch (Exception $e) {
-            $this->logger->error('Updating Application @id failed: @message', ['@id' => $id, '@message' => $e->getMessage()]);
+            $this->logger->error('Updating Application @id failed: @message', ['@id' => $application->id(), '@message' => $e->getMessage()]);
             throw new Exception('Failed to update application');
         }
     }

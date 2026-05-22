@@ -5,33 +5,36 @@ namespace Drupal\esn_membership_manager\Form;
 use Drupal\Component\Serialization\Json;
 use Drupal\Core\Action\ActionBase;
 use Drupal\Core\Action\ActionManager;
-use Drupal\Core\Database\Connection;
+use Drupal\Core\Entity\EntityTypeManagerInterface;
 use Drupal\Core\Form\FormBase;
 use Drupal\Core\Form\FormStateInterface;
 use Drupal\Core\Logger\LoggerChannelFactoryInterface;
 use Drupal\Core\Logger\LoggerChannelInterface;
 use Drupal\Core\Render\Markup;
 use Drupal\Core\Url;
+use Drupal\esn_membership_manager\Entity\Application\ApplicationField;
+use Drupal\esn_membership_manager\Entity\Application\ApplicationStorage;
 use Drupal\esn_membership_manager\Service\FileService;
+use Drupal\file\FileInterface;
 use Exception;
 use Symfony\Component\DependencyInjection\ContainerInterface;
 use Symfony\Component\HttpFoundation\JsonResponse;
 
 class ViewApplicationsForm extends FormBase
 {
-    protected Connection $database;
+    protected EntityTypeManagerInterface $entityTypeManager;
     protected ActionManager $actionManager;
     protected FileService $fileService;
     protected LoggerChannelInterface $logger;
 
     public function __construct(
-        Connection                    $database,
+        EntityTypeManagerInterface $entityTypeManager,
         ActionManager                 $actionManager,
-        FileService $fileService,
+        FileService                $fileService,
         LoggerChannelFactoryInterface $loggerFactory
     )
     {
-        $this->database = $database;
+        $this->entityTypeManager = $entityTypeManager;
         $this->actionManager = $actionManager;
         $this->fileService = $fileService;
         $this->logger = $loggerFactory->get('esn_membership_manager');
@@ -39,8 +42,8 @@ class ViewApplicationsForm extends FormBase
 
     public static function create(ContainerInterface $container): self
     {
-        /** @var Connection $database */
-        $database = $container->get('database');
+        /** @var EntityTypeManagerInterface $entityTypeManager */
+        $entityTypeManager = $container->get('entity_type.manager');
 
         /** @var ActionManager $actionManager */
         $actionManager = $container->get('plugin.manager.action');
@@ -52,7 +55,7 @@ class ViewApplicationsForm extends FormBase
         $loggerFactory = $container->get('logger.factory');
 
         return new static(
-            $database,
+            $entityTypeManager,
             $actionManager,
             $fileService,
             $loggerFactory
@@ -64,7 +67,7 @@ class ViewApplicationsForm extends FormBase
      */
     public function getFormId(): string
     {
-        return 'esn_membership_manager_applications';
+        return 'esn_membership_manager_view_applications';
     }
 
     /**
@@ -226,75 +229,37 @@ class ViewApplicationsForm extends FormBase
             'operations' => $this->t('Operations'),
         ];
 
-        $query = $this->database->select('esn_membership_manager_applications', 'a');
-        $query->fields('a');
+        try {
+            /** @var ApplicationStorage $storage */
+            $storage = $this->entityTypeManager->getStorage('membership_application');
 
-        $andGroup = $query->andConditionGroup();
-
-        if (!empty($search)) {
-            $orGroup = $query->orConditionGroup()
-                ->condition('name', '%' . $this->database->escapeLike($search) . '%', 'LIKE')
-                ->condition('surname', '%' . $this->database->escapeLike($search) . '%', 'LIKE')
-                ->condition('email', '%' . $this->database->escapeLike($search) . '%', 'LIKE')
-                ->condition('esncard_number', '%' . $this->database->escapeLike($search) . '%', 'LIKE')
-                ->condition('pass_token', '%' . $this->database->escapeLike($search) . '%', 'LIKE');
-            $andGroup->condition($orGroup);
+            $applications = $storage->search($search, $status, $esncard, $pass, $sortOrder, $sortBy);
+        } catch (Exception $e) {
+            $this->messenger()->addError('Unable to search applications. ' . $e->getMessage());
+            return $form;
         }
-
-        if (!empty($status)) {
-            $andGroup->condition('approval_status', $status);
-        }
-
-        if (!empty($esncard)) {
-            $andGroup->condition('esncard', 1);
-        } else if (!empty($pass)) {
-            $andGroup->condition('esncard', 0);
-        }
-
-        if (!empty($search) || !empty($status) || !empty($esncard) || !empty($pass)) {
-            $query->condition($andGroup);
-        }
-
-        $pagedQuery = $query->extend('Drupal\Core\Database\Query\PagerSelectExtender')->limit(20);
-
-        $sortOrder = strtoupper($sortOrder) === 'ASC' ? 'ASC' : 'DESC';
-        switch ($sortBy) {
-            case 'created':
-                $pagedQuery->orderBy('a.date_created', $sortOrder);
-                break;
-            case 'date_paid':
-                $pagedQuery->orderBy('a.date_paid', $sortOrder);
-                break;
-            case 'esncard_number':
-                $pagedQuery->orderBy('a.esncard_number', $sortOrder);
-                break;
-            default:
-                $pagedQuery->orderBy('a.date_created', 'DESC');
-        }
-
-        $results = $pagedQuery->execute()->fetchAll();
 
         $rows = [];
-        foreach ($results as $row) {
-            $rows[$row->id] = [
-                'approval_status' => $row->approval_status ?? '',
-                'name' => $row->name ?? '',
-                'surname' => $row->surname ?? '',
-                'email' => $row->email ?? '',
-                'nationality' => $row->nationality ?? '',
+        foreach ($applications as $application) {
+            $rows[$application->id()] = [
+                'approval_status' => $application->getValue(ApplicationField::ApprovalStatus) ?? '',
+                'name' => $application->getValue(ApplicationField::Name) ?? '',
+                'surname' => $application->getValue(ApplicationField::Surname) ?? '',
+                'email' => $application->getValue(ApplicationField::Email) ?? '',
+                'nationality' => $application->getValue(ApplicationField::Nationality) ?? '',
                 'esncard' => [
                     'data' => [
-                        '#markup' => Markup::create('<input type="checkbox" onclick="return false;" style="cursor: default;" ' . ($row->esncard ? 'checked' : '') . '>'),
+                        '#markup' => Markup::create('<input type="checkbox" onclick="return false;" style="cursor: default;" ' . ($application->getValue(ApplicationField::HasESNcard) ? 'checked' : '') . '>'),
                     ],
                 ],
-                'proof' => $this->generateFilePreview($row->proof_fid) ?? '',
-                'id_doc' => $this->generateFilePreview($row->id_document_fid) ?? '',
-                'profile_img' => $this->generateFilePreview($row->face_photo_fid) ?? '',
+                'proof' => $this->generateFilePreview($application->getProofDocument()),
+                'id_doc' => $this->generateFilePreview($application->getIDDocument()),
+                'profile_img' => $this->generateFilePreview($application->getFacePhoto()),
                 'operations' => [
                     'data' => [
                         '#type' => 'link',
                         '#title' => $this->t('View'),
-                        '#url' => Url::fromRoute('esn_membership_manager.application_view', ['id' => $row->id]),
+                        '#url' => Url::fromRoute('esn_membership_manager.application_view', ['id' => $application->id()]),
                         '#attributes' => [
                             'class' => ['use-ajax', 'button', 'button--small'],
                             'data-dialog-type' => 'modal',
@@ -318,17 +283,17 @@ class ViewApplicationsForm extends FormBase
         return $form;
     }
 
-    function generateFilePreview(?string $fileID): ?array
+    function generateFilePreview(?FileInterface $file): array|string
     {
-        if (!$this->fileService->fileExists($fileID)) {
-            return null;
+        if ($file === null) {
+            return '';
         }
 
         return [
             'data' => [
                 '#type' => 'link',
                 '#title' => $this->t('Preview'),
-                '#url' => Url::fromRoute('esn_membership_manager.file_preview', ['file' => $fileID]),
+                '#url' => Url::fromRoute('esn_membership_manager.file_preview', ['file' => $file->id()]),
                 '#attributes' => [
                     'class' => ['use-ajax', 'button', 'button--small'],
                     'data-dialog-type' => 'modal',
@@ -379,14 +344,18 @@ class ViewApplicationsForm extends FormBase
 
         $currentID = '';
         try {
+            /** @var ApplicationStorage $storage */
+            $storage = $this->entityTypeManager->getStorage('membership_application');
+
             if ($this->actionManager->hasDefinition($actionID)) {
                 /** @var ActionBase $action */
                 $action = $this->actionManager->createInstance($actionID);
 
                 foreach ($selectedIDs as $id => $value) {
                     $currentID = $id;
+                    $application = $storage->load($id);
                     if ($action->access($id, $this->currentUser())) {
-                        $action->execute($id);
+                        $action->execute($application);
                     }
                 }
 

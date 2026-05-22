@@ -3,11 +3,13 @@
 namespace Drupal\esn_membership_manager\Service;
 
 use DateInterval;
-use DateTime;
 use DateTimeInterface;
 use Drupal\Core\Config\ConfigFactoryInterface;
 use Drupal\Core\Logger\LoggerChannelFactoryInterface;
 use Drupal\Core\Logger\LoggerChannelInterface;
+use Drupal\esn_membership_manager\Entity\Application\ApplicationField;
+use Drupal\esn_membership_manager\Entity\Application\ApplicationInterface;
+use Drupal\esn_membership_manager\Entity\GuestPass\GuestPassInterface;
 use Exception;
 use Firebase\JWT\JWT;
 use Google\Client as GoogleClient;
@@ -446,7 +448,7 @@ class GoogleService
      * @throws Exception
      * @throws GuzzleException
      */
-    public function getESNcardObject(array $data): string
+    public function getESNcardObject(ApplicationInterface $application): string
     {
         if (!$this->getClient())
             throw new Exception('Google Service Account credentials were not configured.');
@@ -454,8 +456,8 @@ class GoogleService
         $config = $this->configFactory->get('esn_membership_manager.settings');
         $issuerID = $config->get('google_issuer_id');
 
+        $objectID = "$issuerID.esncard-{$application->id()}";
         try {
-            $objectID = "$issuerID.esncard-{$data['id']}";
             $this->walletService->genericobject->get($objectID);
             return $this->getLink($objectID);
         } catch (\Google\Service\Exception $error) {
@@ -464,7 +466,7 @@ class GoogleService
             }
         }
 
-        $object = $this->createESNcardObject($data);
+        $object = $this->createESNcardObject($application);
 
         $this->walletService->genericobject->insert($object);
         return $this->getLink($objectID);
@@ -476,17 +478,17 @@ class GoogleService
      * @throws Exception
      * @throws GuzzleException
      */
-    private function createESNcardObject(array $data): GenericObject
+    private function createESNcardObject(ApplicationInterface $application): GenericObject
     {
         $config = $this->configFactory->get('esn_membership_manager.settings');
         $issuerID = $config->get('google_issuer_id');
 
-        $objectID = "$issuerID.esncard-{$data['id']}";
+        $objectID = "$issuerID.esncard-{$application->id()}";
         $classID = $this->getESNcardClass();
-        $paidDate = new DateTime($data['date_paid']);
+        $paidDate = $application->getDatePaid();
         $paidDate->setTime(0, 0);
         $expiryDate = (clone $paidDate)->add(new DateInterval("P1Y"));
-        $privateImageID = $this->uploadPrivateImage($data['face_photo_fid']);
+        $privateImageID = $this->uploadPrivateImage($application->getFacePhoto()->id());
 
         return new GenericObject([
             'genericType' => 'GENERIC_OTHER',
@@ -505,7 +507,7 @@ class GoogleService
             'header' => new LocalizedString([
                 'defaultValue' => new TranslatedString([
                     'language' => 'en-US',
-                    'value' => "{$data['name']} {$data['surname']}"
+                    'value' => $application->getFullName()
                 ])
             ]),
             'logo' => new Image([
@@ -524,8 +526,8 @@ class GoogleService
             'classId' => $classID,
             'barcode' => new Barcode([
                 'type' => 'CODE_128',
-                'value' => $data['esncard_number'],
-                'alternateText' => $data['esncard_number']
+                'value' => $application->getValue(ApplicationField::ESNcardNumber),
+                'alternateText' => $application->getValue(ApplicationField::ESNcardNumber)
             ]),
             'heroImage' => new Image([
                 'sourceUri' => new ImageUri([
@@ -560,22 +562,22 @@ class GoogleService
                 [
                     'id' => 'nationality',
                     'header' => 'Nationality',
-                    'body' => $data['nationality']
+                    'body' => $application->getValue(ApplicationField::Nationality)
                 ],
                 [
                     'id' => 'dob',
                     'header' => 'Date of Birth',
-                    'body' => (new DateTime($data['dob']))->format('d/m/Y')
+                    'body' => $application->getDateOfBirth()->format('d/m/Y')
                 ],
                 [
                     'id' => 'studies_at',
                     'header' => 'Studies at',
-                    'body' => $data['host_institution']
+                    'body' => $application->getValue(ApplicationField::HostInstitution)
                 ],
                 [
                     'id' => 'esn_section',
                     'header' => 'ESN Section',
-                    'body' => $data['section']
+                    'body' => $application->getValue(ApplicationField::Section)
                 ],
                 [
                     'id' => 'valid_since',
@@ -592,7 +594,7 @@ class GoogleService
      * @throws \Google\Service\Exception
      * @throws Exception
      */
-    public function getFreePassObject(array $data): string
+    public function getFreePassObject(ApplicationInterface $application): string
     {
         if (!$this->getClient())
             throw new Exception('Google Service Account credentials were not configured.');
@@ -600,8 +602,8 @@ class GoogleService
         $config = $this->configFactory->get('esn_membership_manager.settings');
         $issuerID = $config->get('google_issuer_id');
 
+        $objectID = "$issuerID.free_pass-{$application->id()}";
         try {
-            $objectID = "$issuerID.free_pass-{$data['id']}";
             $this->walletService->genericobject->get($objectID);
             return $this->getLink($objectID);
         } catch (\Google\Service\Exception $error) {
@@ -610,7 +612,7 @@ class GoogleService
             }
         }
 
-        $object = $this->createFreePassObject($data);
+        $object = $this->createFreePassObject($application);
 
         $this->walletService->genericobject->insert($object);
         return $this->getLink($objectID);
@@ -621,14 +623,14 @@ class GoogleService
      * @throws \Google\Service\Exception
      * @throws Exception
      */
-    private function createFreePassObject(array $data): GenericObject
+    private function createFreePassObject(ApplicationInterface $application): GenericObject
     {
         $config = $this->configFactory->get('esn_membership_manager.settings');
         $issuerID = $config->get('google_issuer_id');
 
-        $objectID = "$issuerID.free_pass-{$data['id']}";
+        $objectID = "$issuerID.free_pass-{$application->id()}";
         $classID = $this->getPassClass();
-        $approvedDate = new DateTime($data['date_approved']);
+        $approvedDate = $application->getDateApproved();
         $approvedDate->setTime(0, 0);
         $expiryDate = (clone $approvedDate)->add(new DateInterval("P1Y"));
 
@@ -649,7 +651,7 @@ class GoogleService
             'header' => new LocalizedString([
                 'defaultValue' => new TranslatedString([
                     'language' => 'en-US',
-                    'value' => "{$data['name']} {$data['surname']}"
+                    'value' => $application->getFullName()
                 ])
             ]),
             'logo' => new Image([
@@ -668,8 +670,8 @@ class GoogleService
             'classId' => $classID,
             'barcode' => new Barcode([
                 'type' => 'QR_CODE',
-                'value' => $data['pass_token'],
-                'alternateText' => strtoupper($data['pass_token']),
+                'value' => $application->getValue(ApplicationField::PassToken),
+                'alternateText' => strtoupper($application->getValue(ApplicationField::PassToken)),
             ]),
             'heroImage' => new Image([
                 'sourceUri' => new ImageUri([
@@ -690,17 +692,17 @@ class GoogleService
                 [
                     'id' => 'nationality',
                     'header' => 'Nationality',
-                    'body' => $data['nationality']
+                    'body' => $application->getValue(ApplicationField::Nationality)
                 ],
                 [
                     'id' => 'dob',
                     'header' => 'Date of Birth',
-                    'body' => (new DateTime($data['dob']))->format('d/m/Y')
+                    'body' => $application->getDateOfBirth()->format('d/m/Y')
                 ],
                 [
                     'id' => 'mobility_status',
                     'header' => 'Mobility Status',
-                    'body' => $data['mobility_status']
+                    'body' => $application->getValue(ApplicationField::MobilityStatus)
                 ],
                 [
                     'id' => 'valid_since',
@@ -717,7 +719,7 @@ class GoogleService
      * @throws \Google\Service\Exception
      * @throws Exception
      */
-    public function getGuestPassObject(array $data): string
+    public function getGuestPassObject(GuestPassInterface $guestPass, ApplicationInterface $referrer): string
     {
         if (!$this->getClient())
             throw new Exception('Google Service Account credentials were not configured.');
@@ -725,8 +727,8 @@ class GoogleService
         $config = $this->configFactory->get('esn_membership_manager.settings');
         $issuerID = $config->get('google_issuer_id');
 
+        $objectID = "$issuerID.guest_pass-{$guestPass->id()}";
         try {
-            $objectID = "$issuerID.guest_pass-{$data['id']}";
             $this->walletService->genericobject->get($objectID);
             return $this->getLink($objectID);
         } catch (\Google\Service\Exception $error) {
@@ -735,7 +737,7 @@ class GoogleService
             }
         }
 
-        $object = $this->createGuestPassObject($data);
+        $object = $this->createGuestPassObject($guestPass, $referrer);
 
         $this->walletService->genericobject->insert($object);
         return $this->getLink($objectID);
@@ -746,15 +748,14 @@ class GoogleService
      * @throws \Google\Service\Exception
      * @throws Exception
      */
-    private function createGuestPassObject(array $data): GenericObject
+    private function createGuestPassObject(GuestPassInterface $guestPass, ApplicationInterface $referrer): GenericObject
     {
         $config = $this->configFactory->get('esn_membership_manager.settings');
         $issuerID = $config->get('google_issuer_id');
 
-        $objectID = "$issuerID.guest_pass-{$data['id']}";
+        $objectID = "$issuerID.guest_pass-{$guestPass->id()}";
         $classID = $this->getGuestPassClass();
-        $approvedDate = new DateTime($data['date_approved']);
-        $approvedDate->setTime(0, 0);
+        $approvedDate = $guestPass->getDateApproved();
         $expiryDate = (clone $approvedDate)->add(new DateInterval("P7D"));
 
         return new GenericObject([
@@ -774,7 +775,7 @@ class GoogleService
             'header' => new LocalizedString([
                 'defaultValue' => new TranslatedString([
                     'language' => 'en-US',
-                    'value' => "{$data['name']} {$data['surname']}"
+                    'value' => $guestPass->getFullName()
                 ])
             ]),
             'logo' => new Image([
@@ -793,8 +794,8 @@ class GoogleService
             'classId' => $classID,
             'barcode' => new Barcode([
                 'type' => 'AZTEC',
-                'value' => $data['guest_pass_token'],
-                'alternateText' => strtoupper($data['guest_pass_token']),
+                'value' => $guestPass->getValue(ApplicationField::PassToken),
+                'alternateText' => strtoupper($guestPass->getValue(ApplicationField::PassToken)),
             ]),
             'heroImage' => new Image([
                 'sourceUri' => new ImageUri([
@@ -815,12 +816,12 @@ class GoogleService
                 [
                     'id' => 'referer_name',
                     'header' => 'Referer Name',
-                    'body' => "{$data['referer_name']} {$data['referer_surname']}"
+                    'body' => $referrer->getFullName()
                 ],
                 [
                     'id' => 'referer_mobility_status',
                     'header' => 'Referer Mobility Status',
-                    'body' => $data['referer_mobility_status']
+                    'body' => $referrer->getValue(ApplicationField::MobilityStatus)
                 ],
                 [
                     'id' => 'valid_until',
@@ -836,7 +837,7 @@ class GoogleService
      * @throws GuzzleException
      * @throws Exception
      */
-    public function updateObject(array $application, string $type): bool
+    public function updateObject(ApplicationInterface|GuestPassInterface $application, string $type, ?ApplicationInterface $referrer = null): bool
     {
         $client = $this->getClient();
         if (!$client)
@@ -846,9 +847,9 @@ class GoogleService
         $issuerID = $config->get('google_issuer_id');
 
         $objectID = match ($type) {
-            'card' => "$issuerID.esncard-{$application['id']}",
-            'pass' => "$issuerID.free_pass-{$application['id']}",
-            'guest' => "$issuerID.guest_pass-{$application['id']}",
+            'card' => "$issuerID.esncard-{$application->id()}",
+            'pass' => "$issuerID.free_pass-{$application->id()}",
+            'guest' => "$issuerID.guest_pass-{$application->id()}",
             default => throw new Exception('Unsupported application type.'),
         };
 
@@ -861,7 +862,7 @@ class GoogleService
         $updateObject = match ($type) {
             'card' => $this->createESNcardObject($application),
             'pass' => $this->createFreePassObject($application),
-            'guest' => $this->createGuestPassObject($application),
+            'guest' => $this->createGuestPassObject($application, $referrer),
             default => throw new Exception('Unsupported application type.'),
         };
 

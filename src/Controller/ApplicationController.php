@@ -2,12 +2,14 @@
 
 namespace Drupal\esn_membership_manager\Controller;
 
-use DateTime;
 use Drupal\Core\Controller\ControllerBase;
-use Drupal\Core\Database\Connection;
+use Drupal\Core\Datetime\DrupalDateTime;
 use Drupal\Core\DependencyInjection\ContainerInjectionInterface;
 use Drupal\Core\Link;
 use Drupal\Core\Url;
+use Drupal\esn_membership_manager\Entity\Application\ApplicationField;
+use Drupal\esn_membership_manager\Entity\Application\ApplicationInterface;
+use Drupal\esn_membership_manager\Entity\Application\ApplicationStorage;
 use Drupal\esn_membership_manager\Service\FileService;
 use Drupal\file\FileInterface;
 use Exception;
@@ -22,13 +24,6 @@ use TCPDF;
  */
 class ApplicationController extends ControllerBase implements ContainerInjectionInterface
 {
-    /**
-     * The database connection.
-     *
-     * @var Connection
-     */
-    protected Connection $database;
-
     protected FileService $fileService;
 
     /**
@@ -36,11 +31,9 @@ class ApplicationController extends ControllerBase implements ContainerInjection
      *
      */
     public function __construct(
-        Connection             $database,
         FileService            $fileService
     )
     {
-        $this->database = $database;
         $this->fileService = $fileService;
     }
 
@@ -49,14 +42,11 @@ class ApplicationController extends ControllerBase implements ContainerInjection
      */
     public static function create(ContainerInterface $container): self
     {
-        /** @var Connection $database */
-        $database = $container->get('database');
 
         /** @var FileService $fileService */
         $fileService = $container->get('esn_membership_manager.file_service');
 
         return new static(
-            $database,
             $fileService
         );
     }
@@ -127,165 +117,84 @@ class ApplicationController extends ControllerBase implements ContainerInjection
      */
     public function viewApplication(int $id): array
     {
-        $application = $this->database->select('esn_membership_manager_applications', 'a')
-            ->fields('a')
-            ->condition('id', $id)
-            ->execute()
-            ->fetchAssoc();
+        /** @var ApplicationStorage $storage */
+        $storage = $this->entityTypeManager()->getStorage('membership_application');
 
-        if (!$application) {
+        $application = $storage->load($id);
+
+        if (empty($application)) {
             return [
                 '#markup' => $this->t('Application not found.'),
             ];
         }
 
-        $labels = [
-            'id' => $this->t('ID'),
-            'name' => $this->t('Name'),
-            'surname' => $this->t('Surname'),
-            'email' => $this->t('Email'),
-            'nationality' => $this->t('Nationality'),
-            'dob' => $this->t('Date of Birth'),
-            'section' => $this->t('Section'),
-            'mobility_status' => $this->t('Mobility Status'),
-            'host_institution' => $this->t('Host Institution'),
-            'approval_status' => $this->t('Approval Status'),
-            'proof_fid' => $this->t('Proof of Mobility'),
-            'id_document_fid' => $this->t('ID Document'),
-        ];
-        if ($application['esncard']) {
-            $labels += ['face_photo_fid' => $this->t('Profile Photo')];
-        }
-        $labels += ['pass_token' => $this->t('Pass Token')];
-        if ($application['esncard']) {
-            $labels += [
-                'esncard_number' => $this->t('ESNcard Number'),
-                'payment_link' => $this->t('Stripe Payment Link'),
-                'payment_link_id' => $this->t('Stripe Payment Link ID')
-            ];
-        }
-        $labels += [
-            'verified_email' => $this->t('Verified Email'),
-            'verified_id' => $this->t('Verified ID'),
-            'verified_status' => $this->t('Verified Status'),
-            'date_created' => $this->t('Created Date'),
-            'date_approved' => $this->t('Date Approved')
-        ];
-        if ($application['esncard']) {
-            $labels += ['date_paid' => $this->t('Date Paid')];
-        }
-        $labels += ['date_last_scanned' => $this->t('Date Last Scanned')];
-        $labels += ['date_last_modified' => $this->t('Date Last Modified')];
-
         $proofURL = null;
         $idURL = null;
         $photoURL = null;
 
-        $readOnlyKeys = [
-            'id',
-            'proof_fid',
-            'id_document_fid',
-            'face_photo_fid',
-            'payment_link',
-            'payment_link_id',
-            'approval_status',
-            'verified_email',
-            'verified_id',
-            'verified_status',
-            'date_created',
-            'date_paid',
-            'date_approved',
-            'date_last_modified'
-        ];
+        $hasVerifiedEmail = $application->getValue(ApplicationField::HasVerifiedEmail);
+        $hasVerifiedID = $application->getValue(ApplicationField::HasVerifiedID);
+        $hasVerifiedStatus = $application->getValue(ApplicationField::HasVerifiedStatus);
 
-        if ($application['verified_email']) {
-            $readOnlyKeys[] = 'email';
-        }
-
-        if ($application['verified_id']) {
-            $readOnlyKeys[] = 'name';
-            $readOnlyKeys[] = 'surname';
-            $readOnlyKeys[] = 'nationality';
-            $readOnlyKeys[] = 'dob';
-        }
-
-        if ($application['verified_status']) {
-            $readOnlyKeys[] = 'mobility_status';
-            $readOnlyKeys[] = 'host_institution';
-        }
+        $hasESNcard = $application->getValue(ApplicationField::HasESNcard);
 
         $fieldData = [];
-        foreach ($application as $key => $value) {
-            if (!$application['esncard'] && in_array($key, ['face_photo_fid', 'esncard_number', 'payment_link', 'payment_link_id', 'date_paid']))
+        foreach (ApplicationField::cases() as $field) {
+            if (!$hasESNcard && $field->isESNcardExclusive()) {
                 continue;
-
-            if ($key == 'esncard') continue;
-
-            $label = $labels[$key] ?? $key;
-            $displayValue = $value;
-
-            if ($key == 'dob' && !empty($value)) {
-                $timestamp = is_numeric($value) ? $value : strtotime($value);
-                if ($timestamp) {
-                    $displayValue = date('d/m/Y', $timestamp);
-                }
             }
 
-            if (str_contains($key, 'date') && !empty($value)) {
-                $timestamp = is_numeric($value) ? $value : strtotime($value);
-                if ($timestamp) {
-                    $displayValue = date('d/m/Y H:i', $timestamp);
+            $label = $field->label();
+            $displayValue = $application->getValue($field) ?? '';
+
+            if (!empty($displayValue)) {
+                if ($field == ApplicationField::DateOfBirth) {
+                    $displayValue = (new DrupalDateTime($displayValue))->format('d/m/Y');
                 }
-            }
 
-            if (in_array($key, ['proof_fid', 'id_document_fid', 'face_photo_fid'])) {
-                if (!empty($value)) {
-                    $url = $this->fileService->getFileURL($value);
+                if ($field->type() == 'datetime') {
+                    $displayValue = (new DrupalDateTime($displayValue))->format('d/m/Y H:i');
+                }
 
-                    if (!empty($url)) {
-                        switch ($key) {
-                            case 'proof_fid':
+                if ($field->type() == 'entity_reference') {
+                    if ($url = $this->fileService->getFileURL($displayValue)) {
+                        switch ($field) {
+                            case ApplicationField::StatusProofFileID:
                                 $proofURL = $url;
                                 break;
-                            case 'id_document_fid':
+                            case ApplicationField::IdentityDocumentFileID:
                                 $idURL = $url;
                                 break;
-                            case 'face_photo_fid':
+                            case ApplicationField::FacePhotoFileID:
                                 $photoURL = $url;
+                                break;
+                            default:
                                 break;
                         }
                         $displayValue = Link::fromTextAndUrl($url, Url::fromUri($url, ['attributes' => ['target' => '_blank']]))->toRenderable();
                     } else {
                         $displayValue = $this->t('File not available');
                     }
-                } else {
-                    continue;
+                }
+
+                if ($field == ApplicationField::PaymentLink) {
+                    $displayValue = Link::fromTextAndUrl($displayValue, Url::fromUri($displayValue, ['attributes' => ['target' => '_blank']]))->toRenderable();
                 }
             }
 
-            if ($key == 'payment_link') {
-                if (!empty($value)) {
-                    $displayValue = Link::fromTextAndUrl($value, Url::fromUri($value, ['attributes' => ['target' => '_blank']]))->toRenderable();
-                } else {
-                    $displayValue = '';
-                }
-            }
-
-            if (in_array($key, ['verified_email', 'verified_id', 'verified_status'])) {
-                if (!empty($value)) {
-                    $displayValue = 'YES';
-                } else {
-                    $displayValue = 'NO';
-                }
+            if ($field->type() == 'boolean') {
+                $displayValue = $displayValue == 1 ? 'YES' : 'NO';
             }
 
             $fieldData[] = [
-                'key' => $key,
+                'key' => $field->value,
                 'label' => $label,
                 'value' => $displayValue,
-                'readonly' => in_array($key, $readOnlyKeys)
+                'readonly' => $field->isReadOnly($hasVerifiedEmail, $hasVerifiedID, $hasVerifiedStatus),
             ];
         }
+
+        $approvalStatus = $application->getValue(ApplicationField::ApprovalStatus);
 
         return [
             '#theme' => 'emm_application_view',
@@ -306,7 +215,7 @@ class ApplicationController extends ControllerBase implements ContainerInjection
                 'crop' => Url::fromRoute('esn_membership_manager.crop')->toString(),
                 'status' => Url::fromRoute('esn_membership_manager.status')->toString()
             ],
-            '#is_paid' => $application['approval_status'] == "Paid" || $application['approval_status'] == "Issued" || $application['approval_status'] == "Delivered",
+            '#is_paid' => $approvalStatus == "Paid" || $approvalStatus == "Issued" || $approvalStatus == "Delivered",
         ];
     }
 
@@ -332,40 +241,39 @@ class ApplicationController extends ControllerBase implements ContainerInjection
      */
     public function viewESNcard(int $id): array
     {
-        $application = $this->database->select('esn_membership_manager_applications', 'a')
-            ->fields('a')
-            ->condition('id', $id)
-            ->execute()
-            ->fetchAssoc();
+        /** @var ApplicationStorage $storage */
+        $storage = $this->entityTypeManager()->getStorage('membership_application');
 
-        if (!$application) {
+        $application = $storage->load($id);
+
+        if (empty($application)) {
             return [
                 '#markup' => $this->t('Application not found.'),
             ];
         }
 
-        $dob = explode('-', $application['dob']);
+        $dob = explode('-', $application->getValue(ApplicationField::DateOfBirth));
 
-        $paidDate = new DateTime($application['date_paid']);
+        $paidDate = $application->getDatePaid();
         $paidDate->setTime(0, 0);
         $validSince = explode('-', $paidDate->format('Y-m-d'));
 
-        $facePhotoURL = $this->fileService->getFileURL($application['face_photo_fid'] ?? null);
+        $facePhotoURL = $this->fileService->getFileURL(!empty($application->getFacePhoto()) ? $application->getFacePhoto()->id() : null);
 
         return [
             '#theme' => 'emm_esncard',
             '#face_photo_link' => $facePhotoURL,
-            '#full_name' => $application['name'] . ' ' . $application['surname'],
-            '#nationality' => $application['nationality'],
+            '#full_name' => $application->getFullName(),
+            '#nationality' => $application->getValue(ApplicationField::Nationality),
             '#dob_day' => $dob[2],
             '#dob_month' => $dob[1],
             '#dob_year' => substr($dob[0], -2, 2),
-            '#host_institution' => $application['host_institution'],
-            '#section' => $application['section'],
+            '#host_institution' => $application->getValue(ApplicationField::HostInstitution),
+            '#section' => $application->getValue(ApplicationField::Section),
             '#valid_since_day' => $validSince[2],
             '#valid_since_month' => $validSince[1],
             '#valid_since_year' => substr($validSince[0], -2, 2),
-            '#esncard_number' => $application['esncard_number'] ?? '',
+            '#esncard_number' => $application->getValue(ApplicationField::ESNcardNumber) ?? '',
         ];
     }
 
@@ -385,25 +293,16 @@ class ApplicationController extends ControllerBase implements ContainerInjection
             $applicationIDs = [$applicationIDs];
         }
 
+        /** @var ApplicationStorage $storage */
+        $storage = $this->entityTypeManager()->getStorage('membership_application');
+
         $applicationIDs = array_filter(array_map('intval', $applicationIDs));
 
+        /** @var ApplicationInterface $applications */
         if (empty($applicationIDs)) {
-            $applications = $this->database->select('esn_membership_manager_applications', 'a')
-                ->fields('a', ['face_photo_fid', 'esncard_number'])
-                ->condition('approval_status', 'Paid')
-                ->condition('esncard', 1)
-                ->isNotNull('face_photo_fid')
-                ->orderBy('esncard_number')
-                ->execute()
-                ->fetchAll();
+            $applications = $storage->getUnproducedESNcards();
         } else {
-            $applications = $this->database->select('esn_membership_manager_applications', 'a')
-                ->fields('a', ['face_photo_fid', 'esncard_number'])
-                ->condition('id', $applicationIDs, 'IN')
-                ->isNotNull('face_photo_fid')
-                ->orderBy('esncard_number')
-                ->execute()
-                ->fetchAll();
+            $applications = $storage->getSelectedESNcards($applicationIDs);
         }
 
         $pdf = new TCPDF('P', 'mm', 'A4', true, 'UTF-8', false);
@@ -420,8 +319,8 @@ class ApplicationController extends ControllerBase implements ContainerInjection
         $currentX = 10;
         $currentY = 10;
 
-        foreach ($applications as $app) {
-            $path = $this->fileService->getFileURL($app->face_photo_fid);
+        foreach ($applications as $application) {
+            $path = $this->fileService->getFileURL(!empty($application->getFacePhoto()) ? $application->getFacePhoto()->id() : null);
 
             if (!empty($path) && !file_exists($path)) {
                 continue;

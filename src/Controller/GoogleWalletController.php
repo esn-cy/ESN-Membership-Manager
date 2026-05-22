@@ -3,10 +3,11 @@
 namespace Drupal\esn_membership_manager\Controller;
 
 use Drupal\Core\Controller\ControllerBase;
-use Drupal\Core\Database\Connection;
 use Drupal\Core\Logger\LoggerChannelFactoryInterface;
 use Drupal\Core\Logger\LoggerChannelInterface;
 use Drupal\Core\Routing\TrustedRedirectResponse;
+use Drupal\esn_membership_manager\Entity\Application\ApplicationStorage;
+use Drupal\esn_membership_manager\Entity\GuestPass\GuestPassStorage;
 use Drupal\esn_membership_manager\Service\GoogleService;
 use Exception;
 use GuzzleHttp\Exception\GuzzleException;
@@ -19,17 +20,14 @@ use Symfony\Component\HttpKernel\Exception\NotFoundHttpException;
 class GoogleWalletController extends ControllerBase
 {
     protected GoogleService $googleService;
-    protected Connection $database;
     protected LoggerChannelInterface $logger;
 
     public function __construct(
         GoogleService                 $googleService,
-        Connection                    $database,
         LoggerChannelFactoryInterface $loggerFactory
     )
     {
         $this->googleService = $googleService;
-        $this->database = $database;
         $this->logger = $loggerFactory->get('esn_membership_manager');
     }
 
@@ -38,15 +36,11 @@ class GoogleWalletController extends ControllerBase
         /** @var GoogleService $googleService */
         $googleService = $container->get('esn_membership_manager.google_service');
 
-        /** @var Connection $database */
-        $database = $container->get('database');
-
         /** @var LoggerChannelFactoryInterface $loggerFactory */
         $loggerFactory = $container->get('logger.factory');
 
         return new static(
             $googleService,
-            $database,
             $loggerFactory
         );
     }
@@ -70,16 +64,14 @@ class GoogleWalletController extends ControllerBase
         }
 
         try {
-            $query = $this->database->select('esn_membership_manager_applications', 'a');
-            $query->fields('a');
+            /** @var ApplicationStorage $storage */
+            $storage = $this->entityTypeManager()->getStorage('membership_application');
 
             if ($isESNcard) {
-                $query->condition('esncard_number', $identifier);
+                $application = $storage->getByESNcard($identifier);
             } elseif ($isPass) {
-                $query->condition('pass_token', $identifier);
+                $application = $storage->getByPassToken($identifier);
             }
-
-            $application = $query->execute()->fetchAssoc();
         } catch (Exception $e) {
             $this->logger->error('Creation of Google Wallet Pass failed: @message', ['@message' => $e->getMessage()]);
             throw new HttpException(500, 'There was a problem getting the card/pass.');
@@ -109,28 +101,22 @@ class GoogleWalletController extends ControllerBase
     protected function addGuest(string $identifier): TrustedRedirectResponse
     {
         try {
-            $query = $this->database->select('esn_membership_manager_guest_passes', 'g');
-            $query->addField('g', 'id', 'id');
-            $query->addField('g', 'name', 'guest_name');
-            $query->addField('g', 'surname', 'guest_surname');
-            $query->addField('g', 'date_approved', 'date_approved');
-            $query->addField('a', 'name', 'referer_name');
-            $query->addField('a', 'surname', 'referer_surname');
-            $query->addField('a', 'mobility_status', 'referer_mobility_status');
-            $query->condition('g.guest_pass_token', $identifier);
-            $query->join('esn_membership_manager_applications', 'a', 'a.id = g.referrer_id');
-            $application = $query->execute()->fetchAssoc();
+            /** @var GuestPassStorage $storage */
+            $storage = $this->entityTypeManager()->getStorage('membership_guest');
+
+            $guestPass = $storage->getByPassToken($identifier);
+            $referrer = $guestPass?->getReferer();
         } catch (Exception $e) {
-            $this->logger->error('Scan query failed: @message', ['@message' => $e->getMessage()]);
+            $this->logger->error('Adding Guest Pass to Google Wallet failed: @message', ['@message' => $e->getMessage()]);
             throw new HttpException(500, 'There was a problem getting the guest pass.');
         }
 
-        if (empty($application)) {
+        if (empty($guestPass) || empty($referrer)) {
             throw new NotFoundHttpException('Guest Pass not found.', null, 404);
         }
 
         try {
-            $walletLink = $this->googleService->getGuestPassObject($application);
+            $walletLink = $this->googleService->getGuestPassObject($guestPass, $referrer);
             if (empty($walletLink)) {
                 throw new Exception();
             }

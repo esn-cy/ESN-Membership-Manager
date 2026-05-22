@@ -3,13 +3,15 @@
 namespace Drupal\esn_membership_manager\Service;
 
 use DateInterval;
-use DateTime;
 use Drupal\Core\Config\ConfigFactoryInterface;
 use Drupal\Core\Extension\ModuleHandlerInterface;
 use Drupal\Core\Logger\LoggerChannelFactoryInterface;
 use Drupal\Core\Logger\LoggerChannelInterface;
 use Drupal\Core\Site\Settings;
 use Drupal\Core\Url;
+use Drupal\esn_membership_manager\Entity\Application\ApplicationField;
+use Drupal\esn_membership_manager\Entity\Application\ApplicationInterface;
+use Drupal\esn_membership_manager\Entity\GuestPass\GuestPassInterface;
 use Exception;
 use GuzzleHttp\ClientInterface;
 use GuzzleHttp\Exception\GuzzleException;
@@ -45,7 +47,7 @@ class AppleWalletService
     /**
      * @throws Exception
      */
-    public function createESNcard(array $data): ?string
+    public function createESNcard(ApplicationInterface $application): ?string
     {
         $moduleConfig = $this->configFactory->get('esn_membership_manager.settings');
 
@@ -54,9 +56,9 @@ class AppleWalletService
         $pass->setCertificateString($moduleConfig->get('apple_certificate_string_p12'));
         $pass->setCertificatePassword($moduleConfig->get('apple_certificate_password'));
 
-        $serialNumber = 'esncard-' . $data['id'];
+        $serialNumber = 'esncard-' . $application->id();
 
-        $paidDate = new DateTime($data['date_paid']);
+        $paidDate = $application->getDatePaid();
         $paidDate->setTime(0, 0);
 
         $passData = $this->getCommonAttributes($serialNumber) +
@@ -70,31 +72,31 @@ class AppleWalletService
                         [
                             'key' => 'name',
                             'label' => 'Name & Surname',
-                            'value' => "{$data['name']} {$data['surname']}",
+                            'value' => $application->getFullName(),
                         ]
                     ],
                     'secondaryFields' => [
                         [
                             'key' => 'nationality',
                             'label' => 'Nationality',
-                            'value' => $data['nationality'],
+                            'value' => $application->getValue(ApplicationField::Nationality),
                         ],
                         [
                             'key' => 'dob',
                             'label' => 'Date of Birth',
-                            'value' => (new DateTime($data['dob']))->format('d/m/Y')
+                            'value' => $application->getDateOfBirth()->format('d/m/Y')
                         ]
                     ],
                     'auxiliaryFields' => [
                         [
                             'key' => 'studies_at',
                             'label' => 'Studies at',
-                            'value' => $data['host_institution']
+                            'value' => $application->getValue(ApplicationField::HostInstitution)
                         ],
                         [
                             'key' => 'esn_section',
                             'label' => 'ESN Section',
-                            'value' => $data['section']
+                            'value' => $application->getValue(ApplicationField::Section)
                         ],
                         [
                             'key' => 'valid_since',
@@ -114,8 +116,8 @@ class AppleWalletService
                     [
                         'format' => 'PKBarcodeFormatCode128',
                         'messageEncoding' => 'iso-8859-1',
-                        'message' => $data['esncard_number'],
-                        'altText' => $data['esncard_number'],
+                        'message' => $application->getValue(ApplicationField::ESNcardNumber),
+                        'altText' => $application->getValue(ApplicationField::ESNcardNumber),
                     ]
                 ],
             ];
@@ -124,12 +126,14 @@ class AppleWalletService
 
         $imagesPath = $this->moduleHandler->getModule('esn_membership_manager')->getPath() . '/assets/images/apple_wallet/color/';
 
-        $type = $this->fileService->getFileMimeType($data['face_photo_fid']);
+        $facePhotoFileID = $application->getFacePhoto()->id();
+
+        $type = $this->fileService->getFileMimeType($facePhotoFileID);
         if (!empty($type)) {
             if ($type == 'image/png') {
-                $pass->addFile($this->fileService->getFilePath($data['face_photo_fid']), 'thumbnail.png');
+                $pass->addFile($this->fileService->getFilePath($facePhotoFileID), 'thumbnail.png');
             } else {
-                $imageContents = $this->fileService->readFile($data['face_photo_fid']);
+                $imageContents = $this->fileService->readFile($facePhotoFileID);
 
                 if ($imageResource = imagecreatefromstring($imageContents)) {
                     ob_start();
@@ -138,8 +142,8 @@ class AppleWalletService
 
                     imagedestroy($imageResource);
 
-                    if ($this->fileService->replaceFileData($data['face_photo_fid'], $pngData)) {
-                        $pass->addFile($this->fileService->getFilePath($data['face_photo_fid']), 'thumbnail.png');
+                    if ($this->fileService->replaceFileData($facePhotoFileID, $pngData)) {
+                        $pass->addFile($this->fileService->getFilePath($facePhotoFileID), 'thumbnail.png');
                     }
                 }
             }
@@ -185,7 +189,7 @@ class AppleWalletService
     /**
      * @throws Exception
      */
-    public function createFreePass(array $data): ?string
+    public function createFreePass(ApplicationInterface $application): ?string
     {
         $moduleConfig = $this->configFactory->get('esn_membership_manager.settings');
 
@@ -194,9 +198,9 @@ class AppleWalletService
         $pass->setCertificateString($moduleConfig->get('apple_certificate_string_p12'));
         $pass->setCertificatePassword($moduleConfig->get('apple_certificate_password'));
 
-        $serialNumber = 'free_pass-' . $data['id'];
+        $serialNumber = 'free_pass-' . $application->id();
 
-        $approvedDate = new DateTime($data['date_approved']);
+        $approvedDate = $application->getDateApproved();
         $approvedDate->setTime(0, 0);
 
         $passData = $this->getCommonAttributes($serialNumber) +
@@ -210,31 +214,31 @@ class AppleWalletService
                         [
                             'key' => 'name',
                             'label' => 'Name & Surname',
-                            'value' => "{$data['name']} {$data['surname']}",
+                            'value' => $application->getFullName(),
                         ]
                     ],
                     'secondaryFields' => [
                         [
                             'key' => 'nationality',
                             'label' => 'Nationality',
-                            'value' => $data['nationality'],
+                            'value' => $application->getValue(ApplicationField::Nationality)
                         ],
                         [
                             'key' => 'mobility_status',
                             'label' => 'Mobility Status',
-                            'value' => $data['mobility_status']
+                            'value' => $application->getValue(ApplicationField::MobilityStatus)
                         ],
                         [
                             'key' => 'dob',
                             'label' => 'Date of Birth',
-                            'value' => (new DateTime($data['dob']))->format('d/m/Y')
+                            'value' => $application->getDateOfBirth()->format('d/m/Y')
                         ]
                     ],
                     'auxiliaryFields' => [
                         [
                             'key' => 'host_institution',
                             'label' => 'Host Institution',
-                            'value' => $data['host_institution']
+                            'value' => $application->getValue(ApplicationField::HostInstitution)
                         ],
                         [
                             'key' => 'valid_since',
@@ -254,8 +258,8 @@ class AppleWalletService
                     [
                         'format' => 'PKBarcodeFormatQR',
                         'messageEncoding' => 'iso-8859-1',
-                        'message' => $data['pass_token'],
-                        'altText' => $data['pass_token'],
+                        'message' => $application->getValue(ApplicationField::PassToken),
+                        'altText' => $application->getValue(ApplicationField::PassToken),
                     ]
                 ],
             ];
@@ -283,7 +287,7 @@ class AppleWalletService
     /**
      * @throws Exception
      */
-    public function createGuestPass(array $data): ?string
+    public function createGuestPass(GuestPassInterface $guestPass, ApplicationInterface $referer): ?string
     {
         $moduleConfig = $this->configFactory->get('esn_membership_manager.settings');
 
@@ -292,9 +296,9 @@ class AppleWalletService
         $pass->setCertificateString($moduleConfig->get('apple_certificate_string_p12'));
         $pass->setCertificatePassword($moduleConfig->get('apple_certificate_password'));
 
-        $serialNumber = 'guest-' . $data['id'];
+        $serialNumber = 'guest-' . $guestPass->id();
 
-        $approvedDate = new DateTime($data['date_approved']);
+        $approvedDate = $guestPass->getDateApproved();
         $approvedDate->setTime(0, 0);
         $expiryDate = (clone $approvedDate)->add(new DateInterval("P7D"));
 
@@ -309,21 +313,21 @@ class AppleWalletService
                         [
                             'key' => 'name',
                             'label' => 'Name & Surname',
-                            'value' => "{$data['name']} {$data['surname']}",
+                            'value' => $guestPass->getFullName()
                         ]
                     ],
                     'secondaryFields' => [
                         [
                             'key' => 'referer_name',
                             'label' => 'Referer Name',
-                            'value' => "{$data['referer_name']} {$data['referer_surname']}",
+                            'value' => $referer->getFullName()
                         ]
                     ],
                     'auxiliaryFields' => [
                         [
                             'key' => 'referer_mobility_status',
                             'label' => 'Referer Mobility Status',
-                            'value' => $data['referer_mobility_status']
+                            'value' => $referer->getValue(ApplicationField::MobilityStatus)
                         ],
                         [
                             'key' => 'valid_until',
@@ -348,8 +352,8 @@ class AppleWalletService
                     [
                         'format' => 'PKBarcodeFormatAztec',
                         'messageEncoding' => 'iso-8859-1',
-                        'message' => $data['guest_pass_token'],
-                        'altText' => $data['guest_pass_token'],
+                        'message' => $guestPass->getValue(ApplicationField::PassToken),
+                        'altText' => $guestPass->getValue(ApplicationField::PassToken),
                     ]
                 ],
             ];
@@ -386,7 +390,7 @@ class AppleWalletService
         try {
             file_put_contents($certificatePath, $pemString);
 
-            $this->httpClient->request('POST', "https://api.push.apple.com/3/device/{$pushToken}", [
+            $this->httpClient->request('POST', "https://api.push.apple.com/3/device/$pushToken", [
                 'version' => '2.0',
                 'body' => '{}',
                 'cert' => [$certificatePath, $password],

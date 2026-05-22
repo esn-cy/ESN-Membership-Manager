@@ -4,16 +4,20 @@ namespace Drupal\esn_membership_manager\Service;
 
 use Drupal\Core\Config\ConfigFactoryInterface;
 use Drupal\Core\Database\Connection;
+use Drupal\Core\Entity\EntityTypeManagerInterface;
 use Drupal\Core\Logger\LoggerChannelFactoryInterface;
 use Drupal\Core\Logger\LoggerChannelInterface;
 use Drupal\Core\Url;
+use Drupal\esn_membership_manager\Entity\Application\ApplicationField;
+use Drupal\esn_membership_manager\Entity\Application\ApplicationInterface;
+use Drupal\esn_membership_manager\Entity\Application\ApplicationStorage;
 use Exception;
-use PDO;
 
 class ESNcardService
 {
     protected ConfigFactoryInterface $configFactory;
     protected Connection $database;
+    protected EntityTypeManagerInterface $entityTypeManager;
     protected LoggerChannelInterface $logger;
     protected StripeService $stripeService;
     protected EmailManager $emailManager;
@@ -23,6 +27,7 @@ class ESNcardService
     public function __construct(
         ConfigFactoryInterface        $configFactory,
         Connection                    $database,
+        EntityTypeManagerInterface $entityTypeManager,
         LoggerChannelFactoryInterface $loggerFactory,
         StripeService                 $stripeService,
         EmailManager                  $emailManager,
@@ -32,6 +37,7 @@ class ESNcardService
     {
         $this->configFactory = $configFactory;
         $this->database = $database;
+        $this->entityTypeManager = $entityTypeManager;
         $this->logger = $loggerFactory->get('esn_membership_manager');
         $this->stripeService = $stripeService;
         $this->emailManager = $emailManager;
@@ -93,12 +99,11 @@ class ESNcardService
         }
 
         try {
-            $applications = $this->database->select('esn_membership_manager_applications', 'a')
-                ->fields('a')
-                ->condition('esncard_number', '%BACKLOGGED%', 'LIKE')
-                ->orderBy('date_paid')
-                ->execute()
-                ->fetchAll(PDO::FETCH_ASSOC);
+            /** @var ApplicationStorage $storage */
+            $storage = $this->entityTypeManager->getStorage('membership_application');
+
+            /** @var ApplicationInterface[] $applications */
+            $applications = $storage->getBacklogged();
         } catch (Exception $e) {
             $this->logger->warning('Unable to check backlogged ESNcards: @message', ['@message' => $e->getMessage()]);
         }
@@ -111,26 +116,21 @@ class ESNcardService
             foreach ($applications as $application) {
                 $transaction = $this->database->startTransaction();
                 try {
-                    $isManual = $application['esncard_number'] === 'BACKLOGGED-MANUAL';
-                    $cardNumber = $this->assignESNcardNumber($application['id'], $isManual);
+                    $isManual = $application->getValue(ApplicationField::ESNcardNumber) === 'BACKLOGGED-MANUAL';
+                    $cardNumber = $this->assignESNcardNumber($application->id(), $isManual);
 
-                    $this->database->update('esn_membership_manager_applications')
-                        ->fields([
-                            'esncard_number' => $cardNumber
-                        ])
-                        ->condition('id', $application['id'])
-                        ->execute();
+                    $application->setValue(ApplicationField::ESNcardNumber, $cardNumber);
+
+                    $application->save();
 
                     unset($transaction);
-
-                    $application['esncard_number'] = $cardNumber;
 
                     $this->postAssignment($application, $isManual);
                 } catch (Exception $e) {
                     if (isset($transaction)) {
                         $transaction->rollBack();
                     }
-                    $this->logger->error('Failed to update application @id: @message', ['@id' => $application['id'], '@message' => $e->getMessage()]);
+                    $this->logger->error('Failed to update application @id: @message', ['@id' => $application->id(), '@message' => $e->getMessage()]);
                 }
             }
         }
@@ -143,15 +143,17 @@ class ESNcardService
      *
      * If no cards are available, it triggers an administrator notification and returns a backlog placeholder string.
      *
-     * @param int $applicationID The ID of the application to assign the ESNcard to.
+     * @param ApplicationInterface $application The application entity to assign the ESNcard to.
      * @param bool $isManual Indicates whether this assignment originates from a manual approval.
      *
      * @return string The assigned ESNcard number, or a 'BACKLOGGED' placeholder if the pool is empty.
      *
      * @throws Exception Thrown if there is a database failure while retrieving the next card.
      */
-    public function assignESNcardNumber(int $applicationID, bool $isManual): string
+    public function assignESNcardNumber(ApplicationInterface $application, bool $isManual): string
     {
+        $moduleConfig = $this->configFactory->get('esn_membership_manager.settings');
+
         try {
             $query = $this->database->select('esn_membership_manager_cards', 'e')
                 ->fields('e', ['number'])
@@ -168,14 +170,13 @@ class ESNcardService
         }
 
         if (empty($nextNumber)) {
-            $alreadyBacklogged = $this->database->select('esn_membership_manager_applications', 'a')
-                ->condition('esncard_number', '%BACKLOGGED%', 'LIKE')
-                ->countQuery()
-                ->execute()
-                ->fetchField();
+            /** @var ApplicationStorage $storage */
+            $storage = $this->entityTypeManager->getStorage('membership_application');
 
-            if ($alreadyBacklogged == 0) {
-                $this->emailManager->sendEmail('', 'admin_backlogged', []);
+            $alreadyBacklogged = $storage->countBacklogged() > 0;
+
+            if (!$alreadyBacklogged) {
+                $this->emailManager->sendEmail($moduleConfig->get('email_admin_address'), 'admin_backlogged', []);
             }
 
             $this->logger->warning('No available ESNcard numbers left to assign.');
@@ -192,7 +193,7 @@ class ESNcardService
 
         $this->logger->notice('Assigned ESNcard number @num to application @id.', [
             '@num' => $nextNumber,
-            '@id' => $applicationID,
+            '@id' => $application->id(),
         ]);
         return $nextNumber;
     }
@@ -204,26 +205,27 @@ class ESNcardService
      * generate third-party Wallet passes, and send the final assignment email. Skips execution if the card is
      * backlogged.
      *
-     * @param array $application An associative array containing the application object.
+     * @param ApplicationInterface $application The application entity.
      * @param bool $isManual Indicates whether this assignment originated from a manual payment.
      */
-    public function postAssignment(array $application, bool $isManual): void
+    public function postAssignment(ApplicationInterface $application, bool $isManual): void
     {
-        if (str_contains($application['esncard_number'], 'BACKLOGGED')) {
+        if (str_contains($application->getValue(ApplicationField::ESNcardNumber), 'BACKLOGGED')) {
             return;
         }
 
         $moduleConfig = $this->configFactory->get('esn_membership_manager.settings');
 
         if ($moduleConfig->get('switch_weeztix') ?? FALSE) {
-            $this->weeztixService->addCoupon($application['esncard_number'], ['applies_to_count' => 1, 'usage_count' => 5]);
+            $this->weeztixService->addCoupon($application->getValue(ApplicationField::ESNcardNumber), ['applies_to_count' => 1, 'usage_count' => 5]);
         }
 
         if ($moduleConfig->get('switch_google_sheets') ?? FALSE) {
             if (!$isManual) {
                 $paymentMethod = 'Stripe';
 
-                $isESNer = $application['mobility_status'] == 'ESN Volunteer' || $application['mobility_status'] == 'ESN Alumnus';
+                $mobilityStatus = $application->getValue(ApplicationField::MobilityStatus);
+                $isESNer = $mobilityStatus == 'ESN Volunteer' || $mobilityStatus == 'ESN Alumnus';
                 try {
                     $priceFloat = $this->stripeService->getPriceAmount($isESNer);
                     $price = number_format($priceFloat, 2, '.', '');
@@ -238,11 +240,11 @@ class ESNcardService
             $this->googleService->appendRow(
                 [
                     'date' => str_replace('-', '/', date('d-m-y')),
-                    'name' => $application['name'] . ' ' . $application['surname'],
-                    'card_number' => $application['esncard_number'],
+                    'name' => $application->getFullName(),
+                    'card_number' => $application->getValue(ApplicationField::ESNcardNumber),
                     'pos' => 'ESN Membership Manager',
-                    'host' => $application['host_institution'],
-                    'nationality' => $application['nationality'],
+                    'host' => $application->getValue(ApplicationField::HostInstitution),
+                    'nationality' => $application->getValue(ApplicationField::Nationality),
                     'mop' => $paymentMethod,
                     'amount' => $price,
                 ]
@@ -252,7 +254,7 @@ class ESNcardService
         if ($moduleConfig->get('switch_google_wallet') ?? FALSE) {
             $googleWalletLink = Url::fromRoute(
                 'esn_membership_manager.add_to_google_wallet',
-                ['identifier' => $application['esncard_number']],
+                ['identifier' => $application->getValue(ApplicationField::ESNcardNumber)],
                 ['absolute' => TRUE]
             )->toString();
         }
@@ -260,17 +262,17 @@ class ESNcardService
         if ($moduleConfig->get('switch_apple_wallet') ?? FALSE) {
             $appleWalletLink = Url::fromRoute(
                 'esn_membership_manager.download_apple_pass',
-                ['identifier' => $application['esncard_number']],
+                ['identifier' => $application->getValue(ApplicationField::ESNcardNumber)],
                 ['absolute' => TRUE]
             )->toString();
         }
 
         $emailParams = [
-            'name' => $application['name'],
-            'esncard_number' => $application['esncard_number'],
+            'name' => $application->getValue(ApplicationField::Name),
+            'esncard_number' => $application->getValue(ApplicationField::ESNcardNumber),
             'google_wallet_link' => $googleWalletLink ?? '',
             'apple_wallet_link' => $appleWalletLink ?? '',
         ];
-        $this->emailManager->sendEmail($application['email'], 'card_assignment', $emailParams);
+        $this->emailManager->sendEmail($application->getValue(ApplicationField::Email), 'card_assignment', $emailParams);
     }
 }

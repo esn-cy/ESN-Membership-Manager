@@ -1,11 +1,11 @@
 <?php /** @noinspection PhpUnused */
 
-use Drupal\Core\Datetime\DrupalDateTime;
 use Drupal\Core\Logger\LoggerChannelInterface;
 use Drupal\Core\Render\Markup;
 use Drupal\Core\StreamWrapper\StreamWrapperManager;
+use Drupal\esn_membership_manager\Entity\Application\ApplicationField;
+use Drupal\esn_membership_manager\Entity\Application\ApplicationStorage;
 use Drupal\esn_membership_manager\Service\FileService;
-use Drupal\esn_membership_manager\Service\StripeService;
 use Drupal\user\Entity\User;
 
 /**
@@ -255,62 +255,15 @@ function esn_membership_manager_preprocess_menu(&$variables): void
  */
 function esn_membership_manager_cron(): void
 {
-    $database = Drupal::database();
     /** @var LoggerChannelInterface $logger */
     $logger = Drupal::service('logger.factory')->get('esn_membership_manager');
 
     try {
-        $now = new DateTime();
-        $twoWeeksAgo = (clone $now)->sub(new DateInterval('P14D'))->format('Y-m-d H:i:s');
-        $oneYearAgo = (clone $now)->sub(new DateInterval('P1Y'))->format('Y-m-d H:i:s');
-    } catch (Exception $e) {
-        $logger->error($e->getMessage());
-        return;
-    }
+        /** @var ApplicationStorage $storage */
+        $storage = Drupal::entityTypeManager()->getStorage('membership_application');
 
-    // 1. Proofs & ID Scans: Deleted after 2 weeks
-    // Based on approved date
-    $query2W = $database->select('esn_membership_manager_applications', 'a')
-        ->fields('a', ['id', 'proof_fid', 'id_document_fid'])
-        ->condition('approval_status', 'Pending', '<>');
-
-    $approvalCondition = $query2W->orConditionGroup()
-        ->condition('date_approved', $twoWeeksAgo, '<')
-        ->condition('approval_status', 'Declined');
-
-    // Only process if there are files to delete
-    $filesExistCondition = $query2W->orConditionGroup()
-        ->isNotNull('proof_fid')
-        ->isNotNull('id_document_fid');
-
-    $query2W->condition($filesExistCondition);
-    $query2W->condition($approvalCondition);
-
-    // 2. PII & Face Photos: Deleted after 1 year relative to status
-    $query1Y = $database->select('esn_membership_manager_applications', 'a')
-        ->fields('a', ['id', 'email', 'dob', 'approval_status', 'esncard', 'payment_link_id', 'face_photo_fid']);
-
-    // Create the conditional retention logic group for 1 year
-    $retentionCondition = $query1Y->orConditionGroup();
-
-    // Condition A: ESNcard wanted (1) AND paid more than 1 year ago
-    $conditionPaid1Y = $query1Y->andConditionGroup()
-        ->condition('esncard', 1)
-        ->condition('date_paid', $oneYearAgo, '<');
-
-    // Condition B: ESNcard NOT wanted (0) AND approved more than 1 year ago
-    $conditionApproved1Y = $query1Y->andConditionGroup()
-        ->condition('esncard', 0)
-        ->condition('date_approved', $oneYearAgo, '<');
-
-    $retentionCondition->condition($conditionPaid1Y);
-    $retentionCondition->condition($conditionApproved1Y);
-
-    $query1Y->condition($retentionCondition);
-
-    try {
-        $results2W = $query2W->execute()->fetchAll();
-        $results1Y = $query1Y->execute()->fetchAll();
+        $results2W = $storage->get2WeekDeletions();
+        $results1Y = $storage->get1YearDeletions();
     } catch (Exception $e) {
         $logger->error('Database Query Error: There was an issue fetching the applications. @message', ['@message' => $e->getMessage()]);
         return;
@@ -320,25 +273,21 @@ function esn_membership_manager_cron(): void
     $fileService = Drupal::service('esn_membership_manager.file_service');
 
     // Process 2-week deletions
-    foreach ($results2W as $row) {
+    foreach ($results2W as $application) {
         $fidsToDelete = [];
-        if ($row->proof_fid) $fidsToDelete['proof_fid'] = $row->proof_fid;
-        if ($row->id_document_fid) $fidsToDelete['id_document_fid'] = $row->id_document_fid;
+        if ($application->getProofDocument()) $fidsToDelete[ApplicationField::StatusProofFileID->value] = $application->getProofDocument()->id();
+        if ($application->getIDDocument()) $fidsToDelete[ApplicationField::IdentityDocumentFileID->value] = $application->getIDDocument()->id();
 
         if (!empty($fidsToDelete)) {
             foreach ($fidsToDelete as $fieldName => $fid) {
-                if ($fileService->deleteFile($fid)) {
+                if ($fileService->deleteFile($fid, $application->id())) {
                     try {
-                        $database->update('esn_membership_manager_applications')
-                            ->fields([
-                                $fieldName => NULL,
-                            ])
-                            ->condition('id', $row->id)
-                            ->execute();
+                        $application->setNull(ApplicationField::from($fieldName));
+                        $application->save();
                     } catch (Exception $e) {
                         $logger->warning('Database Warning: Unable to nullify field @field for application @id. Message: @message', [
                             '@field' => $fieldName,
-                            '@id' => $row->id,
+                            '@id' => $application->id,
                             '@message' => $e->getMessage()
                         ]);
                     }
@@ -347,58 +296,23 @@ function esn_membership_manager_cron(): void
         }
     }
 
-    /** @var StripeService $stripeService */
-    $stripeService = Drupal::service('esn_membership_manager.stripe_service');
-    $moduleConfig = Drupal::config('esn_membership_manager.settings');
-
     // Process 1-year deletions
-    foreach ($results1Y as $row) {
-        // Delete face photo if exists
-        if ($row->face_photo_fid) {
-            $fileService->deleteFile($row->face_photo_fid);
-        }
-
-        $fileService->deleteDirectory('membership://' . $row->id);
-
-        try {
-            if ($row->esncard && $row->approval_status == "Approved") {
-                $stripeService->disablePaymentLink($row->payment_link_id);
-            }
-        } catch (Exception) {
-        }
-
+    foreach ($results1Y as $application) {
         // Anonymize the record
         try {
-            $database->update('esn_membership_manager_applications')
-                ->fields([
-                    'name' => 'Anonymized',
-                    'surname' => 'Anonymized',
-                    'email' => $row->id . '@anonymized.email',
-                    'dob' => (new DrupalDateTime($row->dob))->format('Y-01-01'),
-                    'face_photo_fid' => NULL,
-                    'payment_link' => NULL,
-                    'payment_link_id' => NULL,
-                ])
-                ->condition('id', $row->id)
-                ->execute();
+            $application::postDelete($storage, [$application]);
 
-            //Delete data from other tables
-            if ($moduleConfig->get('switch_apple_wallet') ?? FALSE) {
-                $database->delete('esn_membership_manager_apple_wallet_registrations')
-                    ->condition('application_id', $row->id)
-                    ->execute();
-            }
-
-            $database->delete('esn_membership_manager_authentication')
-                ->condition('email', $row->email)
-                ->execute();
-
-            $database->delete('esn_membership_manager_guest_passes')
-                ->condition('referrer_id', $row->id)
-                ->execute();
+            $application->setValue(ApplicationField::Name, 'Anonymized');
+            $application->setValue(ApplicationField::Surname, 'Anonymized');
+            $application->setValue(ApplicationField::Email, $application->id() . '@anonymized.email');
+            $application->setValue(ApplicationField::DateOfBirth, $application->getDateOfBirth()->format('Y-01-01'));
+            $application->setNull(ApplicationField::FacePhotoFileID);
+            $application->setNull(ApplicationField::PaymentLink);
+            $application->setNull(ApplicationField::PaymentLinkID);
+            $application->save();
         } catch (Exception $e) {
             $logger->warning('Database Warning: Unable to anonymize application ID: @id. Message: @message', [
-                '@id' => $row->id,
+                '@id' => $application->id(),
                 '@message' => $e->getMessage()
             ]);
         }

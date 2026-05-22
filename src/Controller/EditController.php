@@ -2,12 +2,13 @@
 
 namespace Drupal\esn_membership_manager\Controller;
 
-use DateTime;
 use Drupal\Core\Controller\ControllerBase;
 use Drupal\Core\Database\Connection;
 use Drupal\Core\Datetime\DrupalDateTime;
 use Drupal\Core\Logger\LoggerChannelFactoryInterface;
 use Drupal\Core\Logger\LoggerChannelInterface;
+use Drupal\esn_membership_manager\Entity\Application\ApplicationField;
+use Drupal\esn_membership_manager\Entity\Application\ApplicationStorage;
 use Drupal\esn_membership_manager\Service\AppleWalletService;
 use Drupal\esn_membership_manager\Service\FileService;
 use Drupal\esn_membership_manager\Service\GoogleService;
@@ -82,11 +83,10 @@ class EditController extends ControllerBase
         $moduleConfig = $this->config('esn_membership_manager.settings');
 
         try {
-            $application = $this->database->select('esn_membership_manager_applications', 'a')
-                ->fields('a')
-                ->condition('id', $applicationID)
-                ->execute()
-                ->fetchAssoc();
+            /** @var ApplicationStorage $storage */
+            $storage = $this->entityTypeManager()->getStorage('membership_application');
+
+            $application = $storage->load($applicationID);
         } catch (Exception $e) {
             $this->logger->error('Select query failed: @message', ['@message' => $e->getMessage()]);
             return new JsonResponse(['status' => 'error', 'message' => 'There was a problem getting the application.'], 500);
@@ -96,85 +96,43 @@ class EditController extends ControllerBase
             return new JsonResponse(['status' => 'error', 'message' => 'Application not found.'], 404);
         }
 
-        $allowedFields = [
-            'name',
-            'surname',
-            'email',
-            'nationality',
-            'dob',
-            'section',
-            'mobility_status',
-            'host_institution',
-            'pass_token',
-            'esncard_number',
-            'date_last_scanned'
-        ];
+        $hasVerifiedEmail = $application->getValue(ApplicationField::HasVerifiedEmail);
+        $hasVerifiedID = $application->getValue(ApplicationField::HasVerifiedID);
+        $hasVerifiedStatus = $application->getValue(ApplicationField::HasVerifiedStatus);
 
-        if ($application['verified_email']) {
-            array_splice($allowedFields, array_search('email', $allowedFields), 1);
-        }
+        foreach (ApplicationField::cases() as $field) {
+            if ($field->isReadOnly($hasVerifiedEmail, $hasVerifiedID, $hasVerifiedStatus)) {
+                continue;
+            }
 
-        if ($application['verified_id']) {
-            array_splice($allowedFields, array_search('name', $allowedFields), 1);
-            array_splice($allowedFields, array_search('surname', $allowedFields), 1);
-            array_splice($allowedFields, array_search('nationality', $allowedFields), 1);
-            array_splice($allowedFields, array_search('dob', $allowedFields), 1);
-        }
-
-        if ($application['verified_status']) {
-            array_splice($allowedFields, array_search('mobility_status', $allowedFields), 1);
-            array_splice($allowedFields, array_search('host_institution', $allowedFields), 1);
-        }
-
-        $fieldsToUpdate = [];
-
-        foreach ($allowedFields as $field) {
-            if (isset($body[$field])) {
-                if ($field == "dob") {
-                    $fieldsToUpdate[$field] = DateTime::createFromFormat('d/m/Y', $body[$field])->format('Y-m-d');
+            if (isset($body[$field->value])) {
+                if ($field->value == ApplicationField::DateOfBirth->value) {
+                    $application->setValue($field, DrupalDateTime::createFromFormat('d/m/Y', $body[$field->value])->format('Y-m-d'));
                 } else {
-                    $fieldsToUpdate[$field] = $body[$field];
+                    $application->setValue($field, $body[$field->value]);
                 }
             }
         }
 
-        if (empty($fieldsToUpdate)) {
-            return new JsonResponse(['status' => 'error', 'message' => 'No changes detected.'], 400);
-        }
-
-        if (!empty($fieldsToUpdate['name']) || !empty($fieldsToUpdate['surname'])) {
-            if (empty($fieldsToUpdate['name'])) {
-                $fieldsToUpdate['name'] = $application['name'];
-            }
-            if (empty($fieldsToUpdate['surname'])) {
-                $fieldsToUpdate['surname'] = $application['surname'];
-            }
-        }
-
-        $fieldsToUpdate['date_last_modified'] = (new DrupalDateTime())->format('Y-m-d H:i:s');
+        $application->setValue(ApplicationField::DateLastModified, (new DrupalDateTime())->format('Y-m-d\TH:i:s'));
 
         try {
-            $this->database->update('esn_membership_manager_applications')
-                ->fields($fieldsToUpdate)
-                ->condition('id', $applicationID)
-                ->execute();
+            $application->save();
         } catch (Exception $e) {
             $this->logger->error('Update query failed: @message', ['@message' => $e->getMessage()]);
             return new JsonResponse(['status' => 'error', 'message' => 'There was a problem updating the application.'], 500);
         }
 
-        $updatedApplication = array_merge($application, $fieldsToUpdate);
-
         if ($moduleConfig->get('switch_google_wallet') ?? FALSE) {
-            if ($application['esncard']) {
+            if ($application->getValue(ApplicationField::HasESNcard)) {
                 try {
-                    $this->googleService->updateObject($updatedApplication, 'card');
+                    $this->googleService->updateObject($application, 'card');
                 } catch (Exception|GuzzleException $e) {
                     $this->logger->error('Google Wallet Update Failed: @message', ['@message' => $e->getMessage()]);
                 }
             }
             try {
-                $this->googleService->updateObject($updatedApplication, 'pass');
+                $this->googleService->updateObject($application, 'pass');
             } catch (Exception|GuzzleException $e) {
                 $this->logger->error('Google Wallet Update Failed: @message', ['@message' => $e->getMessage()]);
             }
@@ -186,8 +144,8 @@ class EditController extends ControllerBase
                     ->fields('w', ['push_token']);
 
                 $orGroup = $query->orConditionGroup()
-                    ->condition('serial_number', 'free_pass-' . $updatedApplication['id'])
-                    ->condition('serial_number', 'esncard-' . $updatedApplication['id']);
+                    ->condition('serial_number', 'free_pass-' . $application->id())
+                    ->condition('serial_number', 'esncard-' . $application->id());
 
                 $pushTokens = $query->condition($orGroup)
                     ->execute()
@@ -238,21 +196,20 @@ class EditController extends ControllerBase
         }
 
         try {
-            $application = $this->database->select('esn_membership_manager_applications', 'a')
-                ->fields('a', ['face_photo_fid'])
-                ->condition('id', $applicationID)
-                ->execute()
-                ->fetchAssoc();
+            /** @var ApplicationStorage $storage */
+            $storage = $this->entityTypeManager()->getStorage('membership_application');
+
+            $application = $storage->load($applicationID);
 
             if (empty($application)) {
                 return new JsonResponse(['status' => 'error', 'message' => 'Application not found.'], 404);
             }
 
-            if (empty($application['face_photo_fid'])) {
+            if (empty($application->getFacePhoto())) {
                 return new JsonResponse(['status' => 'error', 'message' => 'No face photo was found for this application.'], 404);
             }
 
-            if (!$this->fileService->replaceFileData($application['face_photo_fid'], $imageData)) {
+            if (!$this->fileService->replaceFileData($application->getFacePhoto()->id(), $imageData)) {
                 return new JsonResponse(['status' => 'error', 'message' => 'Unable to write file.'], 500);
             }
 

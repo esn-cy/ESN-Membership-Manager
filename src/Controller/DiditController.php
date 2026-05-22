@@ -145,7 +145,7 @@ class DiditController extends ControllerBase
 
         if (file_exists($path)) {
             if (($handle = fopen($path, 'r')) !== FALSE) {
-                while (($data = fgetcsv($handle, 1000)) !== FALSE) {
+                while (($data = fgetcsv($handle, 1000, ",", "\"", "\\")) !== FALSE) {
                     if (empty($data[0]) || empty($data[1])) continue;
                     $nationalities[trim($data[0])] = trim($data[1]);
                 }

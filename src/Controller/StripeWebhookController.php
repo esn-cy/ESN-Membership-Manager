@@ -4,9 +4,9 @@ namespace Drupal\esn_membership_manager\Controller;
 
 use Drupal\Core\Action\ActionManager;
 use Drupal\Core\Controller\ControllerBase;
-use Drupal\Core\Database\Connection;
 use Drupal\Core\Logger\LoggerChannelFactoryInterface;
 use Drupal\Core\Logger\LoggerChannelInterface;
+use Drupal\esn_membership_manager\Entity\Application\ApplicationStorage;
 use Drupal\esn_membership_manager\Plugin\Action\MarkApplicationAsPaid;
 use Drupal\esn_membership_manager\Service\StripeService;
 use Exception;
@@ -17,19 +17,16 @@ use Symfony\Component\HttpFoundation\Response;
 class StripeWebhookController extends ControllerBase
 {
     protected ActionManager $actionManager;
-    protected Connection $database;
     protected LoggerChannelInterface $logger;
     protected StripeService $stripeService;
 
     public function __construct(
         ActionManager                 $actionManager,
-        Connection $database,
         LoggerChannelFactoryInterface $loggerFactory,
         StripeService                 $stripeService
     )
     {
         $this->actionManager = $actionManager;
-        $this->database = $database;
         $this->logger = $loggerFactory->get('esn_membership_manager');
         $this->stripeService = $stripeService;
     }
@@ -39,9 +36,6 @@ class StripeWebhookController extends ControllerBase
         /** @var ActionManager $actionManager */
         $actionManager = $container->get('plugin.manager.action');
 
-        /** @var Connection $database */
-        $database = $container->get('database');
-
         /** @var LoggerChannelFactoryInterface $loggerFactory */
         $loggerFactory = $container->get('logger.factory');
 
@@ -50,7 +44,6 @@ class StripeWebhookController extends ControllerBase
 
         return new static(
             $actionManager,
-            $database,
             $loggerFactory,
             $stripeService
         );
@@ -75,19 +68,17 @@ class StripeWebhookController extends ControllerBase
 
         if (empty($applicationID) && !empty($linkID)) {
             try {
-                $applicationID = $this->database->select('esn_membership_manager_applications', 'a')
-                    ->fields('a', ['id'])
-                    ->condition('payment_link_id', $linkID)
-                    ->range(0, 1)
-                    ->execute()
-                    ->fetchField();
+                /** @var ApplicationStorage $storage */
+                $storage = $this->entityTypeManager()->getStorage('membership_application');
+
+                $application = $storage->getByPaymentLinkID($linkID);
             } catch (Exception $e) {
                 $this->logger->error('Failed to look up application: ' . $e->getMessage());
-                $applicationID = NULL;
+                $application = NULL;
             }
         }
 
-        if (empty($applicationID)) {
+        if (empty($application)) {
             $this->logger->warning('Application matching the link was not found for session @session.', ['@session' => $session->id]);
             return new Response('Webhook ignored: Application matching the link was not found', 200);
         }
@@ -96,7 +87,7 @@ class StripeWebhookController extends ControllerBase
             if ($this->actionManager->hasDefinition('esn_membership_manager_mark_paid')) {
                 /** @var MarkApplicationAsPaid $action */
                 $action = $this->actionManager->createInstance('esn_membership_manager_mark_paid');
-                $resultString = $action->execute($applicationID, $linkID);
+                $resultString = $action->execute($application, false);
             } else {
                 $this->logger->error('Mark Application as Paid Action plugin not found.');
                 return new Response('Webhook processing failed: Mark Application as Paid Action plugin not found.', 500);
