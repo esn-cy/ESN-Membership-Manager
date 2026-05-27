@@ -3,10 +3,10 @@
 namespace Drupal\esn_membership_manager\Entity\Application;
 
 use Drupal\Core\Datetime\DrupalDateTime;
-use Drupal\esn_membership_manager\Entity\EnumDrivenEntityInterface;
+use Drupal\esn_cyprus_core\Entity\EnumBackedEntityInterface;
 use Drupal\file\FileInterface;
 
-interface ApplicationInterface extends EnumDrivenEntityInterface
+interface ApplicationInterface extends EnumBackedEntityInterface
 {
     /**
      * Updates the last scanned field to now.

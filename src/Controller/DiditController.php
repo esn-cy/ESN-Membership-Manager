@@ -56,7 +56,8 @@ class DiditController extends ControllerBase
 
         $redirect = new RedirectResponse(Url::fromRoute('esn_membership_manager.apply', [], ['absolute' => true])->toString());
 
-        if ($sessionID) {
+        if (empty($sessionID)) {
+            $this->setFailedStatus($sessionID, 'Session ID not present in query parameters.');
             return $redirect;
         }
 
@@ -67,23 +68,17 @@ class DiditController extends ControllerBase
                 ->execute()
                 ->fetchAssoc();
         } catch (Exception $e) {
-            $this->logger->error('Didit ID Verification failed. @error', ['@error' => $e->getMessage()]);
-            try {
-                $this->database->update('esn_membership_manager_in_progress_applications')
-                    ->fields(['didit_status' => 'Failed'])
-                    ->condition('didit_session_id', $sessionID)
-                    ->execute();
-            } catch (Exception $updateException) {
-                $this->logger->error('Failed to update Didit status to Failed. @error', ['@error' => $updateException->getMessage()]);
-            }
+            $this->setFailedStatus($sessionID, 'Unable to retrieve applications. ' . $e->getMessage());
         }
 
         if (empty($application)) {
+            $this->setFailedStatus($sessionID, 'Didit callback application not found.');
             return $redirect;
         }
 
         $diditSession = $this->diditService->getSession($sessionID);
         if (empty($diditSession)) {
+            $this->setFailedStatus($sessionID, 'Unable to get verification status from Didit.');
             return $redirect;
         }
 
@@ -114,18 +109,23 @@ class DiditController extends ControllerBase
                 ->condition('didit_session_id', $sessionID)
                 ->execute();
         } catch (Exception $e) {
-            $this->logger->error('Didit ID Verification failed. @error', ['@error' => $e->getMessage()]);
-            try {
-                $this->database->update('esn_membership_manager_in_progress_applications')
-                    ->fields(['didit_status' => 'Failed'])
-                    ->condition('didit_session_id', $sessionID)
-                    ->execute();
-            } catch (Exception $updateException) {
-                $this->logger->error('Failed to update Didit status. @error', ['@error' => $updateException->getMessage()]);
-            }
+            $this->setFailedStatus($sessionID, 'Unable to get update application status. ' . $e->getMessage());
         }
 
         return $redirect;
+    }
+
+    private function setFailedStatus(string $sessionID, string $error): void
+    {
+        $this->logger->warning('Didit ID Verification failed. @error', ['@error' => $error]);
+        try {
+            $this->database->update('esn_membership_manager_in_progress_applications')
+                ->fields(['didit_status' => 'Failed'])
+                ->condition('didit_session_id', $sessionID)
+                ->execute();
+        } catch (Exception $e) {
+            $this->logger->error('Failed to update Didit status to Failed. @error', ['@error' => $e->getMessage()]);
+        }
     }
 
     protected function getNationalities(): array

@@ -1,3 +1,4 @@
+<!--suppress HtmlDeprecatedAttribute -->
 <h1 align="center">
     <img src="./assets/images/logo.svg" width="350" alt="ESN Membership Manager Logo"/><br>
     ESN Membership Manager

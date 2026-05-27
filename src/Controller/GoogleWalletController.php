@@ -120,7 +120,7 @@ class GoogleWalletController extends ControllerBase
             if (empty($walletLink)) {
                 throw new Exception();
             }
-        } catch (Exception $e) {
+        } catch (Exception|GuzzleException $e) {
             $this->logger->error('Creation of Google Wallet Pass failed: @message', ['@message' => $e->getMessage()]);
             throw new HttpException(500, 'Unable to generate your Google Wallet Pass.');
         }

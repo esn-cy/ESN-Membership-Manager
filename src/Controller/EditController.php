@@ -7,6 +7,7 @@ use Drupal\Core\Database\Connection;
 use Drupal\Core\Datetime\DrupalDateTime;
 use Drupal\Core\Logger\LoggerChannelFactoryInterface;
 use Drupal\Core\Logger\LoggerChannelInterface;
+use Drupal\esn_membership_manager\Config\ModuleSettings;
 use Drupal\esn_membership_manager\Entity\Application\ApplicationField;
 use Drupal\esn_membership_manager\Entity\Application\ApplicationStorage;
 use Drupal\esn_membership_manager\Service\AppleWalletService;
@@ -80,7 +81,8 @@ class EditController extends ControllerBase
             return new JsonResponse(['status' => 'error', 'message' => 'An invalid ID was provided.'], 400);
         }
 
-        $moduleConfig = $this->config('esn_membership_manager.settings');
+        $this->config('');
+        $moduleSettings = new ModuleSettings($this->configFactory);
 
         try {
             /** @var ApplicationStorage $storage */
@@ -123,22 +125,22 @@ class EditController extends ControllerBase
             return new JsonResponse(['status' => 'error', 'message' => 'There was a problem updating the application.'], 500);
         }
 
-        if ($moduleConfig->get('switch_google_wallet') ?? FALSE) {
+        if ($moduleSettings->getGoogleWalletSwitch()) {
             if ($application->getValue(ApplicationField::HasESNcard)) {
                 try {
-                    $this->googleService->updateObject($application, 'card');
+                    $this->googleService->updateApplicationObject($application, 'card');
                 } catch (Exception|GuzzleException $e) {
                     $this->logger->error('Google Wallet Update Failed: @message', ['@message' => $e->getMessage()]);
                 }
             }
             try {
-                $this->googleService->updateObject($application, 'pass');
+                $this->googleService->updateApplicationObject($application, 'pass');
             } catch (Exception|GuzzleException $e) {
                 $this->logger->error('Google Wallet Update Failed: @message', ['@message' => $e->getMessage()]);
             }
         }
 
-        if ($moduleConfig->get('switch_apple_wallet') ?? FALSE) {
+        if ($moduleSettings->getAppleWalletSwitch()) {
             try {
                 $query = $this->database->select('esn_membership_manager_apple_wallet_registrations', 'w')
                     ->fields('w', ['push_token']);
@@ -153,7 +155,7 @@ class EditController extends ControllerBase
 
                 if (!empty($pushTokens)) {
                     foreach (array_unique($pushTokens) as $pushToken) {
-                        $this->appleWalletService->sendUpdateNotification($pushToken);
+                        $this->appleWalletService->sendApplicationUpdateNotification($pushToken);
                     }
                 }
             } catch (Exception $e) {
@@ -182,7 +184,8 @@ class EditController extends ControllerBase
             return new JsonResponse(['status' => 'error', 'message' => 'No cropped image was provided.'], 400);
         }
 
-        $moduleConfig = $this->configFactory->get('esn_membership_manager.settings');
+        $this->config('');
+        $moduleSettings = new ModuleSettings($this->configFactory);
 
         if (str_contains($croppedImage, 'base64,')) {
             $croppedImage = explode('base64,', $croppedImage)[1];
@@ -213,15 +216,15 @@ class EditController extends ControllerBase
                 return new JsonResponse(['status' => 'error', 'message' => 'Unable to write file.'], 500);
             }
 
-            if ($moduleConfig->get('switch_google_wallet') ?? FALSE) {
+            if ($moduleSettings->getGoogleWalletSwitch()) {
                 try {
-                    $this->googleService->updateObject($application, 'card');
+                    $this->googleService->updateApplicationObject($application, 'card');
                 } catch (Exception|GuzzleException $e) {
                     $this->logger->error('Google Wallet Update Failed: @message', ['@message' => $e->getMessage()]);
                 }
             }
 
-            if ($moduleConfig->get('switch_apple_wallet') ?? FALSE) {
+            if ($moduleSettings->getAppleWalletSwitch()) {
                 try {
                     $pushTokens = $this->database->select('esn_membership_manager_apple_wallet_registrations', 'w')
                         ->fields('w', ['push_token'])
@@ -231,7 +234,7 @@ class EditController extends ControllerBase
 
                     if (!empty($pushTokens)) {
                         foreach (array_unique($pushTokens) as $pushToken) {
-                            $this->appleWalletService->sendUpdateNotification($pushToken);
+                            $this->appleWalletService->sendApplicationUpdateNotification($pushToken);
                         }
                     }
                 } catch (Exception $e) {

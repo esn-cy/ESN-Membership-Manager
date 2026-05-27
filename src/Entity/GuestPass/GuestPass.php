@@ -3,8 +3,8 @@
 namespace Drupal\esn_membership_manager\Entity\GuestPass;
 
 use Drupal\Core\Datetime\DrupalDateTime;
+use Drupal\esn_cyprus_core\Entity\EnumBackedEntityBase;
 use Drupal\esn_membership_manager\Entity\Application\ApplicationInterface;
-use Drupal\esn_membership_manager\Entity\EnumDrivenEntityBase;
 
 /**
  * @ContentEntityType(
@@ -21,7 +21,7 @@ use Drupal\esn_membership_manager\Entity\EnumDrivenEntityBase;
  * fieldable = TRUE,
  * )
  */
-class GuestPass extends EnumDrivenEntityBase implements GuestPassInterface
+class GuestPass extends EnumBackedEntityBase implements GuestPassInterface
 {
     protected static function getFieldEnumClass(): string
     {

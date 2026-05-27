@@ -27,18 +27,14 @@
     }
   },
   "require": {
+    "esn-cy/core": "^1.0",
     "esn/esn_accounts_api": "^1.1",
     "drupal/simple_oauth": "^6.1",
-    "stripe/stripe-php": "^20.1",
-    "google/auth": "^1.50",
-    "google/apiclient": "^2.19",
     "google/apiclient-services": "^0.441",
-    "pkpass/pkpass": "^2.5.1",
     "tecnickcom/tcpdf": "^6.11",
+    "thenetworg/oauth2-azure": "^2.2",
     "ext-gd": "*",
-    "ext-pdo": "*",
     "ext-openssl": "*",
-    "ext-fileinfo": "*",
     "ext-simplexml": "*"
   },
   "require-dev": {

@@ -7,6 +7,7 @@ use Drupal\Core\Config\ConfigFactoryInterface;
 use Drupal\Core\Logger\LoggerChannelFactoryInterface;
 use Drupal\Core\Logger\LoggerChannelInterface;
 use Drupal\Core\State\StateInterface;
+use Drupal\esn_membership_manager\Config\ModuleSettings;
 use GuzzleHttp\ClientInterface;
 use GuzzleHttp\Exception\GuzzleException;
 use Psr\Http\Message\ResponseInterface;
@@ -36,11 +37,11 @@ class WeeztixService
 
     public function getAuthorizationUrl(string $redirectURI, string $stateToken): ?string
     {
-        $moduleConfig = $this->configFactory->get('esn_membership_manager.settings');
-        $clientID = $moduleConfig->get('weeztix_client_id');
+        $moduleSettings = new ModuleSettings($this->configFactory);
+        $clientID = $moduleSettings->getWeeztixClientID();
 
-        if (!$clientID) {
-            return NULL;
+        if (empty($clientID)) {
+            return null;
         }
 
         $query = [
@@ -55,8 +56,8 @@ class WeeztixService
 
     public function addCoupon(string $couponCode, array $additionalData = []): bool
     {
-        $moduleConfig = $this->configFactory->get('esn_membership_manager.settings');
-        $listID = $moduleConfig->get('weeztix_coupon_list_id');
+        $moduleSettings = new ModuleSettings($this->configFactory);
+        $listID = $moduleSettings->getWeeztixCouponListID();
 
         if (empty($listID)) {
             $this->logger->error('Weeztix List ID configuration is missing. Please check module settings.');
@@ -122,17 +123,15 @@ class WeeztixService
 
     protected function refreshAccessToken(): ?string
     {
-        $moduleConfig = $this->configFactory->get('esn_membership_manager.settings');
-        $clientID = $moduleConfig->get('weeztix_client_id');
-        $clientSecret = $moduleConfig->get('weeztix_client_secret');
+        $moduleSettings = new ModuleSettings($this->configFactory);
         $refreshToken = $this->state->get('esn_membership_manager.weeztix_refresh_token');
 
         try {
             $response = $this->httpClient->request('POST', 'https://auth.weeztix.com/tokens', [
                 'form_params' => [
                     'grant_type' => 'refresh_token',
-                    'client_id' => $clientID,
-                    'client_secret' => $clientSecret,
+                    'client_id' => $moduleSettings->getWeeztixClientID(),
+                    'client_secret' => $moduleSettings->getWeeztixClientSecret(),
                     'refresh_token' => $refreshToken
                 ],
             ]);
@@ -170,9 +169,9 @@ class WeeztixService
 
     public function authorizeWithCode(string $authCode, string $redirectURI): bool
     {
-        $moduleConfig = $this->configFactory->get('esn_membership_manager.settings');
-        $clientID = $moduleConfig->get('weeztix_client_id');
-        $clientSecret = $moduleConfig->get('weeztix_client_secret');
+        $moduleSettings = new ModuleSettings($this->configFactory);
+        $clientID = $moduleSettings->getWeeztixClientID();
+        $clientSecret = $moduleSettings->getWeeztixClientSecret();
 
         if (!$clientID || !$clientSecret) {
             $this->logger->error('Weeztix Authentication configuration is missing. Please check module settings.');

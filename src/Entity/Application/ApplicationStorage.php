@@ -4,9 +4,9 @@ namespace Drupal\esn_membership_manager\Entity\Application;
 
 use DateInterval;
 use Drupal\Core\Datetime\DrupalDateTime;
-use Drupal\esn_membership_manager\Entity\EnumDrivenEntityStorage;
+use Drupal\esn_cyprus_core\Entity\EnumBackedEntityStorage;
 
-class ApplicationStorage extends EnumDrivenEntityStorage
+class ApplicationStorage extends EnumBackedEntityStorage
 {
     public function load($id): ?ApplicationInterface
     {

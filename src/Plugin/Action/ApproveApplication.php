@@ -13,6 +13,7 @@ use Drupal\Core\Logger\LoggerChannelInterface;
 use Drupal\Core\Plugin\ContainerFactoryPluginInterface;
 use Drupal\Core\Session\AccountInterface;
 use Drupal\Core\Url;
+use Drupal\esn_membership_manager\Config\ModuleSettings;
 use Drupal\esn_membership_manager\Entity\Application\ApplicationField;
 use Drupal\esn_membership_manager\Entity\Application\ApplicationInterface;
 use Drupal\esn_membership_manager\Service\EmailManager;
@@ -108,7 +109,7 @@ class ApproveApplication extends ActionBase implements ContainerFactoryPluginInt
             throw new Exception('This status cannot be applied');
         }
 
-        $moduleConfig = $this->configFactory->get('esn_membership_manager.settings');
+        $moduleSettings = new ModuleSettings($this->configFactory);
 
         $token = strtoupper(md5(uniqid(rand(), true)));
 
@@ -145,7 +146,7 @@ class ApproveApplication extends ActionBase implements ContainerFactoryPluginInt
                 $mobilityStatus = $application->getValue(ApplicationField::MobilityStatus);
                 $isESNer = $mobilityStatus == 'ESN Volunteer' || $mobilityStatus == 'ESN Alumnus';
 
-                $paymentLink = $this->stripeService->createPaymentLink($application->id(), $isESNer);
+                $paymentLink = $this->stripeService->createApplicationPaymentLink($application->id(), $isESNer);
             } catch (ApiErrorException $e) {
                 $this->logger->error('Stripe API error for application @id: @message', ['@id' => $application->id(), '@message' => $e->getMessage()]);
                 throw new Exception('Stripe API Error');
@@ -166,7 +167,7 @@ class ApproveApplication extends ActionBase implements ContainerFactoryPluginInt
         try {
             $application->save();
 
-            if ($moduleConfig->get('switch_google_wallet') ?? FALSE) {
+            if ($moduleSettings->getGoogleWalletSwitch()) {
                 $googleWalletLink = Url::fromRoute(
                     'esn_membership_manager.add_to_google_wallet',
                     ['identifier' => $token],
@@ -174,7 +175,7 @@ class ApproveApplication extends ActionBase implements ContainerFactoryPluginInt
                 )->toString();
             }
 
-            if ($moduleConfig->get('switch_apple_wallet') ?? FALSE) {
+            if ($moduleSettings->getAppleWalletSwitch()) {
                 $appleWalletLink = Url::fromRoute(
                     'esn_membership_manager.download_apple_pass',
                     ['identifier' => $token],

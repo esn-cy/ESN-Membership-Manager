@@ -31,7 +31,7 @@ class ApplicationController extends ControllerBase implements ContainerInjection
      *
      */
     public function __construct(
-        FileService            $fileService
+        FileService $fileService
     )
     {
         $this->fileService = $fileService;

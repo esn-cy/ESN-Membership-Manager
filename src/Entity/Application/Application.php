@@ -6,7 +6,8 @@ use Drupal;
 use Drupal\Core\Datetime\DrupalDateTime;
 use Drupal\Core\Entity\EntityStorageInterface;
 use Drupal\Core\Logger\LoggerChannelInterface;
-use Drupal\esn_membership_manager\Entity\EnumDrivenEntityBase;
+use Drupal\esn_cyprus_core\Entity\EnumBackedEntityBase;
+use Drupal\esn_membership_manager\Config\ModuleSettings;
 use Drupal\esn_membership_manager\Service\FileService;
 use Drupal\esn_membership_manager\Service\GoogleService;
 use Drupal\esn_membership_manager\Service\StripeService;
@@ -28,7 +29,7 @@ use Exception;
  * fieldable = TRUE,
  * )
  */
-class Application extends EnumDrivenEntityBase implements ApplicationInterface
+class Application extends EnumBackedEntityBase implements ApplicationInterface
 {
     /**
      * {@inheritdoc}
@@ -38,7 +39,7 @@ class Application extends EnumDrivenEntityBase implements ApplicationInterface
     {
         parent::postDelete($storage, $entities);
 
-        $moduleConfig = Drupal::config('esn_membership_manager.settings');
+        $moduleSettings = new ModuleSettings(Drupal::configFactory());
         $database = Drupal::database();
         /** @var LoggerChannelInterface $logger */
         $logger = Drupal::service('logger.factory')->get('esn_membership_manager');
@@ -52,13 +53,13 @@ class Application extends EnumDrivenEntityBase implements ApplicationInterface
         /** @var ApplicationInterface $application */
         foreach ($entities as $application) {
             if ($proof = $application->getProofDocument()) {
-                $fileService->deleteFile($proof->id(), $application->id());
+                $fileService->deleteApplicationFile($proof->id(), $application->id());
             }
             if ($idDocument = $application->getIDDocument()) {
-                $fileService->deleteFile($idDocument->id(), $application->id());
+                $fileService->deleteApplicationFile($idDocument->id(), $application->id());
             }
             if ($facePhoto = $application->getFacePhoto()) {
-                $fileService->deleteFile($facePhoto->id(), $application->id());
+                $fileService->deleteApplicationFile($facePhoto->id(), $application->id());
             }
             if ($fileService->isDirectoryEmpty('membership://' . $application->id())) {
                 $fileService->deleteDirectory('membership://' . $application->id());
@@ -68,14 +69,14 @@ class Application extends EnumDrivenEntityBase implements ApplicationInterface
                 $stripeService->disablePaymentLink($paymentLinkID);
             }
 
-            if ($moduleConfig->get('switch_google_wallet') ?? FALSE) {
+            if ($moduleSettings->getGoogleWalletSwitch()) {
                 if ($application->getValue(ApplicationField::HasESNcard)) {
-                    $googleService->deleteObject($application->id(), 'card');
+                    $googleService->deleteApplicationObject($application->id(), 'card');
                 }
-                $googleService->deleteObject($application->id(), 'pass');
+                $googleService->deleteApplicationObject($application->id(), 'pass');
             }
 
-            if ($moduleConfig->get('switch_apple_wallet') ?? FALSE) {
+            if ($moduleSettings->getAppleWalletSwitch()) {
                 $database->delete('esn_membership_manager_apple_wallet_registrations')
                     ->condition('application_id', $application->id())
                     ->execute();

@@ -8,6 +8,7 @@ use Drupal\Core\Entity\EntityTypeManagerInterface;
 use Drupal\Core\Logger\LoggerChannelFactoryInterface;
 use Drupal\Core\Logger\LoggerChannelInterface;
 use Drupal\Core\Url;
+use Drupal\esn_membership_manager\Config\ModuleSettings;
 use Drupal\esn_membership_manager\Entity\Application\ApplicationField;
 use Drupal\esn_membership_manager\Entity\Application\ApplicationInterface;
 use Drupal\esn_membership_manager\Entity\Application\ApplicationStorage;
@@ -152,7 +153,7 @@ class ESNcardService
      */
     public function assignESNcardNumber(ApplicationInterface $application, bool $isManual): string
     {
-        $moduleConfig = $this->configFactory->get('esn_membership_manager.settings');
+        $moduleSettings = new ModuleSettings($this->configFactory);
 
         try {
             $query = $this->database->select('esn_membership_manager_cards', 'e')
@@ -176,7 +177,7 @@ class ESNcardService
             $alreadyBacklogged = $storage->countBacklogged() > 0;
 
             if (!$alreadyBacklogged) {
-                $this->emailManager->sendEmail($moduleConfig->get('email_admin_address'), 'admin_backlogged', []);
+                $this->emailManager->sendEmail($moduleSettings->getAdminEmailAddress(), 'admin_backlogged', []);
             }
 
             $this->logger->warning('No available ESNcard numbers left to assign.');
@@ -214,21 +215,24 @@ class ESNcardService
             return;
         }
 
-        $moduleConfig = $this->configFactory->get('esn_membership_manager.settings');
+        $moduleSettings = new ModuleSettings($this->configFactory);
 
-        if ($moduleConfig->get('switch_weeztix') ?? FALSE) {
+        if ($moduleSettings->getWeeztixSwitch()) {
             $this->weeztixService->addCoupon($application->getValue(ApplicationField::ESNcardNumber), ['applies_to_count' => 1, 'usage_count' => 5]);
         }
 
-        if ($moduleConfig->get('switch_google_sheets') ?? FALSE) {
+        if ($moduleSettings->getGoogleSheetsSwitch()) {
             if (!$isManual) {
                 $paymentMethod = 'Stripe';
 
                 $mobilityStatus = $application->getValue(ApplicationField::MobilityStatus);
                 $isESNer = $mobilityStatus == 'ESN Volunteer' || $mobilityStatus == 'ESN Alumnus';
                 try {
-                    $priceFloat = $this->stripeService->getPriceAmount($isESNer);
-                    $price = number_format($priceFloat, 2, '.', '');
+                    if ($priceFloat = $this->stripeService->getPriceAmount($isESNer)) {
+                        $price = number_format($priceFloat, 2, '.', '');
+                    } else {
+                        $price = 'Unknown';
+                    }
                 } catch (Exception) {
                     $price = 'Unknown';
                 }
@@ -251,7 +255,7 @@ class ESNcardService
             );
         }
 
-        if ($moduleConfig->get('switch_google_wallet') ?? FALSE) {
+        if ($moduleSettings->getGoogleWalletSwitch()) {
             $googleWalletLink = Url::fromRoute(
                 'esn_membership_manager.add_to_google_wallet',
                 ['identifier' => $application->getValue(ApplicationField::ESNcardNumber)],
@@ -259,7 +263,7 @@ class ESNcardService
             )->toString();
         }
 
-        if ($moduleConfig->get('switch_apple_wallet') ?? FALSE) {
+        if ($moduleSettings->getAppleWalletSwitch()) {
             $appleWalletLink = Url::fromRoute(
                 'esn_membership_manager.download_apple_pass',
                 ['identifier' => $application->getValue(ApplicationField::ESNcardNumber)],

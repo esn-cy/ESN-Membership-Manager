@@ -2,7 +2,7 @@
 
 namespace Drupal\esn_membership_manager\Entity\GuestPass;
 
-use Drupal\esn_membership_manager\Entity\FieldEnumInterface;
+use Drupal\esn_cyprus_core\Entity\FieldEnumInterface;
 
 enum GuestPassField: string implements FieldEnumInterface
 {

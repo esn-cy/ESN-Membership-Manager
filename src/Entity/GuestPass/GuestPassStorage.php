@@ -2,9 +2,9 @@
 
 namespace Drupal\esn_membership_manager\Entity\GuestPass;
 
-use Drupal\esn_membership_manager\Entity\EnumDrivenEntityStorage;
+use Drupal\esn_cyprus_core\Entity\EnumBackedEntityStorage;
 
-class GuestPassStorage extends EnumDrivenEntityStorage
+class GuestPassStorage extends EnumBackedEntityStorage
 {
     public function load($id): ?GuestPassInterface
     {

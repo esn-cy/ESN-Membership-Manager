@@ -3,12 +3,15 @@
 namespace Drupal\esn_membership_manager\Page;
 
 use Drupal\Core\Controller\ControllerBase;
+use Drupal\esn_cyprus_core\Config\CoreSettings;
+use Drupal\esn_membership_manager\Config\ModuleSettings;
 
 class LegalPages extends ControllerBase
 {
     public function tosPage(): array
     {
-        $moduleConfig = $this->config('esn_membership_manager.settings');
+        $this->config('');
+        $coreSettings = new CoreSettings($this->configFactory);
 
         $content = "
       <h1>Terms of Service</h1>
@@ -29,7 +32,7 @@ class LegalPages extends ControllerBase
       <h3>3. User Responsibilities</h3>
       <p>You agree to provide accurate, current, and complete information during the application process. You are responsible for maintaining the confidentiality of any authentication links or digital passes issued to you. Your submission of personal data, identity documents, and face photos is governed by our Privacy Policy, which details our strict data retention and automated deletion procedures.</p>
       <h3>4. Payments and Refunds</h3>
-      <p>All online payments are processed securely through Stripe. We do not store your credit card information. Refund policies are subject to {$moduleConfig->get('organisation_name')}'s specific bylaws.</p>
+      <p>All online payments are processed securely through Stripe. We do not store your credit card information. Refund policies are subject to {$coreSettings->getOrganisationName()}'s specific bylaws.</p>
       <h3>5. Third-Party Integrations</h3>
       <p>Our service relies on third-party platforms to deliver full functionality, including Stripe (payments), Didit (identity verification), Weeztix (ticketing integration), and Google Sheets (administrative logging). Furthermore, we issue passes compatible with Apple Wallet and Google Wallet. Your use of these specific features is also subject to the respective terms of service and privacy policies of those external providers.</p>
       <h3>6. Termination or Revocation</h3>
@@ -48,12 +51,14 @@ class LegalPages extends ControllerBase
 
     public function privacyPage(): array
     {
-        $moduleConfig = $this->config('esn_membership_manager.settings');
+        $this->config('');
+        $moduleSettings = new ModuleSettings($this->configFactory);
+        $coreSettings = new CoreSettings($this->configFactory);
 
         $content = "
       <h1>Privacy Policy</h1>
       <p><b>Last Updated: </b>18/05/2026</p>
-      <p>This Privacy Policy explains how ESN Membership Manager (\"we,\" \"us,\" or \"our\"), operated by {$moduleConfig->get('organisation_name')}, collects, uses, shares, and protects your personal information when you use our platform to apply for, manage, and use your ESNcard and {$moduleConfig->get('scheme_name')}.</p>
+      <p>This Privacy Policy explains how ESN Membership Manager (\"we,\" \"us,\" or \"our\"), operated by {$coreSettings->getOrganisationName()}, collects, uses, shares, and protects your personal information when you use our platform to apply for, manage, and use your ESNcard and {$moduleSettings->getPassName()}.</p>
       <h3>1. Information We Collect</h3>
       <p>To provide you with our services, we collect the following personal information during the application process:</p>
       <ul>
@@ -65,8 +70,8 @@ class LegalPages extends ControllerBase
       <h3>2. How We Use Your Information</h3>
       <p>We use your data strictly to:</p>
       <ul>
-        <li>Verify your eligibility for the ESNcard or {$moduleConfig->get('scheme_name')}.</li>
-        <li>Issue and manage your membership, including physical ESNcards, digital {$moduleConfig->get('scheme_name')}, and Guest Passes.</li>
+        <li>Verify your eligibility for the ESNcard or {$moduleSettings->getPassName()}.</li>
+        <li>Issue and manage your membership, including physical ESNcards, digital {$moduleSettings->getPassName()}, and Guest Passes.</li>
         <li>Process payments for your membership.</li>
         <li>Prevent fraud and ensure compliance with ESN guidelines.</li>
       </ul>
@@ -98,7 +103,7 @@ class LegalPages extends ControllerBase
       <li><b>Restriction & Objection: </b>Object to or restrict the processing of your data.</li>
       </ul>
       <h3>6. Contact Us</h3>
-      <p>If you have any questions about this Privacy Policy, how your data is handled, or if you wish to exercise your data rights, please contact the Web Projects Administrator of {$moduleConfig->get('organisation_name')}.</p>
+      <p>If you have any questions about this Privacy Policy, how your data is handled, or if you wish to exercise your data rights, please contact the Web Projects Administrator of {$coreSettings->getOrganisationName()}.</p>
     ";
 
         return [

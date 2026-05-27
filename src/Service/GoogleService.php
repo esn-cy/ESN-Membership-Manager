@@ -6,16 +6,16 @@ use DateInterval;
 use DateTimeInterface;
 use Drupal\Core\Config\ConfigFactoryInterface;
 use Drupal\Core\Logger\LoggerChannelFactoryInterface;
-use Drupal\Core\Logger\LoggerChannelInterface;
+use Drupal\esn_cyprus_core\Config\CoreSettings;
+use Drupal\esn_cyprus_core\Service\FileServiceBase;
+use Drupal\esn_cyprus_core\Service\GoogleServiceBase;
+use Drupal\esn_membership_manager\Config\ModuleSettings;
 use Drupal\esn_membership_manager\Entity\Application\ApplicationField;
 use Drupal\esn_membership_manager\Entity\Application\ApplicationInterface;
 use Drupal\esn_membership_manager\Entity\GuestPass\GuestPassInterface;
 use Exception;
-use Firebase\JWT\JWT;
-use Google\Client as GoogleClient;
 use Google\Service\Sheets;
 use Google\Service\Sheets\ValueRange;
-use Google\Service\Walletobjects;
 use Google\Service\Walletobjects\Barcode;
 use Google\Service\Walletobjects\GenericClass;
 use Google\Service\Walletobjects\GenericObject;
@@ -26,75 +26,20 @@ use Google\Service\Walletobjects\TimeInterval;
 use Google\Service\Walletobjects\TranslatedString;
 use GuzzleHttp\Exception\GuzzleException;
 
-class GoogleService
+class GoogleService extends GoogleServiceBase
 {
-    protected ConfigFactoryInterface $configFactory;
-    protected FileService $fileService;
-    protected LoggerChannelInterface $logger;
-    protected ?GoogleClient $client = NULL;
-    protected ?Walletobjects $walletService = NULL;
     protected string $cardClassID = '';
     protected string $passClassID = '';
     protected string $guestClassID = '';
 
     public function __construct(
         ConfigFactoryInterface        $configFactory,
-        FileService $fileService,
+        FileServiceBase $fileService,
         LoggerChannelFactoryInterface $loggerFactory
     )
     {
-        $this->configFactory = $configFactory;
-        $this->fileService = $fileService;
+        parent::__construct($configFactory, $fileService, $loggerFactory);
         $this->logger = $loggerFactory->get('esn_membership_manager');
-    }
-
-
-    protected function getClient(): ?GoogleClient
-    {
-        if ($this->client) {
-            return $this->client;
-        }
-
-        $moduleConfig = $this->configFactory->get('esn_membership_manager.settings');
-
-        $clientEmail = $moduleConfig->get('google_client_email');
-        $privateKey = $moduleConfig->get('google_private_key');
-
-        if (empty($clientEmail) || empty($privateKey)) {
-            $this->logger->error('Google Service Account credentials were not configured.');
-            return NULL;
-        }
-
-        $privateKey = str_replace("\\n", "\n", $privateKey);
-
-        $authConfig = [
-            'type' => 'service_account',
-            'project_id' => $moduleConfig->get('google_project_id'),
-            'private_key_id' => $moduleConfig->get('google_private_key_id'),
-            'private_key' => $privateKey,
-            'client_email' => $clientEmail,
-            'client_id' => $moduleConfig->get('google_client_id'),
-            'auth_uri' => 'https://accounts.google.com/o/oauth2/auth',
-            'token_uri' => 'https://oauth2.googleapis.com/token',
-            'auth_provider_x509_cert_url' => 'https://www.googleapis.com/oauth2/v1/certs',
-            'client_x509_cert_url' => 'https://www.googleapis.com/robot/v1/metadata/x509/' . urlencode($clientEmail),
-        ];
-
-        try {
-            $client = new GoogleClient();
-            $client->setApplicationName('ESN Membership Manager');
-            $client->setScopes([Sheets::SPREADSHEETS, Walletobjects::WALLET_OBJECT_ISSUER]);
-            $client->setAuthConfig($authConfig);
-            $client->setAccessType('offline');
-            $this->client = $client;
-
-            $this->walletService = new Walletobjects($this->client);
-
-            return $client;
-        } catch (Exception $e) {
-            $this->logger->error('Failed to initialize Google Client: @message', ['@message' => $e->getMessage()]);
-            return NULL;
-        }
     }
 
     public function appendRow(array $data): bool
@@ -104,9 +49,9 @@ class GoogleService
             return FALSE;
         }
 
-        $config = $this->configFactory->get('esn_membership_manager.settings');
-        $spreadsheetId = $config->get('google_spreadsheet_id');
-        $range = $config->get('google_sheet_name') ?: 'Data' . '!A:H';
+        $moduleSettings = new ModuleSettings($this->configFactory);
+        $spreadsheetId = $moduleSettings->getSpreadsheetID();
+        $range = $moduleSettings->getSheetName() . '!A:H';
 
         $service = new Sheets($client);
 
@@ -148,67 +93,16 @@ class GoogleService
     /**
      * @throws Exception
      */
-    private function getClass(string $type): ?string
-    {
-        switch ($type) {
-            case 'card':
-                if (!empty($this->cardClassID)) {
-                    return $this->cardClassID;
-                }
-                break;
-            case 'pass':
-                if (!empty($this->passClassID)) {
-                    return $this->passClassID;
-                }
-                break;
-            case 'guest':
-                if (!empty($this->guestClassID)) {
-                    return $this->guestClassID;
-                }
-                break;
-            default:
-                throw new Exception("Unsupported class type");
-        }
-
-        $client = $this->getClient();
-        if (!$client)
-            throw new Exception('Google Service Account credentials were not configured.');
-
-        $config = $this->configFactory->get('esn_membership_manager.settings');
-        $issuerID = $config->get('google_issuer_id');
-        $classID = "$issuerID.esn_membership_manager_$type";
-
-        try {
-            $this->walletService->genericclass->get($classID);
-            switch ($type) {
-                case 'card':
-                    $this->cardClassID = $classID;
-                    break;
-                case 'pass':
-                    $this->passClassID = $classID;
-                    break;
-                case 'guest':
-                    $this->guestClassID = $classID;
-                    break;
-            }
-            return $classID;
-        } catch (\Google\Service\Exception $error) {
-            if (empty($error->getErrors()) || $error->getErrors()[0]['reason'] != 'classNotFound') {
-                throw $error;
-            }
-        }
-        return "CLASS_NOT_FOUND_$classID";
-    }
-
-
-    /**
-     * @throws Exception
-     */
     public function getESNcardClass(): string
     {
-        $classID = $this->getClass('card');
-        if (str_starts_with($classID, 'CLASS_NOT_FOUND_')) {
-            $classID = str_replace('CLASS_NOT_FOUND_', '', $classID);
+        if (!empty($this->cardClassID)) {
+            return $this->cardClassID;
+        }
+
+        $classID = $this->getClass('esn_membership_manager_card');
+        if (empty($classID)) {
+            $coreSettings = new CoreSettings($this->configFactory);
+            $classID = "{$coreSettings->getGoogleIssuerID()}.esn_membership_manager_card";
             $class = new GenericClass([
                 'id' => $classID,
                 'classTemplateInfo' => [
@@ -254,9 +148,7 @@ class GoogleService
                 'viewUnlockRequirement' => 'UNLOCK_NOT_REQUIRED'
             ]);
 
-            $response = $this->walletService->genericclass->insert($class);
-            $this->passClassID = $response->id;
-            return $response->id;
+            return $this->createClass($class);
         } else {
             return $classID;
         }
@@ -268,9 +160,14 @@ class GoogleService
      */
     private function getPassClass(): string
     {
-        $classID = $this->getClass('pass');
-        if (str_starts_with($classID, 'CLASS_NOT_FOUND_')) {
-            $classID = str_replace('CLASS_NOT_FOUND_', '', $classID);
+        if (!empty($this->passClassID)) {
+            return $this->passClassID;
+        }
+
+        $classID = $this->getClass('esn_membership_manager_pass');
+        if (empty($classID)) {
+            $coreSettings = new CoreSettings($this->configFactory);
+            $classID = "{$coreSettings->getGoogleIssuerID()}.esn_membership_manager_pass";
             $class = new GenericClass([
                 'id' => $classID,
                 'classTemplateInfo' => [
@@ -310,9 +207,7 @@ class GoogleService
                 'viewUnlockRequirement' => 'UNLOCK_NOT_REQUIRED'
             ]);
 
-            $response = $this->walletService->genericclass->insert($class);
-            $this->passClassID = $response->id;
-            return $response->id;
+            return $this->createClass($class);
         } else {
             return $classID;
         }
@@ -324,9 +219,14 @@ class GoogleService
      */
     private function getGuestPassClass(): string
     {
-        $classID = $this->getClass('guest');
-        if (str_starts_with($classID, 'CLASS_NOT_FOUND_')) {
-            $classID = str_replace('CLASS_NOT_FOUND_', '', $classID);
+        if (!empty($this->guestClassID)) {
+            return $this->guestClassID;
+        }
+
+        $classID = $this->getClass('esn_membership_manager_guest');
+        if (empty($classID)) {
+            $coreSettings = new CoreSettings($this->configFactory);
+            $classID = "{$coreSettings->getGoogleIssuerID()}.esn_membership_manager_guest";
             $class = new GenericClass([
                 'id' => $classID,
                 'classTemplateInfo' => [
@@ -401,77 +301,26 @@ class GoogleService
                 'viewUnlockRequirement' => 'UNLOCK_NOT_REQUIRED'
             ]);
 
-            $response = $this->walletService->genericclass->insert($class);
-            $this->guestClassID = $response->id;
-            return $response->id;
+            return $this->createClass($class);
         } else {
             return $classID;
         }
     }
 
     /**
-     * @throws Exception
-     */
-    private function getLink(string $objectID): string
-    {
-        if (!$this->getClient())
-            throw new Exception('Google Service Account credentials were not configured.');
-
-        $moduleConfig = $this->configFactory->get('esn_membership_manager.settings');
-
-        $clientEmail = $moduleConfig->get('google_client_email');
-        $privateKey = $moduleConfig->get('google_private_key');
-
-        $claims = [
-            'iss' => $clientEmail,
-            'aud' => 'google',
-            'origins' => ['esncy.org'],
-            'typ' => 'savetowallet',
-            'payload' => [
-                'genericObjects' => [
-                    ['id' => $objectID]
-                ]
-            ]
-        ];
-
-        $token = JWT::encode(
-            $claims,
-            $privateKey,
-            'RS256'
-        );
-
-        return "https://pay.google.com/gp/v/save/$token";
-    }
-
-    /**
      * @throws \Google\Service\Exception
-     * @throws Exception
      * @throws GuzzleException
      */
-    public function getESNcardObject(ApplicationInterface $application): string
+    public function getESNcardObject(ApplicationInterface $application): ?string
     {
-        if (!$this->getClient())
-            throw new Exception('Google Service Account credentials were not configured.');
-
-        $config = $this->configFactory->get('esn_membership_manager.settings');
-        $issuerID = $config->get('google_issuer_id');
-
-        $objectID = "$issuerID.esncard-{$application->id()}";
-        try {
-            $this->walletService->genericobject->get($objectID);
-            return $this->getLink($objectID);
-        } catch (\Google\Service\Exception $error) {
-            if (empty($error->getErrors()) || $error->getErrors()[0]['reason'] != 'resourceNotFound') {
-                throw $error;
-            }
+        $link = $this->getObject("esncard-{$application->id()}");
+        if (empty($link)) {
+            $object = $this->createESNcardObject($application);
+            return $this->createObject($object);
+        } else {
+            return $link;
         }
-
-        $object = $this->createESNcardObject($application);
-
-        $this->walletService->genericobject->insert($object);
-        return $this->getLink($objectID);
     }
-
 
     /**
      * @throws \Google\Service\Exception
@@ -480,10 +329,9 @@ class GoogleService
      */
     private function createESNcardObject(ApplicationInterface $application): GenericObject
     {
-        $config = $this->configFactory->get('esn_membership_manager.settings');
-        $issuerID = $config->get('google_issuer_id');
+        $coreSettings = new CoreSettings($this->configFactory);
 
-        $objectID = "$issuerID.esncard-{$application->id()}";
+        $objectID = "{$coreSettings->getGoogleIssuerID()}.esncard-{$application->id()}";
         $classID = $this->getESNcardClass();
         $paidDate = $application->getDatePaid();
         $paidDate->setTime(0, 0);
@@ -592,30 +440,17 @@ class GoogleService
 
     /**
      * @throws \Google\Service\Exception
-     * @throws Exception
+     * @throws GuzzleException
      */
     public function getFreePassObject(ApplicationInterface $application): string
     {
-        if (!$this->getClient())
-            throw new Exception('Google Service Account credentials were not configured.');
-
-        $config = $this->configFactory->get('esn_membership_manager.settings');
-        $issuerID = $config->get('google_issuer_id');
-
-        $objectID = "$issuerID.free_pass-{$application->id()}";
-        try {
-            $this->walletService->genericobject->get($objectID);
-            return $this->getLink($objectID);
-        } catch (\Google\Service\Exception $error) {
-            if (empty($error->getErrors()) || $error->getErrors()[0]['reason'] != 'resourceNotFound') {
-                throw $error;
-            }
+        $link = $this->getObject("pass-{$application->id()}");
+        if (empty($link)) {
+            $object = $this->createFreePassObject($application);
+            return $this->createObject($object);
+        } else {
+            return $link;
         }
-
-        $object = $this->createFreePassObject($application);
-
-        $this->walletService->genericobject->insert($object);
-        return $this->getLink($objectID);
     }
 
 
@@ -625,10 +460,10 @@ class GoogleService
      */
     private function createFreePassObject(ApplicationInterface $application): GenericObject
     {
-        $config = $this->configFactory->get('esn_membership_manager.settings');
-        $issuerID = $config->get('google_issuer_id');
+        $moduleSettings = new ModuleSettings($this->configFactory);
+        $coreSettings = new CoreSettings($this->configFactory);
 
-        $objectID = "$issuerID.free_pass-{$application->id()}";
+        $objectID = "{$coreSettings->getGoogleIssuerID()}.pass-{$application->id()}";
         $classID = $this->getPassClass();
         $approvedDate = $application->getDateApproved();
         $approvedDate->setTime(0, 0);
@@ -639,7 +474,7 @@ class GoogleService
             'cardTitle' => new LocalizedString([
                 'defaultValue' => new TranslatedString([
                     'language' => 'en-US',
-                    'value' => $config->get('scheme_name')
+                    'value' => $moduleSettings->getPassName()
                 ])
             ]),
             'subheader' => new LocalizedString([
@@ -717,30 +552,17 @@ class GoogleService
 
     /**
      * @throws \Google\Service\Exception
-     * @throws Exception
+     * @throws GuzzleException
      */
     public function getGuestPassObject(GuestPassInterface $guestPass, ApplicationInterface $referrer): string
     {
-        if (!$this->getClient())
-            throw new Exception('Google Service Account credentials were not configured.');
-
-        $config = $this->configFactory->get('esn_membership_manager.settings');
-        $issuerID = $config->get('google_issuer_id');
-
-        $objectID = "$issuerID.guest_pass-{$guestPass->id()}";
-        try {
-            $this->walletService->genericobject->get($objectID);
-            return $this->getLink($objectID);
-        } catch (\Google\Service\Exception $error) {
-            if (empty($error->getErrors()) || $error->getErrors()[0]['reason'] != 'resourceNotFound') {
-                throw $error;
-            }
+        $link = $this->getObject("guest-{$guestPass->id()}");
+        if (empty($link)) {
+            $object = $this->createGuestPassObject($guestPass, $referrer);
+            return $this->createObject($object);
+        } else {
+            return $link;
         }
-
-        $object = $this->createGuestPassObject($guestPass, $referrer);
-
-        $this->walletService->genericobject->insert($object);
-        return $this->getLink($objectID);
     }
 
 
@@ -750,10 +572,10 @@ class GoogleService
      */
     private function createGuestPassObject(GuestPassInterface $guestPass, ApplicationInterface $referrer): GenericObject
     {
-        $config = $this->configFactory->get('esn_membership_manager.settings');
-        $issuerID = $config->get('google_issuer_id');
+        $moduleSettings = new ModuleSettings($this->configFactory);
+        $coreSettings = new CoreSettings($this->configFactory);
 
-        $objectID = "$issuerID.guest_pass-{$guestPass->id()}";
+        $objectID = "{$coreSettings->getGoogleIssuerID()}.guest-{$guestPass->id()}";
         $classID = $this->getGuestPassClass();
         $approvedDate = $guestPass->getDateApproved();
         $expiryDate = (clone $approvedDate)->add(new DateInterval("P7D"));
@@ -763,7 +585,7 @@ class GoogleService
             'cardTitle' => new LocalizedString([
                 'defaultValue' => new TranslatedString([
                     'language' => 'en-US',
-                    'value' => $config->get('guest_scheme_name')
+                    'value' => $moduleSettings->getGuestPassName()
                 ])
             ]),
             'subheader' => new LocalizedString([
@@ -837,28 +659,8 @@ class GoogleService
      * @throws GuzzleException
      * @throws Exception
      */
-    public function updateObject(ApplicationInterface|GuestPassInterface $application, string $type, ?ApplicationInterface $referrer = null): bool
+    public function updateApplicationObject(ApplicationInterface|GuestPassInterface $application, string $type, ?ApplicationInterface $referrer = null): bool
     {
-        $client = $this->getClient();
-        if (!$client)
-            throw new Exception('Google Service Account credentials were not configured.');
-
-        $config = $this->configFactory->get('esn_membership_manager.settings');
-        $issuerID = $config->get('google_issuer_id');
-
-        $objectID = match ($type) {
-            'card' => "$issuerID.esncard-{$application->id()}",
-            'pass' => "$issuerID.free_pass-{$application->id()}",
-            'guest' => "$issuerID.guest_pass-{$application->id()}",
-            default => throw new Exception('Unsupported application type.'),
-        };
-
-        try {
-            @$this->walletService->genericobject->get($objectID);
-        } catch (\Google\Service\Exception) {
-            return true;
-        }
-
         $updateObject = match ($type) {
             'card' => $this->createESNcardObject($application),
             'pass' => $this->createFreePassObject($application),
@@ -866,99 +668,23 @@ class GoogleService
             default => throw new Exception('Unsupported application type.'),
         };
 
-        try {
-            @$this->walletService->genericobject->update($objectID, $updateObject);
-        } catch (\Google\Service\Exception) {
-            return false;
-        }
-        return true;
+        return $this->updateObject($updateObject);
     }
 
     /**
      * @throws Exception
      */
-    public function deleteObject(string $applicationID, string $type): bool
+    public function deleteApplicationObject(string $applicationID, string $type): bool
     {
-        $client = $this->getClient();
-        if (!$client)
-            throw new Exception('Google Service Account credentials were not configured.');
-
-        $config = $this->configFactory->get('esn_membership_manager.settings');
-        $issuerID = $config->get('google_issuer_id');
+        $coreSettings = new CoreSettings($this->configFactory);
 
         $objectID = match ($type) {
-            'card' => "$issuerID.esncard-$applicationID",
-            'pass' => "$issuerID.free_pass-$applicationID",
-            'guest' => "$issuerID.guest_pass-$applicationID",
+            'card' => "{$coreSettings->getGoogleIssuerID()}.esncard-$applicationID",
+            'pass' => "{$coreSettings->getGoogleIssuerID()}.pass-$applicationID",
+            'guest' => "{$coreSettings->getGoogleIssuerID()}.guest-$applicationID",
             default => throw new Exception('Unsupported application type.'),
         };
 
-        try {
-            @$this->walletService->genericobject->get($objectID);
-        } catch (\Google\Service\Exception) {
-            return true;
-        }
-
-        $patchObject = new GenericObject([]);
-        $patchObject->setState('EXPIRED');
-        $patchObject->setTextModulesData([]);
-        $patchObject->setImageModulesData([]);
-        $patchObject->setHeader(new LocalizedString([
-            'defaultValue' => new TranslatedString([
-                'language' => 'en-US',
-                'value' => ''
-            ])
-        ]));
-
-        try {
-            $this->walletService->genericobject->patch($objectID, $patchObject);
-        } catch (\Google\Service\Exception) {
-            return false;
-        }
-        return true;
-    }
-
-    /**
-     * @throws Exception
-     * @throws GuzzleException
-     */
-    private function uploadPrivateImage(string $fileID): string
-    {
-        $mimeType = $this->fileService->getFileMimeType($fileID);
-        $imageContents = $this->fileService->readFile($fileID);
-        if (empty($mimeType) || empty($imageContents)) {
-            throw new Exception("Unable to read the image file.");
-        }
-
-        $client = $this->getClient();
-        if (!$client) {
-            throw new Exception('Google Service Account credentials were not configured.');
-        }
-
-        $moduleConfig = $this->configFactory->get('esn_membership_manager.settings');
-        $issuerID = $moduleConfig->get('google_issuer_id');
-        if (empty($issuerID)) {
-            throw new Exception('Google Wallet Issuer ID is missing from settings.');
-        }
-
-        $httpClient = $client->authorize();
-        $response = $httpClient->request('POST', "https://walletobjects.googleapis.com/upload/walletobjects/v1/privateContent/$issuerID/uploadPrivateImage", [
-            'headers' => [
-                'Content-Type' => $mimeType,
-            ],
-            'body' => $imageContents,
-        ]);
-
-        $status = $response->getStatusCode();
-        if ($status < 200 || $status >= 300) {
-            throw new Exception("Failed to upload private image to Google Wallet. HTTP Status: $status");
-        }
-
-        $result = json_decode((string)$response->getBody(), TRUE);
-        if (empty($result['privateImageId'])) {
-            throw new Exception("Could not retrieve privateImageId from response.");
-        }
-
-        return $result['privateImageId'];
+        return $this->deleteObject($objectID);
     }
 }

@@ -52,7 +52,7 @@ class StripeWebhookController extends ControllerBase
     public function handleWebhook(Request $request): Response
     {
         try {
-            $event = $this->stripeService->createWebhookEvent($request);
+            $event = $this->stripeService->createApplicationWebhookEvent($request);
         } catch (Exception $e) {
             $this->logger->error('Unable to construct webhook event: @message', ['@message' => $e->getMessage()]);
             return new Response('Webhook failed: Unable to construct webhook event', 400);

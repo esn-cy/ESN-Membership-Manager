@@ -3,10 +3,10 @@
 namespace Drupal\esn_membership_manager\Entity\GuestPass;
 
 use Drupal\Core\Datetime\DrupalDateTime;
+use Drupal\esn_cyprus_core\Entity\EnumBackedEntityInterface;
 use Drupal\esn_membership_manager\Entity\Application\ApplicationInterface;
-use Drupal\esn_membership_manager\Entity\EnumDrivenEntityInterface;
 
-interface GuestPassInterface extends EnumDrivenEntityInterface
+interface GuestPassInterface extends EnumBackedEntityInterface
 {
     /**
      * Retrieves the Application entity that referred this guest pass.

@@ -19,6 +19,8 @@ use Drupal\Core\Logger\LoggerChannelInterface;
 use Drupal\Core\Render\Markup;
 use Drupal\Core\Url;
 use Drupal\esn_accounts_api\Entity\Organisation;
+use Drupal\esn_cyprus_core\Config\CoreSettings;
+use Drupal\esn_membership_manager\Config\ModuleSettings;
 use Drupal\esn_membership_manager\Entity\Application\ApplicationField;
 use Drupal\esn_membership_manager\Entity\Application\ApplicationInterface;
 use Drupal\esn_membership_manager\Entity\Application\ApplicationStorage;
@@ -123,7 +125,8 @@ class ApplicationForm extends FormBase
      */
     public function buildForm(array $form, FormStateInterface $form_state): array
     {
-        $moduleConfig = $this->config('esn_membership_manager.settings');
+        $coreSettings = new CoreSettings($this->configFactory());
+        $moduleSettings = new ModuleSettings($this->configFactory());
 
         $form['#prefix'] = '<div id="application-form-wrapper">';
         $form['#suffix'] = '</div>';
@@ -134,7 +137,7 @@ class ApplicationForm extends FormBase
 
         $form_state->disableCache();
 
-        $schemeName = $moduleConfig->get('scheme_name');
+        $passName = $moduleSettings->getPassName();
 
         $session = $this->getRequest()->getSession();
         $savedData = $session->get('application_form_saved_data', []);
@@ -160,11 +163,11 @@ class ApplicationForm extends FormBase
             $form['#attached']['library'][] = 'esn_membership_manager/login_form';
         }
 
-        $headerMarkup = '<h2>' . $this->t('Apply for an ESNcard / @scheme', ['@scheme' => $schemeName]) . '</h2>';
+        $headerMarkup = '<h2>' . $this->t('Apply for an ESNcard / @scheme', ['@scheme' => $passName]) . '</h2>';
         if ($isCodeVerified) {
             $headerMarkup .=
-                '<p>' . $this->t('The @scheme is your digital identifier. It verifies your status as a mobility participant and grants you access to exclusive events.', ['@scheme' => $schemeName]) . '</p>' .
-                '<p>' . $this->t('The ESNcard is the official physical membership card of the Erasmus Student Network. It provides all the benefits of the @scheme, plus access to thousands of discounts at major brands and local businesses across Europe.', ['@scheme' => $schemeName]) . '</p>';
+                '<p>' . $this->t('The @scheme is your digital identifier. It verifies your status as a mobility participant and grants you access to exclusive events.', ['@scheme' => $passName]) . '</p>' .
+                '<p>' . $this->t('The ESNcard is the official physical membership card of the Erasmus Student Network. It provides all the benefits of the @scheme, plus access to thousands of discounts at major brands and local businesses across Europe.', ['@scheme' => $passName]) . '</p>';
         }
 
         $form['header'] = [
@@ -265,7 +268,7 @@ class ApplicationForm extends FormBase
         ];
 
         $personalFieldsDisabled = false;
-        if (($moduleConfig->get('switch_didit') ?? false) && !empty($application)) {
+        if ($moduleSettings->getDiditSwitch() && !empty($application)) {
             $verificationData = $session->get('application_form_verification_data', []);
             $verificationData['id_verification_token'] = $application['didit_session_token'];
             $session->set('application_form_verification_data', $verificationData);
@@ -300,6 +303,8 @@ class ApplicationForm extends FormBase
                         $form['personal_details']['verified_status'] = [
                             '#markup' => Markup::create('<p class="alert alert-warning">' . $this->t('There was an issue verifying your identity. Please fill in the following fields manually.') . '</p>'),
                         ];
+                        break;
+                    case 'Not Started':
                         break;
                     default:
                         $form['personal_details']['verified_status'] = [
@@ -402,8 +407,8 @@ class ApplicationForm extends FormBase
             $organisations = $this->entityTypeManager->getStorage('esn_organisation');
             $sections = [];
 
-            if (!($moduleConfig->get('section_mode') ?? null)) {
-                $noID = $moduleConfig->get('national_organisation_id');
+            if (!$coreSettings->getSectionMode()) {
+                $noID = $coreSettings->getNationalOrganisationID();
                 /** @var Organisation $nationalOrganisation */
                 $nationalOrganisation = $organisations->load($noID);
                 if ($nationalOrganisation) {
@@ -416,7 +421,7 @@ class ApplicationForm extends FormBase
                     ksort($sections);
                 }
             } else {
-                $sectionName = $moduleConfig->get('organisation_name');
+                $sectionName = $coreSettings->getNationalOrganisationID();
                 if ($sectionName) {
                     $sections[$sectionName] = $sectionName;
                 }
@@ -493,7 +498,7 @@ class ApplicationForm extends FormBase
                         break;
                     case 'Foreign Roles':
                         $form['mobility_details']['verified_status'] = [
-                            '#markup' => Markup::create('<p class="alert alert-warning">' . $this->t("You don't have any roles in {$moduleConfig->get('organisation_name')}. Please fill in the following fields manually.") . '</p>'),
+                            '#markup' => Markup::create('<p class="alert alert-warning">' . $this->t("You don't have any roles in {$coreSettings->getOrganisationName()}. Please fill in the following fields manually.") . '</p>'),
                         ];
                         break;
                     case 'Success':
@@ -898,6 +903,10 @@ class ApplicationForm extends FormBase
         return $response;
     }
 
+    /**
+     * @noinspection PhpParameterByRefIsNotUsedAsReferenceInspection
+     * @noinspection PhpUnusedParameterInspection
+     */
     public function redirectToESNAccounts(array &$form, FormStateInterface $form_state): AjaxResponse
     {
         $response = new AjaxResponse();
@@ -1013,7 +1022,7 @@ class ApplicationForm extends FormBase
         foreach ($filesExpected as $fileKey) {
             $fileID = $values[$fileKey][0] ?? null;
 
-            if ($this->fileService->saveFile($fileID, null)) {
+            if ($this->fileService->saveApplicationFile($fileID, null)) {
                 $filesSaved[] = $fileKey;
             }
         }
@@ -1021,7 +1030,7 @@ class ApplicationForm extends FormBase
         if (count($filesExpected) != count($filesSaved)) {
             $this->messenger()->addError($this->t('An error occurred while saving your files. Please try again.'));
             foreach ($filesSaved as $savedFile) {
-                $this->fileService->deleteFile($values[$savedFile][0] ?? null, null);
+                $this->fileService->deleteApplicationFile($values[$savedFile][0] ?? null, null);
             }
             return;
         }
@@ -1076,7 +1085,7 @@ class ApplicationForm extends FormBase
         }
         if ($isVerifiedID) {
             $pdfData = $this->diditService->getPDF($application['didit_session_id']);
-            $values['id_document'][0] = $this->fileService->createFile($pdfData, "membership://temp_uploads", "id_document_{$application['id']}.pdf", null);
+            $values['id_document'][0] = $this->fileService->createApplicationFile($pdfData, "membership://temp_uploads", "id_document_{$application['id']}.pdf", null);
         }
         $fields[ApplicationField::IdentityDocumentFileID->value] = $values['id_document'][0];
         if ($hasESNcard) {
@@ -1112,11 +1121,11 @@ class ApplicationForm extends FormBase
             }
         } catch (Exception $e) {
             if (!$isVerifiedStatus) {
-                $this->fileService->deleteFile($values['proof_of_status'][0] ?? null, $savedApplication?->id());
+                $this->fileService->deleteApplicationFile($values['proof_of_status'][0] ?? null, $savedApplication?->id());
             }
-            $this->fileService->deleteFile($values['id_document'][0] ?? null, $savedApplication?->id());
+            $this->fileService->deleteApplicationFile($values['id_document'][0] ?? null, $savedApplication?->id());
             if ($hasESNcard) {
-                $this->fileService->deleteFile($values['face_photo'][0] ?? null, $savedApplication?->id());
+                $this->fileService->deleteApplicationFile($values['face_photo'][0] ?? null, $savedApplication?->id());
             }
             $this->messenger()->addError($this->t('Error saving application. Please try again.'));
             $this->logger->error($e->getMessage());
@@ -1125,7 +1134,7 @@ class ApplicationForm extends FormBase
 
         foreach ($filesExpected as $fileKey) {
             $fileID = $values[$fileKey][0] ?? null;
-            $this->fileService->saveFile($fileID, $savedApplication->id());
+            $this->fileService->saveApplicationFile($fileID, $savedApplication->id());
         }
 
         if (!$hasESNcard && $isVerifiedStatus && $isVerifiedID) {

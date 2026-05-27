@@ -3,6 +3,7 @@
 use Drupal\Core\Logger\LoggerChannelInterface;
 use Drupal\Core\Render\Markup;
 use Drupal\Core\StreamWrapper\StreamWrapperManager;
+use Drupal\esn_membership_manager\Config\ModuleSettings;
 use Drupal\esn_membership_manager\Entity\Application\ApplicationField;
 use Drupal\esn_membership_manager\Entity\Application\ApplicationStorage;
 use Drupal\esn_membership_manager\Service\FileService;
@@ -114,9 +115,9 @@ function esn_membership_manager_theme($existing, $type, $theme, $path): array
  */
 function esn_membership_manager_mail($key, &$message, $params): void
 {
-    $config = Drupal::config('esn_membership_manager.settings');
-    $fromEmail = $config->get('email_from_address');
-    $fromName = $config->get('email_from_name');
+    $moduleSettings = new ModuleSettings(Drupal::configFactory());
+    $fromEmail = $moduleSettings->getEmailAddress();
+    $fromName = $moduleSettings->getEmailName();
 
     if ($fromEmail) {
         if ($fromName) {
@@ -280,7 +281,7 @@ function esn_membership_manager_cron(): void
 
         if (!empty($fidsToDelete)) {
             foreach ($fidsToDelete as $fieldName => $fid) {
-                if ($fileService->deleteFile($fid, $application->id())) {
+                if ($fileService->deleteApplicationFile($fid, $application->id())) {
                     try {
                         $application->setNull(ApplicationField::from($fieldName));
                         $application->save();

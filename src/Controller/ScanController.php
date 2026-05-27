@@ -6,6 +6,7 @@ use Drupal\Core\Controller\ControllerBase;
 use Drupal\Core\Datetime\DrupalDateTime;
 use Drupal\Core\Logger\LoggerChannelFactoryInterface;
 use Drupal\Core\Logger\LoggerChannelInterface;
+use Drupal\esn_membership_manager\Config\ModuleSettings;
 use Drupal\esn_membership_manager\Entity\Application\ApplicationField;
 use Drupal\esn_membership_manager\Entity\Application\ApplicationStorage;
 use Drupal\esn_membership_manager\Entity\GuestPass\GuestPassField;
@@ -106,6 +107,7 @@ class ScanController extends ControllerBase
 
         $profileImageURL = $this->fileService->getFileURL(!empty($application->getFacePhoto()) ? $application->getFacePhoto()->id() : null);
 
+        $lastScanDate = !empty($application->getDateLastScanned()) ? $application->getDateLastScanned()->format('Y-m-d') : null;
         $application->updateLastScanned();
 
         try {
@@ -122,14 +124,15 @@ class ScanController extends ControllerBase
             'mobilityStatus' => $application->getValue(ApplicationField::MobilityStatus),
             'datePaid' => !empty($application->getDatePaid()) ? $application->getDatePaid()->format('Y-m-d') : null,
             'dateApproved' => !empty($application->getDateApproved()) ? $application->getDateApproved()->format('Y-m-d') : null,
-            'lastScanDate' => !empty($application->getDateLastScanned()) ? $application->getDateLastScanned()->format('Y-m-d') : null,
+            'lastScanDate' => $lastScanDate,
             'profileImageURL' => $profileImageURL,
         ], 200);
     }
 
     protected function scanGuest(string $identifier): JsonResponse
     {
-        $moduleConfig = $this->config('esn_membership_manager.settings');
+        $this->config('');
+        $moduleSettings = new ModuleSettings($this->configFactory);
 
         try {
             /** @var GuestPassStorage $storage */
@@ -155,9 +158,9 @@ class ScanController extends ControllerBase
             return new JsonResponse(['status' => 'error', 'message' => 'Unable to update redeemed date.'], 500);
         }
 
-        if ($moduleConfig->get('switch_google_wallet') ?? FALSE) {
+        if ($moduleSettings->getGoogleWalletSwitch()) {
             try {
-                $this->googleService->deleteObject($guestPass->id(), 'guest');
+                $this->googleService->deleteApplicationObject($guestPass->id(), 'guest');
             } catch (Exception) {
             }
         }
