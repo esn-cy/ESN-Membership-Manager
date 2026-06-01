@@ -12,10 +12,8 @@ use Drupal\Core\Database\Connection;
 use Drupal\Core\Datetime\DrupalDateTime;
 use Drupal\Core\Entity\EntityTypeManagerInterface;
 use Drupal\Core\Extension\ModuleHandlerInterface;
-use Drupal\Core\Form\FormBase;
 use Drupal\Core\Form\FormStateInterface;
 use Drupal\Core\Logger\LoggerChannelFactoryInterface;
-use Drupal\Core\Logger\LoggerChannelInterface;
 use Drupal\Core\Render\Markup;
 use Drupal\Core\Url;
 use Drupal\esn_accounts_api\Entity\Organisation;
@@ -29,44 +27,35 @@ use Drupal\esn_membership_manager\Service\EmailManager;
 use Drupal\esn_membership_manager\Service\FileService;
 use Exception;
 use GuzzleHttp\ClientInterface;
-use GuzzleHttp\Exception\GuzzleException;
 use Symfony\Component\DependencyInjection\ContainerInterface;
-use TheNetworg\OAuth2\Client\Provider\Azure;
 
-class ApplicationForm extends FormBase
+class ApplicationForm extends AuthenticatedFormBase
 {
-    protected Connection $database;
     protected EmailManager $emailManager;
     protected ModuleHandlerInterface $moduleHandler;
     protected FileService $fileService;
-    protected ClientInterface $httpClient;
-    protected EntityTypeManagerInterface $entityTypeManager;
     protected ActionManager $actionManager;
-    protected LoggerChannelInterface $logger;
     protected DiditService $diditService;
 
     protected array $nationalities = [];
 
     public function __construct(
         Connection                    $database,
+        EntityTypeManagerInterface    $entityTypeManager,
+        ClientInterface               $httpClient,
+        LoggerChannelFactoryInterface $loggerFactory,
         EmailManager                  $emailManager,
         ModuleHandlerInterface        $moduleHandler,
         FileService                   $fileService,
-        ClientInterface               $httpClient,
-        EntityTypeManagerInterface $entityTypeManager,
-        ActionManager              $actionManager,
-        LoggerChannelFactoryInterface $loggerFactory,
+        ActionManager                 $actionManager,
         DiditService                  $diditService,
     )
     {
-        $this->database = $database;
+        parent::__construct($database, $entityTypeManager, $httpClient, $loggerFactory);
         $this->emailManager = $emailManager;
         $this->moduleHandler = $moduleHandler;
         $this->fileService = $fileService;
-        $this->httpClient = $httpClient;
-        $this->entityTypeManager = $entityTypeManager;
         $this->actionManager = $actionManager;
-        $this->logger = $loggerFactory->get('esn_membership_manager');
         $this->diditService = $diditService;
     }
 
@@ -74,6 +63,15 @@ class ApplicationForm extends FormBase
     {
         /** @var Connection $database */
         $database = $container->get('database');
+
+        /** @var EntityTypeManagerInterface $entityTypeManager */
+        $entityTypeManager = $container->get('entity_type.manager');
+
+        /** @var ClientInterface $httpClient */
+        $httpClient = $container->get('http_client');
+
+        /** @var LoggerChannelFactoryInterface $loggerFactory */
+        $loggerFactory = $container->get('logger.factory');
 
         /** @var EmailManager $emailManager */
         $emailManager = $container->get('esn_membership_manager.email_manager');
@@ -84,30 +82,21 @@ class ApplicationForm extends FormBase
         /** @var FileService $fileService */
         $fileService = $container->get('esn_membership_manager.file_service');
 
-        /** @var ClientInterface $httpClient */
-        $httpClient = $container->get('http_client');
-
-        /** @var EntityTypeManagerInterface $entityTypeManager */
-        $entityTypeManager = $container->get('entity_type.manager');
-
         /** @var ActionManager $actionManager */
         $actionManager = $container->get('plugin.manager.action');
-
-        /** @var LoggerChannelFactoryInterface $loggerFactory */
-        $loggerFactory = $container->get('logger.factory');
 
         /** @var DiditService $diditService */
         $diditService = $container->get('esn_membership_manager.didit_service');
 
         return new static(
             $database,
+            $entityTypeManager,
+            $httpClient,
+            $loggerFactory,
             $emailManager,
             $moduleHandler,
             $fileService,
-            $httpClient,
-            $entityTypeManager,
             $actionManager,
-            $loggerFactory,
             $diditService
         );
     }
@@ -120,6 +109,11 @@ class ApplicationForm extends FormBase
         return 'esn_membership_manager_application_form';
     }
 
+    protected function getAuthenticationType(): string
+    {
+        return 'register';
+    }
+
     /**
      * {@inheritdoc}
      */
@@ -128,40 +122,21 @@ class ApplicationForm extends FormBase
         $coreSettings = new CoreSettings($this->configFactory());
         $moduleSettings = new ModuleSettings($this->configFactory());
 
-        $form['#prefix'] = '<div id="application-form-wrapper">';
-        $form['#suffix'] = '</div>';
-
-        $form['#cache'] = [
-            'max-age' => 0,
-        ];
-
-        $form_state->disableCache();
+        $form = parent::buildForm($form, $form_state);
 
         $passName = $moduleSettings->getPassName();
 
         $session = $this->getRequest()->getSession();
         $savedData = $session->get('application_form_saved_data', []);
-        $verificationData = $session->get('application_form_verification_data', []);
+        $emailAuthenticationData = $session->get('email_authentication_data', []);
 
-        $email = strtolower($session->get('verified_email') ?? $savedData['email'] ?? $form_state->getValue('email') ?? '');
+        $email = strtolower($session->get('verified_email') ?? $emailAuthenticationData['email'] ?? $form_state->getValue('email') ?? '');
         if (empty($email)) {
             $savedData = [];
-            $verificationData = [];
-            $session->remove('application_form_saved_data');
             $session->remove('application_form_verification_data');
         }
 
-        $isCodeSent = !empty($verificationData['email_code_sent']) || $form_state->get('code_sent');
-        $isCodeVerified = !empty($verificationData['email_code_verified']) || $form_state->get('code_verified');
-        $emailExists = !empty($verificationData['email_exists']);
-
-        if ($isCodeVerified) {
-            $form['#attached']['library'][] = 'esn_membership_manager/application_form';
-            $form['#attributes']['class'][] = 'esn-membership-manager-form';
-        } else {
-            $form['#attributes']['class'][] = 'esn-membership-manager-login-form';
-            $form['#attached']['library'][] = 'esn_membership_manager/login_form';
-        }
+        $isCodeVerified = !empty($emailAuthenticationData['auth_success']) || $form_state->get('auth_success');
 
         $headerMarkup = '<h2>' . $this->t('Apply for an ESNcard / @scheme', ['@scheme' => $passName]) . '</h2>';
         if ($isCodeVerified) {
@@ -175,83 +150,27 @@ class ApplicationForm extends FormBase
             '#weight' => -30,
         ];
 
+        if (!$isCodeVerified) {
+            $this->addAuthenticationDialog($form, $form_state);
+            return $form;
+        }
+
+        $form['#attached']['library'][] = 'esn_membership_manager/application_form';
+        $form['#attributes']['class'][] = 'esn-membership-manager-form';
+
         $form['email'] = [
             '#type' => 'fieldset',
+            '#title' => $this->t('Email'),
         ];
-        if ($isCodeVerified) {
-            $form['email']['#title'] = $this->t('Email');
-        }
 
         $form['email']['email'] = [
             '#type' => 'email',
             '#title' => $this->t('Email'),
             '#description' => $this->t('A verification code will be sent to this email address.'),
             '#required' => TRUE,
-            '#default_value' => $form_state->getValue('email') ?? $savedData['email'] ?? '',
+            '#disabled' => TRUE,
+            '#default_value' => $email,
         ];
-        if ($isCodeVerified || $emailExists) {
-            $form['email']['email']['#disabled'] = TRUE;
-        }
-
-        $form['email']['actions_wrapper'] = [
-            '#type' => 'container',
-            '#attributes' => ['id' => 'verify-actions-wrapper'],
-        ];
-
-        $apiMessage = $form_state->get('api_message');
-        if ($apiMessage) {
-            $messageType = $form_state->get('api_message_type') ?? 'status';
-            if ($emailExists) {
-                $apiMessage = $this->t('You have already made an application with this email address.');
-                $messageType = 'status';
-            }
-            if (!$isCodeVerified) {
-                $form['email']['actions_wrapper']['message'] = [
-                    '#markup' => '<div class="messages messages--' . $messageType . '">' . $apiMessage . '</div>',
-                ];
-            } else {
-                $form['email']['actions_wrapper']['message'] = [
-                    '#markup' => '<p class="alert alert-' . ($messageType == 'status' ? 'success' : 'warning') . '">' . $apiMessage . '</p>',
-                ];
-            }
-        }
-
-        if ($emailExists) {
-            return $form;
-        }
-
-        if (!$isCodeSent && !$isCodeVerified) {
-            $form['email']['actions_wrapper']['send_code'] = [
-                '#type' => 'submit',
-                '#value' => $this->t('Send Verification Email'),
-                '#submit' => ['::sendCodeSubmit'],
-                '#ajax' => [
-                    'callback' => '::updateForm',
-                    'wrapper' => 'application-form-wrapper',
-                ],
-                '#limit_validation_errors' => [['email']],
-            ];
-            return $form;
-        } elseif ($isCodeSent && !$isCodeVerified) {
-            $form['email']['actions_wrapper']['verification_code'] = [
-                '#type' => 'textfield',
-                '#title' => $this->t('Verification Code'),
-                '#required' => TRUE,
-                '#default_value' => $form_state->getValue('verification_code') ?? $savedData['verification_code'] ?? '',
-            ];
-
-            $form['email']['actions_wrapper']['verify_submit'] = [
-                '#type' => 'submit',
-                '#value' => $this->t('Verify Code'),
-                '#submit' => ['::verifyCodeSubmit'],
-                '#ajax' => [
-                    'callback' => '::updateForm',
-                    'wrapper' => 'application-form-wrapper',
-                ],
-                '#limit_validation_errors' => [['email'], ['verification_code']],
-            ];
-            return $form;
-        }
 
         try {
             $application = $this->database->select('esn_membership_manager_in_progress_applications', 'i')
@@ -735,151 +654,6 @@ class ApplicationForm extends FormBase
     }
 
     /**
-     * Submit handler for sending the verification code.
-     * @noinspection PhpParameterByRefIsNotUsedAsReferenceInspection
-     * @noinspection PhpUnusedParameterInspection
-     */
-    public function sendCodeSubmit(array &$form, FormStateInterface $form_state): void
-    {
-        $email = $form_state->getValue('email');
-
-        try {
-            /** @var ApplicationStorage $storage */
-            $storage = $this->entityTypeManager->getStorage('membership_application');
-
-            $emailExists = $storage->countByEmail($email) > 0;
-        } catch (Exception $e) {
-            $this->logger->error('Unable to check for duplicate emails. @error', ['@error' => $e->getMessage()]);
-            $form_state->set('api_message', 'Unable to complete operation. Please try again later');
-            $form_state->set('api_message_type', 'error');
-            $form_state->setRebuild();
-            return;
-        }
-
-        if ($emailExists) {
-            $form_state->set('api_message', $this->t('You have already made an application with this email address.'));
-            $form_state->set('api_message_type', 'status');
-
-            $session = $this->getRequest()->getSession();
-            $verificationData = $session->get('application_form_verification_data', []);
-            $verificationData['email_exists'] = TRUE;
-            $session->set('application_form_verification_data', $verificationData);
-
-            $savedData = $session->get('application_form_saved_data', []);
-            $savedData['email'] = $email;
-            $session->set('application_form_saved_data', $savedData);
-
-            $form_state->setRebuild();
-            return;
-        }
-
-        try {
-            $response = $this->httpClient->post(
-                Url::fromRoute(
-                    'esn_membership_manager.authentication_code',
-                    ['type' => 'register'],
-                    ['absolute' => TRUE]
-                )->toString(),
-                [
-                    'json' => ['email' => $email]
-                ]
-            );
-
-            $body = json_decode((string)$response->getBody(), TRUE);
-
-            if (isset($body['error'])) {
-                $form_state->set('api_message', $body['error']);
-                $form_state->set('api_message_type', 'error');
-            } else {
-                $form_state->set('api_message', $body['message'] ?? $this->t('Verification email sent.'));
-                $form_state->set('api_message_type', 'status');
-                $form_state->set('code_sent', TRUE);
-
-                $session = $this->getRequest()->getSession();
-                $verificationData = $session->get('application_form_verification_data', []);
-                $verificationData['email_code_sent'] = TRUE;
-                $session->set('application_form_verification_data', $verificationData);
-
-                $savedData = $session->get('application_form_saved_data', []);
-                $savedData['email'] = $email;
-                $session->set('application_form_saved_data', $savedData);
-            }
-        } catch (GuzzleException) {
-            $form_state->set('api_message', $this->t('There was an issue processing your request. Please try again later.'));
-            $form_state->set('api_message_type', 'error');
-        }
-
-        $form_state->setRebuild();
-    }
-
-    /**
-     * @noinspection PhpParameterByRefIsNotUsedAsReferenceInspection
-     * @noinspection PhpUnusedParameterInspection
-     */
-    public function verifyCodeSubmit(array &$form, FormStateInterface $form_state): void
-    {
-        $email = strtolower($form_state->getValue('email'));
-        $code = $form_state->getValue('verification_code');
-
-        try {
-            $response = $this->httpClient->post(
-                Url::fromRoute(
-                    'esn_membership_manager.authentication_verify',
-                    ['type' => 'register'],
-                    ['absolute' => TRUE]
-                )->toString(),
-                [
-                    'json' => [
-                        'email' => $email,
-                        'code' => $code,
-                    ]
-                ]
-            );
-
-            $body = json_decode((string)$response->getBody(), TRUE);
-
-            if (isset($body['error'])) {
-                $form_state->set('api_message', $body['error']);
-                $form_state->set('api_message_type', 'error');
-            } else {
-                try {
-                    $this->database->merge('esn_membership_manager_in_progress_applications')
-                        ->key('email', $email)
-                        ->fields([
-                            'date_created' => (new DrupalDateTime())->format('Y-m-d\TH:i:s')
-                        ])
-                        ->execute();
-                } catch (Exception $e) {
-                    $this->logger->error('Unable to create in progress application. @error.', ['@error' => $e->getMessage()]);
-                    $form_state->set('api_message', $this->t('There was an issue processing your request. Please try again later.'));
-                    $form_state->set('api_message_type', 'error');
-                    $form_state->setRebuild();
-                    return;
-                }
-
-                $form_state->set('api_message', $body['message'] ?? $this->t('Email address verified.'));
-                $form_state->set('api_message_type', 'status');
-                $form_state->set('code_verified', TRUE);
-
-                $session = $this->getRequest()->getSession();
-                $verificationData = $session->get('application_form_verification_data', []);
-                $verificationData['email_code_verified'] = TRUE;
-                $session->set('application_form_verification_data', $verificationData);
-
-                $savedData = $session->get('application_form_saved_data', []);
-                $savedData['email'] = $email;
-                $savedData['verification_code'] = $code;
-                $session->set('application_form_saved_data', $savedData);
-            }
-        } catch (GuzzleException) {
-            $form_state->set('api_message', $this->t('There was an issue processing your request. Please try again later.'));
-            $form_state->set('api_message_type', 'error');
-        }
-
-        $form_state->setRebuild();
-    }
-
-    /**
      * @noinspection PhpParameterByRefIsNotUsedAsReferenceInspection
      * @noinspection PhpUnusedParameterInspection
      */
@@ -952,7 +726,8 @@ class ApplicationForm extends FormBase
 
         $session = $this->getRequest()->getSession();
         $verificationData = $session->get('application_form_verification_data', []);
-        $isVerifiedEmail = !empty($verificationData['email_code_verified']);
+        $emailAuthenticationData = $session->get('email_authentication_data', []);
+        $isVerifiedEmail = !empty($emailAuthenticationData['auth_success']);
         $isVerifiedID = !empty($verificationData['id_verified']);
         $isVerifiedStatus = !empty($verificationData['status_verified']);
 
@@ -989,8 +764,9 @@ class ApplicationForm extends FormBase
 
         $session = $this->getRequest()->getSession();
         $savedData = $session->get('application_form_saved_data', []);
+        $emailAuthenticationData = $session->get('email_authentication_data', []);
 
-        $email = strtolower(trim($session->get('verified_email') ?? $savedData['email'] ?? $form_state->getValue('email')));
+        $email = strtolower(trim($session->get('verified_email') ?? $emailAuthenticationData['email'] ?? $form_state->getValue('email')));
 
         try {
             $application = $this->database->select('esn_membership_manager_in_progress_applications', 'i')

@@ -23,7 +23,7 @@ class FileService extends FileServiceBase
      */
     public function createApplicationFile(string $fileData, string $directory, string $fileName, int|string|null $applicationID): ?string
     {
-        return $this->createFile($fileData, $directory, $fileName, 'esn_membership_manager', ['membership_application' => $applicationID]);
+        return $this->createFile($fileData, $directory, $fileName, 'esn_membership_manager', !empty($applicationID) ? ['membership_application' => $applicationID] : []);
     }
 
     /**
@@ -36,7 +36,7 @@ class FileService extends FileServiceBase
      */
     public function saveApplicationFile(int|string|null $fileID, int|string|null $applicationID): bool
     {
-        return $this->saveFile($fileID, 'esn_membership_manager', ['membership_application' => $applicationID]);
+        return $this->saveFile($fileID, 'esn_membership_manager', !empty($applicationID) ? ['membership_application' => $applicationID] : []);
     }
 
     /**
@@ -49,6 +49,6 @@ class FileService extends FileServiceBase
      */
     public function deleteApplicationFile(int|string|null $fileID, int|string|null $applicationID): bool
     {
-        return $this->deleteFile($fileID, 'esn_membership_manager', ['membership_application' => $applicationID]);
+        return $this->deleteFile($fileID, 'esn_membership_manager', !empty($applicationID) ? ['membership_application' => $applicationID] : []);
     }
 }

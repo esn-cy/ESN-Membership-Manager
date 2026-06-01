@@ -47,7 +47,7 @@ class StripeService extends StripeServiceBase
             $prices[] = ['price' => $priceIDs['processing'], 'quantity' => 1];
         }
 
-        return $this->createPaymentLink($prices, [['application_id' => (string)$applicationID]]);
+        return $this->createPaymentLink($prices, ['application_id' => (string)$applicationID]);
     }
 
     /**

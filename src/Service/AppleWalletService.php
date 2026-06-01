@@ -144,12 +144,12 @@ class AppleWalletService extends AppleServiceBase
         }
 
         $images = [
-            $imagesPath . 'logo.png' => 'logo.png',
-            $imagesPath . 'logo@2x.png' => 'logo@2x.png',
-            $imagesPath . 'logo@3x.png' => 'logo@3x.png',
-            $imagesPath . 'icon.png' => 'icon.png',
-            $imagesPath . 'icon@2x.png' => 'icon@2x.png',
-            $imagesPath . 'icon@3x.png' => 'icon@3x.png'
+            'logo.png' => $imagesPath . 'logo.png',
+            'logo@2x.png' => $imagesPath . 'logo@2x.png',
+            'logo@3x.png' => $imagesPath . 'logo@3x.png',
+            'icon.png' => $imagesPath . 'icon.png',
+            'icon@2x.png' => $imagesPath . 'icon@2x.png',
+            'icon@3x.png' => $imagesPath . 'icon@3x.png'
         ];
 
         return $this->createPass($passData, $images, $certificateP12, $certificatePassword);
@@ -256,12 +256,12 @@ class AppleWalletService extends AppleServiceBase
         $imagesPath = $this->moduleHandler->getModule('esn_membership_manager')->getPath() . '/assets/images/apple_wallet/white/';
 
         $images = [
-            $imagesPath . 'logo.png' => 'logo.png',
-            $imagesPath . 'logo@2x.png' => 'logo@2x.png',
-            $imagesPath . 'logo@3x.png' => 'logo@3x.png',
-            $imagesPath . 'icon.png' => 'icon.png',
-            $imagesPath . 'icon@2x.png' => 'icon@2x.png',
-            $imagesPath . 'icon@3x.png' => 'icon@3x.png'
+            'logo.png' => $imagesPath . 'logo.png',
+            'logo@2x.png' => $imagesPath . 'logo@2x.png',
+            'logo@3x.png' => $imagesPath . 'logo@3x.png',
+            'icon.png' => $imagesPath . 'icon.png',
+            'icon@2x.png' => $imagesPath . 'icon@2x.png',
+            'icon@3x.png' => $imagesPath . 'icon@3x.png'
         ];
 
         return $this->createPass($passData, $images, $certificateP12, $certificatePassword);
@@ -342,12 +342,12 @@ class AppleWalletService extends AppleServiceBase
         $imagesPath = $this->moduleHandler->getModule('esn_membership_manager')->getPath() . '/assets/images/apple_wallet/white/';
 
         $images = [
-            $imagesPath . 'logo.png' => 'logo.png',
-            $imagesPath . 'logo@2x.png' => 'logo@2x.png',
-            $imagesPath . 'logo@3x.png' => 'logo@3x.png',
-            $imagesPath . 'icon.png' => 'icon.png',
-            $imagesPath . 'icon@2x.png' => 'icon@2x.png',
-            $imagesPath . 'icon@3x.png' => 'icon@3x.png'
+            'logo.png' => $imagesPath . 'logo.png',
+            'logo@2x.png' => $imagesPath . 'logo@2x.png',
+            'logo@3x.png' => $imagesPath . 'logo@3x.png',
+            'icon.png' => $imagesPath . 'icon.png',
+            'icon@2x.png' => $imagesPath . 'icon@2x.png',
+            'icon@3x.png' => $imagesPath . 'icon@3x.png'
         ];
 
         return $this->createPass($passData, $images, $certificateP12, $certificatePassword);
