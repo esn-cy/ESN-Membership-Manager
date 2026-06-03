@@ -78,7 +78,7 @@ class LegalPages extends ControllerBase
       <h3>3. Data Retention and Deletion (GDPR Compliance)</h3>
       <p>We employ strict, automated data retention policies to ensure we do not hold your personal data longer than necessary. Our system automatically processes data deletion according to the following schedule:</p>
       <ul>
-        <li><b>Identity Documents and Proofs: </b>Any uploaded ID scans and proofs of mobility are permanently deleted from our servers 14 days after your application is either approved or declined.</li>
+        <li><b>Identity Documents and Proofs: </b>Any uploaded ID scans and proofs of mobility are permanently deleted from our servers 14 days after your application is either approved or rejected.</li>
         <li><b>Face Photos: </b>Face photos are permanently deleted 1 year (365 days) after your payment date (if you applied for an ESNcard).</li>
         <li><b>Account Anonymization: </b>After 1 year, your personal database record is completely anonymized. Your name and surname are replaced with \"Anonymized,\" your date of birth is reset to the 1st of January of your birthyear, and your email address is permanently obfuscated.</li>
         <li><b>Associated Records: </b>At the 1-year mark, any Apple Wallet registrations, authentication codes, and guest passes tied to your account are permanently erased.</li>

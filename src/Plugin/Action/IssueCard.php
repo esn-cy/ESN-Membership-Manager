@@ -16,7 +16,7 @@ use Exception;
 use Symfony\Component\DependencyInjection\ContainerInterface;
 
 /**
- * Declines an application.
+ * Marks an application as Issued.
  *
  * @Action(
  *   id = "esn_membership_manager_issue",
@@ -71,11 +71,11 @@ class IssueCard extends ActionBase implements ContainerFactoryPluginInterface
             return;
         }
 
-        if (!$application->getValue(ApplicationField::HasESNcard) || $application->getValue(ApplicationField::ApprovalStatus) != 'Paid') {
+        if (!$application->getValue(ApplicationField::HasESNcard) || $application->getApprovalStatus() != 'Paid') {
             $this->logger->warning('Application @id cannot be marked as delivered because its current status is @status.',
                 [
                     '@id' => $application->id(),
-                    '@status' => $application->getValue(ApplicationField::ApprovalStatus)
+                    '@status' => $application->getApprovalStatus()
                 ]
             );
             throw new Exception('This status cannot be applied');

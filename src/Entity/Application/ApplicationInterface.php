@@ -22,6 +22,18 @@ interface ApplicationInterface extends EnumBackedEntityInterface
     public function getFullName(): string;
 
     /**
+     * Retrieves the approval status of the application.
+     * @return string The approval status.
+     */
+    public function getApprovalStatus(): string;
+
+    /**
+     * Retrieves the rejection reasons of an application as an array containing the category and issue.
+     * @return ?array The rejection reasons, null if the application wasn't rejected.
+     */
+    public function getRejectionReasons(): ?array;
+
+    /**
      * Safely retrieves the fully loaded File entity for the Proof of Status.
      *
      * @return FileInterface|null

@@ -93,7 +93,7 @@ class ScanController extends ControllerBase
             return new JsonResponse(['status' => 'error', 'message' => 'Card/Pass not found.'], 404);
         }
 
-        if ($application->getValue(ApplicationField::ApprovalStatus) == 'Blacklisted')
+        if ($application->getApprovalStatus() == 'Blacklisted')
             return new JsonResponse([
                 'name' => 'BLACKLISTED',
                 'surname' => 'BLACKLISTED',

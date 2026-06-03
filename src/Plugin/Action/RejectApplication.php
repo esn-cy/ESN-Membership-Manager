@@ -16,16 +16,16 @@ use Exception;
 use Symfony\Component\DependencyInjection\ContainerInterface;
 
 /**
- * Declines an application.
+ * Rejects an application.
  *
  * @Action(
- *   id = "esn_membership_manager_decline",
- *   label = @Translation("Decline Application"),
+ *   id = "esn_membership_manager_reject",
+ *   label = @Translation("Reject Application"),
  *   type = "system",
  *   confirm = TRUE
  * )
  */
-class DeclineApplication extends ActionBase implements ContainerFactoryPluginInterface
+class RejectApplication extends ActionBase implements ContainerFactoryPluginInterface
 {
     protected EmailManager $emailManager;
     protected LoggerChannelInterface $logger;
@@ -66,32 +66,62 @@ class DeclineApplication extends ActionBase implements ContainerFactoryPluginInt
      * {@inheritdoc}
      * @throws Exception
      */
-    public function execute(?ApplicationInterface $application = null): void
+    public function execute(?ApplicationInterface $application = null, ?string $reasons = null): void
     {
         if (empty($application)) {
             return;
         }
 
-        if ($application->getValue(ApplicationField::ApprovalStatus) != 'Pending') {
-            $this->logger->warning('Application @id cannot be marked as declined because its current status is @status.',
+        if ($application->getApprovalStatus() != 'Pending') {
+            $this->logger->warning('Application @id cannot be marked as rejected because its current status is @status.',
                 [
                     '@id' => $application->id(),
-                    '@status' => $application->getValue(ApplicationField::ApprovalStatus)
+                    '@status' => $application->getApprovalStatus()
                 ]
             );
             throw new Exception('This status cannot be applied');
         }
 
         try {
-            $application->setValue(ApplicationField::ApprovalStatus, 'Declined');
+            if (empty($reasons)) {
+                $application->setValue(ApplicationField::ApprovalStatus, 'Rejected');
+            } else {
+                $application->setValue(ApplicationField::ApprovalStatus, $reasons);
+            }
             $application->save();
 
-            $this->emailManager->sendEmail($application->getValue(ApplicationField::Email), 'both_denial', ['name' => $application->getValue(ApplicationField::Name)]);
+            $emailReasons = [];
+            if (!empty($reasons) && $reasons !== 'Rejected') {
+                $reasonsSplit = explode('/', $reasons);
+                foreach ($reasonsSplit as $reason) {
+                    if (str_starts_with($reason, 'Rejected-')) {
+                        $reasonParts = explode('-', $reason);
+                        $formatedReason = $reasonParts[1];
+                        if ($reasonParts[1] == 'Status' || $reasonParts[1] == 'Identity') {
+                            $formatedReason .= ' Document';
+                        }
+                        $formatedReason .= ': ' . $reasonParts[2];
+                        if ($reasonParts[2] == 'Local') {
+                            $formatedReason .= ' Student';
+                        }
+                        if ($reasonParts[2] == 'Duplicate') {
+                            $formatedReason .= ' Application';
+                        }
 
-            $this->logger->notice('Declined application @id', ['@id' => $application->id()]);
+                        $emailReasons[] = $formatedReason;
+                    }
+                }
+            }
+
+            $this->emailManager->sendEmail($application->getValue(ApplicationField::Email), 'both_rejection', [
+                'name' => $application->getValue(ApplicationField::Name),
+                'reasons' => $emailReasons
+            ]);
+
+            $this->logger->notice('Rejected application @id', ['@id' => $application->id()]);
         } catch (Exception $e) {
-            $this->logger->error('Unable to decline application @id: @message', ['@id' => $application->id(), '@message' => $e->getMessage()]);
-            throw new Exception('Failed to complete declining process');
+            $this->logger->error('Unable to reject application @id: @message', ['@id' => $application->id(), '@message' => $e->getMessage()]);
+            throw new Exception('Failed to complete rejection process');
         }
     }
 
@@ -100,7 +130,7 @@ class DeclineApplication extends ActionBase implements ContainerFactoryPluginInt
      */
     public function access($object, ?AccountInterface $account = NULL, $return_as_object = FALSE): bool|AccessResultInterface
     {
-        $access = AccessResult::allowedIfHasPermission($account, 'decline applications');
+        $access = AccessResult::allowedIfHasPermission($account, 'reject applications');
         return $return_as_object ? $access : $access->isAllowed();
     }
 }

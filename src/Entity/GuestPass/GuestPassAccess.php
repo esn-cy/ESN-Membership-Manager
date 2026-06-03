@@ -16,7 +16,7 @@ class GuestPassAccess extends EntityAccessControlHandler
     {
         return match ($operation) {
             'view' => AccessResult::allowedIfHasPermission($account, 'view applications'),
-            'update' => AccessResult::allowedIfHasPermissions($account, ['approve applications', 'decline applications', 'scan cards'], 'OR'),
+            'update' => AccessResult::allowedIfHasPermissions($account, ['approve applications', 'reject applications', 'scan cards'], 'OR'),
             'delete' => AccessResult::allowedIfHasPermission($account, 'delete applications'),
             default => AccessResult::neutral(),
         };

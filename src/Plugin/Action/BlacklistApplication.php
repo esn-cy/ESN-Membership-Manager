@@ -80,7 +80,7 @@ class BlacklistApplication extends ActionBase implements ContainerFactoryPluginI
         }
 
         if ($application->getValue(ApplicationField::HasESNcard)) {
-            if ($application->getValue(ApplicationField::ApprovalStatus) != "Approved") {
+            if ($application->getApprovalStatus() != "Approved") {
                 $this->logger->warning('Application @id cannot be blacklisted.', ['@id' => $application->id()]);
                 throw new Exception('This status cannot be applied');
             }

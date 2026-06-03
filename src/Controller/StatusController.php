@@ -50,8 +50,8 @@ class StatusController extends ControllerBase
             'cardAllowed' => TRUE
         ],
         [
-            'name' => 'Declined',
-            'action' => 'esn_membership_manager_decline',
+            'name' => 'Rejected',
+            'action' => 'esn_membership_manager_reject',
             'passAllowed' => TRUE,
             'cardAllowed' => TRUE
         ],
@@ -92,8 +92,24 @@ class StatusController extends ControllerBase
             return new JsonResponse(['status' => 'error', 'message' => 'The request was missing required parameters.'], 400);
         }
 
-        $selectedAction = array_filter($this->statuses, function ($search) use ($status) {
-            return $search['name'] == $status;
+        preg_match('/^([a-zA-Z]+)/', $status, $matches);
+        $baseStatus = $matches[1] ?? '';
+
+        if ($baseStatus == 'Rejected') {
+            $rejectedRegex = '/^Rejected(?:-[a-zA-Z]+-[a-zA-Z]+(?:\/Rejected-[a-zA-Z]+-[a-zA-Z]+)*)?$/';
+
+            if (!preg_match($rejectedRegex, $status)) {
+                $this->logger->warning('Rejected malformed rejection status string: @status', ['@status' => $status]);
+                return new JsonResponse(['status' => 'error', 'message' => 'Invalid rejection reason format.'], 400);
+            }
+        } else {
+            if ($status != $baseStatus) {
+                return new JsonResponse(['status' => 'error', 'message' => 'Invalid status format provided.'], 400);
+            }
+        }
+
+        $selectedAction = array_filter($this->statuses, function ($search) use ($baseStatus) {
+            return $search['name'] == $baseStatus;
         });
 
         $selectedAction = reset($selectedAction);
@@ -165,7 +181,11 @@ class StatusController extends ControllerBase
                     ], 403);
                 }
 
-                $action->execute($application);
+                if ($baseStatus == 'Rejected') {
+                    $action->execute($application, $status);
+                } else {
+                    $action->execute($application);
+                }
 
                 $this->logger->info('Successfully changed the status of Application @id to @action.', [
                     '@id' => $application->id(),

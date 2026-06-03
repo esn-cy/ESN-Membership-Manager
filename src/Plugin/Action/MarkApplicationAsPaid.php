@@ -102,7 +102,7 @@ class MarkApplicationAsPaid extends ActionBase implements ContainerFactoryPlugin
             return 'Did not run due to an error acquiring a lock';
         }
 
-        if (!empty($application->getValue(ApplicationField::ESNcardNumber)) && $application->getValue(ApplicationField::ApprovalStatus) == 'Paid') {
+        if (!empty($application->getValue(ApplicationField::ESNcardNumber)) && $application->getApprovalStatus() == 'Paid') {
             $this->logger->warning(
                 'Application @id was already paid. Duplicate payment event detected.',
                 ['@id' => $application->id()]

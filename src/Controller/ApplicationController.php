@@ -194,7 +194,7 @@ class ApplicationController extends ControllerBase implements ContainerInjection
             ];
         }
 
-        $approvalStatus = $application->getValue(ApplicationField::ApprovalStatus);
+        $approvalStatus = $application->getApprovalStatus();
 
         return [
             '#theme' => 'emm_application_view',
@@ -208,7 +208,7 @@ class ApplicationController extends ControllerBase implements ContainerInjection
             '#permissions' => [
                 'edit' => $this->currentUser()->hasPermission('edit applications'),
                 'approve' => $this->currentUser()->hasPermission('approve applications'),
-                'decline' => $this->currentUser()->hasPermission('decline applications'),
+                'reject' => $this->currentUser()->hasPermission('reject applications'),
             ],
             '#apiURLs' => [
                 'update' => Url::fromRoute('esn_membership_manager.edit')->toString(),
@@ -216,6 +216,8 @@ class ApplicationController extends ControllerBase implements ContainerInjection
                 'status' => Url::fromRoute('esn_membership_manager.status')->toString()
             ],
             '#is_paid' => $approvalStatus == "Paid" || $approvalStatus == "Issued" || $approvalStatus == "Delivered",
+            '#is_proof_verified' => $hasVerifiedStatus,
+            '#is_identity_verified' => $hasVerifiedID,
         ];
     }
 

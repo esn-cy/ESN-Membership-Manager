@@ -99,11 +99,11 @@ class ApproveApplication extends ActionBase implements ContainerFactoryPluginInt
             return;
         }
 
-        if ($application->getValue(ApplicationField::ApprovalStatus) != 'Pending') {
+        if ($application->getApprovalStatus() != 'Pending') {
             $this->logger->warning('Application @id cannot be marked as delivered because its current status is @status.',
                 [
                     '@id' => $application->id(),
-                    '@status' => $application->getValue(ApplicationField::ApprovalStatus)
+                    '@status' => $application->getApprovalStatus()
                 ]
             );
             throw new Exception('This status cannot be applied');

@@ -48,8 +48,10 @@ function esn_membership_manager_theme($existing, $type, $theme, $path): array
             ],
         ],
 
-        'emm_both_denial' => [
-            'variables' => $commonVars,
+        'emm_both_rejection' => [
+            'variables' => array_merge($commonVars, [
+                'reasons' => []
+            ]),
         ],
 
         'emm_pass_confirmation' => [
@@ -88,6 +90,8 @@ function esn_membership_manager_theme($existing, $type, $theme, $path): array
                 'permissions' => [],
                 'apiURLs' => [],
                 'is_paid' => FALSE,
+                'is_proof_verified' => FALSE,
+                'is_identity_verified' => FALSE,
             ],
         ],
 
@@ -152,8 +156,8 @@ function esn_membership_manager_mail($key, &$message, $params): void
             $message['subject'] = t('Your ESNcard Details', [], $options);
             break;
 
-        case 'both_denial':
-            $message['subject'] = t('Application Declined', [], $options);
+        case 'both_rejection':
+            $message['subject'] = t('Application Rejected', [], $options);
             break;
 
         case 'pass_confirmation':

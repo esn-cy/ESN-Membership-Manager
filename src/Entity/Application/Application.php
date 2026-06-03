@@ -139,6 +139,44 @@ class Application extends EnumBackedEntityBase implements ApplicationInterface
     /**
      * {@inheritdoc}
      */
+    public function getApprovalStatus(): string
+    {
+        $rawStatus = $this->getValue(ApplicationField::ApprovalStatus);
+
+        preg_match('/^([a-zA-Z]+)/', $rawStatus, $matches);
+        return $matches[1];
+    }
+
+    /**
+     * {@inheritdoc}
+     */
+    public function getRejectionReasons(): ?array
+    {
+        $rawStatus = $this->getValue(ApplicationField::ApprovalStatus);
+        if (!str_starts_with($rawStatus, 'Rejected')) {
+            return null;
+        }
+
+        $reasons = [];
+        if ($rawStatus !== 'Rejected') {
+            $reasonsSplit = explode('/', $rawStatus);
+            foreach ($reasonsSplit as $reason) {
+                if (str_starts_with($reason, 'Rejected-')) {
+                    $reasonParts = explode('-', $reason);
+                    $reasons[] = [
+                        'category' => $reasonParts[1],
+                        'issue' => $reasonParts[2],
+                    ];
+                }
+            }
+        }
+
+        return $reasons;
+    }
+
+    /**
+     * {@inheritdoc}
+     */
     public function getDateOfBirth(): ?DrupalDateTime
     {
         return $this->getDateTimeValue(ApplicationField::DateOfBirth);

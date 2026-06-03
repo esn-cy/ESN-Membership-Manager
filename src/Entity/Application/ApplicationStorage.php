@@ -223,7 +223,7 @@ class ApplicationStorage extends EnumBackedEntityStorage
 
         $approvalCondition = $query->orConditionGroup()
             ->condition(ApplicationField::DateApproved->value, $twoWeeksAgo, '<')
-            ->condition(ApplicationField::ApprovalStatus->value, 'Declined');
+            ->condition(ApplicationField::ApprovalStatus->value, 'Rejected', 'STARTS_WITH');
 
         $filesExistCondition = $query->orConditionGroup()
             ->exists(ApplicationField::StatusProofFileID->value)

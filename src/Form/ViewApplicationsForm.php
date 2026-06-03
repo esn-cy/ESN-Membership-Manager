@@ -110,7 +110,7 @@ class ViewApplicationsForm extends FormBase
                 '' => $this->t('- Any Status -'),
                 'Pending' => $this->t('Pending'),
                 'Approved' => $this->t('Approved'),
-                'Declined' => $this->t('Declined'),
+                'Rejected' => $this->t('Rejected'),
                 'Paid' => $this->t('Paid'),
                 'Issued' => $this->t('Issued'),
                 'Delivered' => $this->t('Delivered'),
@@ -172,7 +172,7 @@ class ViewApplicationsForm extends FormBase
 
         $actionPluginIDs = [
             'esn_membership_manager_approve',
-            'esn_membership_manager_decline',
+            'esn_membership_manager_reject',
             'esn_membership_manager_delete',
             'esn_membership_manager_mark_paid',
             'esn_membership_manager_issue',
@@ -242,7 +242,7 @@ class ViewApplicationsForm extends FormBase
         $rows = [];
         foreach ($applications as $application) {
             $rows[$application->id()] = [
-                'approval_status' => $application->getValue(ApplicationField::ApprovalStatus) ?? '',
+                'approval_status' => $application->getApprovalStatus() ?? '',
                 'name' => $application->getValue(ApplicationField::Name) ?? '',
                 'surname' => $application->getValue(ApplicationField::Surname) ?? '',
                 'email' => $application->getValue(ApplicationField::Email) ?? '',

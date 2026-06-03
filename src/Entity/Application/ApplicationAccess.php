@@ -19,7 +19,7 @@ class ApplicationAccess extends EntityAccessControlHandler
     {
         return match ($operation) {
             'view' => AccessResult::allowedIfHasPermission($account, 'view applications'),
-            'update' => AccessResult::allowedIfHasPermissions($account, ['edit applications', 'approve applications', 'decline applications', 'mark applications as paid', 'blacklist applications', 'issue cards', 'deliver cards', 'scan cards'], 'OR'),
+            'update' => AccessResult::allowedIfHasPermissions($account, ['edit applications', 'approve applications', 'reject applications', 'mark applications as paid', 'blacklist applications', 'issue cards', 'deliver cards', 'scan cards'], 'OR'),
             'delete' => AccessResult::allowedIfHasPermission($account, 'delete applications'),
             default => AccessResult::neutral(),
         };

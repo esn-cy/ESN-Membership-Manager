@@ -13,9 +13,9 @@ approve applications:
   description: "Allows users to approve applications"
   restrict access: false
 
-decline applications:
-  title: "Decline Application"
-  description: "Allows users to decline applications"
+reject applications:
+  title: "Reject Application"
+  description: "Allows users to reject applications"
   restrict access: false
 
 delete applications:

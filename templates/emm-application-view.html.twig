@@ -26,9 +26,16 @@
         border-right: 1px solid #ddd;
     }
 
+    #image-preview {
+        width: 100%;
+        height: 100%;
+        object-fit: contain;
+    }
+
     .doc-viewer {
         position: relative;
         flex-grow: 1;
+        min-height: 0;
         margin-bottom: 10px;
         border: 1px solid #ccc;
         background: #f2f2f2;
@@ -191,6 +198,101 @@
     .tick-btn {
         background-color: #27ae60;
     }
+
+    .dialog-overlay {
+        display: none;
+        position: fixed;
+        top: 0;
+        left: 0;
+        width: 100%;
+        height: 100%;
+        background: rgba(0, 0, 0, 0.5);
+        z-index: 1000;
+        justify-content: center;
+        align-items: center;
+    }
+
+    .dialog-box {
+        background: #fff;
+        padding: 20px;
+        border-radius: 8px;
+        width: 400px;
+        box-shadow: 0 4px 10px rgba(0, 0, 0, 0.2);
+        display: flex;
+        flex-direction: column;
+        gap: 12px;
+    }
+
+    .dialog-box h3 {
+        margin-top: 0;
+        margin-bottom: 5px;
+    }
+
+    .dialog-box label {
+        font-weight: bold;
+        font-size: 0.9em;
+    }
+
+    .switchboard {
+        display: flex;
+        flex-direction: column;
+        gap: 15px;
+        max-height: 400px;
+        overflow-y: auto;
+        padding-right: 5px;
+    }
+
+    .reason-category h4 {
+        margin: 0 0 8px 0;
+        font-size: 0.9em;
+        border-bottom: 1px solid #eee;
+        padding-bottom: 4px;
+    }
+
+    .checkbox-grid {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 8px;
+    }
+
+    .switchboard input[type="checkbox"] {
+        display: none;
+    }
+
+    .switch-label {
+        display: inline-block;
+        padding: 6px 14px;
+        background: #f5f5f5;
+        border: 1px solid #ddd;
+        border-radius: 20px;
+        font-size: 0.85em;
+        cursor: pointer;
+        user-select: none;
+        transition: all 0.2s;
+    }
+
+    .switchboard input[type="checkbox"]:checked + .switch-label {
+        background: #e74c3c;
+        color: white;
+        border-color: #c0392b;
+    }
+
+    .switchboard input[type="checkbox"]:hover + .switch-label {
+        filter: brightness(0.95);
+    }
+
+    .dialog-actions {
+        display: flex;
+        justify-content: flex-end;
+        gap: 10px;
+        margin-top: 10px;
+    }
+
+    .dialog-actions button {
+        padding: 8px 16px;
+        border-radius: 4px;
+        cursor: pointer;
+    }
 </style>
 
 <div class="split-modal">
@@ -217,7 +319,6 @@
                  style="{% if (show_proof and not is_proof_pdf) or (show_id and not is_id_pdf) or show_photo %}display: flex;{% else %}display: none;{% endif %} width: 100%; height: 100%; justify-content: center; align-items: center; overflow: hidden; position: relative;">
                 <img id="image-preview"
                      src="{% if show_proof and not is_proof_pdf %}{{ urls.proof }}{% elseif show_id and not is_id_pdf %}{{ urls.id }}{% elseif show_photo %}{{ urls.photo }}{% endif %}"
-                     style="max-width: 100%; max-height: 100%;"
                      alt="File Preview">
 
                 {% if permissions.edit %}
@@ -329,11 +430,11 @@
 
                 <div class="divider"></div>
 
-                <button type="button" id="btn-decline" class="button button--danger"
-                        data-has-permission="{{ permissions.decline ? 'true' : 'false' }}"
-                        {% if not permissions.decline %} disabled style="opacity:0.5;" {% else %}
-                    onclick="doStatus('Declined', {{ id }})" {% endif %}>
-                    Decline
+                <button type="button" id="btn-reject" class="button button--danger"
+                        data-has-permission="{{ permissions.reject ? 'true' : 'false' }}"
+                        {% if not permissions.reject %} disabled style="opacity:0.5;" {% else %}
+                    onclick="openRejectDialog()" {% endif %}>
+                    Reject
                 </button>
                 <button type="button" id="btn-approve" class="button button--action"
                         data-has-permission="{{ permissions.approve ? 'true' : 'false' }}"
@@ -342,6 +443,106 @@
                     Approve
                 </button>
             </div>
+
+            <div id="reject-dialog" class="dialog-overlay">
+                <div class="dialog-box">
+                    <div>
+                        <h3>Reject Application</h3>
+                        <p class="subtitle">Select all reasons that apply:</p>
+                    </div>
+
+                    <div class="switchboard">
+                        {% if not is_proof_verified and urls.proof is not empty %}
+                            <div class="reason-category" data-category="Status">
+                                <h4>Proof of Status</h4>
+                                <div class="checkbox-grid">
+                                    <label>
+                                        <input type="checkbox" value="Invalid">
+                                        <span class="switch-label">Invalid Document</span>
+                                    </label>
+                                    <label>
+                                        <input type="checkbox" value="Unreadable">
+                                        <span class="switch-label">Unreadable Document</span>
+                                    </label>
+                                </div>
+                            </div>
+                        {% endif %}
+                        {% if not is_identity_verified and urls.id is not empty %}
+                            <div class="reason-category" data-category="Identity">
+                                <h4>ID Document</h4>
+                                <div class="checkbox-grid">
+                                    <label>
+                                        <input type="checkbox" value="Invalid">
+                                        <span class="switch-label">Invalid Document</span>
+                                    </label>
+                                    <label>
+                                        <input type="checkbox" value="Unreadable">
+                                        <span class="switch-label">Unreadable Document</span>
+                                    </label>
+                                </div>
+                            </div>
+                        {% endif %}
+                        {% if urls.photo is not empty %}
+                            <div class="reason-category" data-category="Photo">
+                                <h4>Face Photo</h4>
+                                <div class="checkbox-grid">
+                                    <label>
+                                        <input type="checkbox" value="Invalid">
+                                        <span class="switch-label">Invalid Image</span>
+                                    </label>
+                                    <label>
+                                        <input type="checkbox" value="Rotated">
+                                        <span class="switch-label">Rotated Image</span>
+                                    </label>
+                                    <label>
+                                        <input type="checkbox" value="Cropped">
+                                        <span class="switch-label">Cropped Image</span>
+                                    </label>
+                                    <label>
+                                        <input type="checkbox" value="Blurry">
+                                        <span class="switch-label">Blurry Image</span>
+                                    </label>
+                                </div>
+                            </div>
+                        {% endif %}
+                        <div class="reason-category" data-category="Eligibility">
+                            <h4>Status Eligibility</h4>
+                            <div class="checkbox-grid">
+                                <label>
+                                    <input type="checkbox" value="Local">
+                                    <span class="switch-label">Local Student</span>
+                                </label>
+                                <label>
+                                    <input type="checkbox" value="Ineligible">
+                                    <span class="switch-label">Ineligible to any Category</span>
+                                </label>
+                            </div>
+                        </div>
+                        <div class="reason-category" data-category="Other">
+                            <h4>Other</h4>
+                            <div class="checkbox-grid">
+                                <label>
+                                    <input type="checkbox" value="Duplicate">
+                                    <span class="switch-label">Duplicate Application</span>
+                                </label>
+                                <label>
+                                    <input type="checkbox" value="Other">
+                                    <span class="switch-label">Other Reason</span>
+                                </label>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="dialog-actions">
+                        <button class="button" onclick="closeRejectDialog()"
+                                style="background:#eee; border:none; color:#333;">Cancel
+                        </button>
+                        <button class="button button--danger" onclick="confirmReject({{ id }})">Confirm Rejection
+                        </button>
+                    </div>
+                </div>
+            </div>
+
             <div id="api-msg"></div>
         </div>
     </div>
@@ -369,9 +570,12 @@
         }
 
         if (url) {
-            if (isFacePhoto) {
-                frame.style.display = "none";
+            const cleanUrl = url.split('?')[0].toLowerCase();
+            const isPdf = cleanUrl.endsWith('.pdf');
+
+            if (!isPdf) {
                 img.src = url + (url.includes('?') ? '&' : '?') + "t=" + new Date().getTime();
+                frame.style.display = "none";
                 imgContainer.style.display = "flex";
             } else {
                 frame.src = url;
@@ -503,23 +707,23 @@
         const anyChecked = document.querySelectorAll(".edit-checkbox:checked").length > 0;
         const saveBtn = document.getElementById("btn-save");
         const approveBtn = document.getElementById("btn-approve");
-        const declineBtn = document.getElementById("btn-decline");
+        const rejectBtn = document.getElementById("btn-reject");
 
         if (anyChecked) {
             saveBtn.style.display = "inline-block";
             approveBtn.disabled = true;
             approveBtn.style.opacity = "0.5";
-            declineBtn.disabled = true;
-            declineBtn.style.opacity = "0.5";
+            rejectBtn.disabled = true;
+            rejectBtn.style.opacity = "0.5";
         } else {
             saveBtn.style.display = "none";
             if (approveBtn.dataset.hasPermission === "true") {
                 approveBtn.disabled = false;
                 approveBtn.style.opacity = "1";
             }
-            if (declineBtn.dataset.hasPermission === "true") {
-                declineBtn.disabled = false;
-                declineBtn.style.opacity = "1";
+            if (rejectBtn.dataset.hasPermission === "true") {
+                rejectBtn.disabled = false;
+                rejectBtn.style.opacity = "1";
             }
         }
     }
@@ -570,5 +774,39 @@
         const msg = document.getElementById("api-msg");
         msg.innerHTML = json.message;
         msg.style.color = json.status === 'success' ? "green" : "red";
+    }
+
+    function openRejectDialog() {
+        document.querySelectorAll('.switchboard input[type="checkbox"]').forEach(cb => cb.checked = false);
+        document.getElementById('reject-dialog').style.display = 'flex';
+    }
+
+    function closeRejectDialog() {
+        document.getElementById('reject-dialog').style.display = 'none';
+    }
+
+    function confirmReject(id) {
+        const categories = document.querySelectorAll('.reason-category');
+        let reasons = [];
+
+        categories.forEach(group => {
+            const categoryName = group.dataset.category;
+            const checkedBoxes = group.querySelectorAll('input[type="checkbox"]:checked');
+
+            if (checkedBoxes.length > 0) {
+                checkedBoxes.forEach(checkbox => {
+                    reasons.push("Rejected-" + categoryName + "-" + checkbox.value);
+                });
+            }
+        });
+
+        let formattedStatus = 'Rejected';
+
+        if (reasons.length > 0) {
+            formattedStatus = reasons.join('/');
+        }
+
+        closeRejectDialog();
+        doStatus(formattedStatus, id);
     }
 </script>

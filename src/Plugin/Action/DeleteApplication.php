@@ -14,7 +14,7 @@ use Exception;
 use Symfony\Component\DependencyInjection\ContainerInterface;
 
 /**
- * Declines an application.
+ * Deletes an application.
  *
  * @Action(
  *   id = "esn_membership_manager_delete",

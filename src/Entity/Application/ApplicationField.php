@@ -112,7 +112,7 @@ enum ApplicationField: string implements FieldEnumInterface
     public function permissions(): array
     {
         return match ($this) {
-            self::ApprovalStatus => ['approve applications', 'decline applications', 'mark applications as paid', 'blacklist applications', 'issue cards', 'deliver cards'],
+            self::ApprovalStatus => ['approve applications', 'reject applications', 'mark applications as paid', 'blacklist applications', 'issue cards', 'deliver cards'],
             self::PassToken, self::PaymentLink, self::PaymentLinkID, self::DateApproved => ['approve applications'],
             self::DateLastScanned => ['scan cards'],
             self::ESNcardNumber, self::DatePaid => ['mark applications as paid'],
@@ -132,10 +132,9 @@ enum ApplicationField: string implements FieldEnumInterface
     public function settings(): array
     {
         return match ($this) {
-            self::Name, self::Surname, self::Email, self::HostInstitution, self::PaymentLink, self::PaymentLinkID => ['max_length' => 255],
+            self::Name, self::Surname, self::Email, self::HostInstitution, self::PaymentLink, self::PaymentLinkID, self::ApprovalStatus => ['max_length' => 255],
             self::Nationality => ['max_length' => 128],
             self::MobilityStatus, self::PassToken, self::ESNcardNumber, self::DateCreated, self::DateApproved, self::DatePaid, self::DateLastScanned, self::DateLastModified => ['max_length' => 64],
-            self::ApprovalStatus => ['max_length' => 32],
             self::DateOfBirth => ['max_length' => 20],
             self::StatusProofFileID, self::IdentityDocumentFileID, self::FacePhotoFileID => ['target_type' => 'file'],
             default => [],
