@@ -8,6 +8,7 @@ use Drupal\Core\Logger\LoggerChannelFactoryInterface;
 use Drupal\Core\Logger\LoggerChannelInterface;
 use Drupal\Core\Url;
 use Drupal\esn_membership_manager\Service\DiditService;
+use Drupal\esn_membership_manager\Utility\Nationalities;
 use Exception;
 use Symfony\Component\DependencyInjection\ContainerInterface;
 use Symfony\Component\HttpFoundation\RedirectResponse;
@@ -18,8 +19,7 @@ class DiditController extends ControllerBase
     protected Connection $database;
     protected DiditService $diditService;
     protected LoggerChannelInterface $logger;
-
-    protected array $nationalities = [];
+    protected Nationalities $nationalities;
 
     public function __construct(
         Connection                    $database,
@@ -30,6 +30,7 @@ class DiditController extends ControllerBase
         $this->database = $database;
         $this->diditService = $diditService;
         $this->logger = $loggerFactory->get('esn_membership_manager');
+        $this->nationalities = new Nationalities($this->moduleHandler());
     }
 
     public static function create(ContainerInterface $container): self
@@ -92,7 +93,7 @@ class DiditController extends ControllerBase
                 'GBR' => 'British',
                 'SHN' => 'St Helenian / Tristanian',
                 'DOM' => 'Dominican',
-                default => $this->getNationalities()[$verifiedDetails['nationality']] ?? 'Undetermined',
+                default => $this->nationalities->get(true)[$verifiedDetails['nationality']] ?? 'Undetermined',
             };
 
             $updateFields += [
@@ -126,33 +127,5 @@ class DiditController extends ControllerBase
         } catch (Exception $e) {
             $this->logger->error('Failed to update Didit status to Failed. @error', ['@error' => $e->getMessage()]);
         }
-    }
-
-    protected function getNationalities(): array
-    {
-        if (!empty($this->nationalities)) {
-            return $this->nationalities;
-        }
-
-        try {
-            $path = $this->moduleHandler()->getModule('esn_membership_manager')->getPath() . '/assets/data/nationalities.csv';
-        } catch (Exception) {
-            $this->nationalities = [];
-            return [];
-        }
-
-        $nationalities = [];
-
-        if (file_exists($path)) {
-            if (($handle = fopen($path, 'r')) !== FALSE) {
-                while (($data = fgetcsv($handle, 1000, ",", "\"", "\\")) !== FALSE) {
-                    if (empty($data[0]) || empty($data[1])) continue;
-                    $nationalities[trim($data[0])] = trim($data[1]);
-                }
-                fclose($handle);
-            }
-        }
-        $this->nationalities = $nationalities;
-        return $nationalities;
     }
 }

@@ -25,6 +25,7 @@ use Drupal\esn_membership_manager\Entity\Application\ApplicationStorage;
 use Drupal\esn_membership_manager\Service\DiditService;
 use Drupal\esn_membership_manager\Service\EmailManager;
 use Drupal\esn_membership_manager\Service\FileService;
+use Drupal\esn_membership_manager\Utility\Nationalities;
 use Exception;
 use GuzzleHttp\ClientInterface;
 use Symfony\Component\DependencyInjection\ContainerInterface;
@@ -36,8 +37,7 @@ class ApplicationForm extends AuthenticatedFormBase
     protected FileService $fileService;
     protected ActionManager $actionManager;
     protected DiditService $diditService;
-
-    protected array $nationalities = [];
+    protected Nationalities $nationalities;
 
     public function __construct(
         Connection                    $database,
@@ -57,6 +57,7 @@ class ApplicationForm extends AuthenticatedFormBase
         $this->fileService = $fileService;
         $this->actionManager = $actionManager;
         $this->diditService = $diditService;
+        $this->nationalities = new Nationalities($this->moduleHandler);
     }
 
     public static function create(ContainerInterface $container): self
@@ -284,7 +285,7 @@ class ApplicationForm extends AuthenticatedFormBase
         $form['personal_details']['nationality'] = [
             '#type' => 'select',
             '#title' => $this->t('Nationality'),
-            '#options' => $this->getNationalities(),
+            '#options' => $this->nationalities->get(),
             '#empty_option' => $this->t('- Select -'),
             '#required' => TRUE,
             '#disabled' => $personalFieldsDisabled,
