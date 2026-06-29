@@ -66,16 +66,22 @@ class StripeWebhookController extends ControllerBase
         $applicationID = $session->metadata->application_id ?? NULL;
         $linkID = $session->payment_link ?? NULL;
 
-        if (empty($applicationID) && !empty($linkID)) {
-            try {
-                /** @var ApplicationStorage $storage */
-                $storage = $this->entityTypeManager()->getStorage('membership_application');
+        if (empty($linkID)) {
+            return new Response('Webhook failed: No link ID was present in the event.', 400);
+        }
 
+        try {
+            /** @var ApplicationStorage $storage */
+            $storage = $this->entityTypeManager()->getStorage('membership_application');
+
+            if (empty($applicationID)) {
                 $application = $storage->getByPaymentLinkID($linkID);
-            } catch (Exception $e) {
-                $this->logger->error('Failed to look up application: ' . $e->getMessage());
-                $application = NULL;
+            } else {
+                $application = $storage->load($applicationID);
             }
+        } catch (Exception $e) {
+            $this->logger->error('Failed to look up application: ' . $e->getMessage());
+            $application = NULL;
         }
 
         if (empty($application)) {
