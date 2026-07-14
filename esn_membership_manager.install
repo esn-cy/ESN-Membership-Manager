@@ -8,7 +8,6 @@ use Drupal\Core\File\FileSystemInterface;
 use Drupal\Core\StringTranslation\TranslatableMarkup;
 use Drupal\esn_membership_manager\Entity\Application\ApplicationField;
 use Drupal\esn_membership_manager\Entity\Application\ApplicationStorage;
-use Drupal\user\Entity\Role;
 
 /**
  * Implements hook_install().
@@ -36,34 +35,6 @@ function esn_membership_manager_install(): void
         file_put_contents($htaccessPath, $content);
     }
 
-    $roleID = 'esn_membership_manager_admin';
-    $role = Role::load($roleID);
-
-    if (!$role) {
-        $role = Role::create([
-            'id' => $roleID,
-            'label' => 'ESN Membership Manager Administrator',
-        ]);
-        $role->save();
-    }
-
-    if (empty($role->id())) {
-        throw new Exception('Failed to create Role, aborting install to prevent corruption.');
-    }
-
-    $permissions = Drupal::service('user.permissions')->getPermissions();
-    $modulePermissions = [];
-
-    foreach ($permissions as $name => $definition) {
-        if (isset($definition['provider']) && $definition['provider'] === 'esn_membership_manager') {
-            $modulePermissions[] = $name;
-        }
-    }
-
-    if (!empty($modulePermissions)) {
-        user_role_grant_permissions($roleID, $modulePermissions);
-    }
-
     $scopeStorage = Drupal::entityTypeManager()->getStorage('oauth2_scope');
     $scopeName = 'esn_scanner';
     $scope = $scopeStorage->load($scopeName);
@@ -74,7 +45,7 @@ function esn_membership_manager_install(): void
             'description' => 'Grants permissions for the ESN Membership Scanner App',
             'granularity_id' => 'role',
             'granularity_configuration' => [
-                'role' => $roleID
+                'role' => 'esn_membership_manager_admin'
             ],
             'grant_types' => [
                 'authorization_code' => ['status' => TRUE, 'description' => ''],

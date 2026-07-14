@@ -252,7 +252,7 @@ class ViewApplicationsForm extends FormBase
                         '#markup' => Markup::create('<input type="checkbox" onclick="return false;" style="cursor: default;" ' . ($application->getValue(ApplicationField::HasESNcard) ? 'checked' : '') . '>'),
                     ],
                 ],
-                'proof' => $this->generateFilePreview($application->getProofDocument()),
+                'proof' => $this->generateFilePreview($application->getStatusDocument()),
                 'id_doc' => $this->generateFilePreview($application->getIDDocument()),
                 'profile_img' => $this->generateFilePreview($application->getFacePhoto()),
                 'operations' => [

@@ -129,9 +129,9 @@ class ApplicationForm extends AuthenticatedFormBase
 
         $session = $this->getRequest()->getSession();
         $savedData = $session->get('application_form_saved_data', []);
-        $emailAuthenticationData = $session->get('email_authentication_data', []);
+        $emailAuthenticationData = $session->get($this->getAuthenticationType() . '_email_authentication_data', []);
 
-        $email = strtolower($session->get('verified_email') ?? $emailAuthenticationData['email'] ?? $form_state->getValue('email') ?? '');
+        $email = strtolower($session->get($this->getAuthenticationType() . '_verified_email') ?? $emailAuthenticationData['email'] ?? $form_state->getValue('email') ?? '');
         if (empty($email)) {
             $savedData = [];
             $session->remove('application_form_verification_data');
@@ -620,40 +620,6 @@ class ApplicationForm extends AuthenticatedFormBase
         return $form;
     }
 
-    protected function getNationalities(bool $getISO = false): array
-    {
-        if (!empty($this->nationalities)) {
-            return $this->nationalities;
-        }
-
-        try {
-            $path = $this->moduleHandler->getModule('esn_membership_manager')->getPath() . '/assets/data/nationalities.csv';
-        } catch (Exception) {
-            $this->nationalities = [];
-            return [];
-        }
-
-        $nationalities = [];
-
-        if (file_exists($path)) {
-            if (($handle = fopen($path, "r")) !== FALSE) {
-                while (($data = fgetcsv($handle, 1000, ",", "\"", "\\")) !== FALSE) {
-                    if ($getISO) {
-                        if (empty($data[0]) || empty($data[1])) continue;
-                        $nationalities[trim($data[0])] = trim($data[1]);
-                    } else {
-                        if (empty($data[1])) continue;
-                        $val = trim($data[1]);
-                        $nationalities[$val] = $val;
-                    }
-                }
-                fclose($handle);
-            }
-        }
-        $this->nationalities = $nationalities;
-        return $nationalities;
-    }
-
     /**
      * @noinspection PhpParameterByRefIsNotUsedAsReferenceInspection
      * @noinspection PhpUnusedParameterInspection
@@ -667,7 +633,7 @@ class ApplicationForm extends AuthenticatedFormBase
         $token = $verificationData['id_verification_token'] ?? null;
 
         if (empty($token)) {
-            $email = $session->get('application_form_saved_data', [])['email'];
+            $email = $session->get($this->getAuthenticationType() . '_email_authentication_data', [])['email'];
             $verificationLink = $this->diditService->createVerificationSession($email);
         } else {
             $verificationLink = 'https://verify.didit.me/session/' . $token;
@@ -727,7 +693,7 @@ class ApplicationForm extends AuthenticatedFormBase
 
         $session = $this->getRequest()->getSession();
         $verificationData = $session->get('application_form_verification_data', []);
-        $emailAuthenticationData = $session->get('email_authentication_data', []);
+        $emailAuthenticationData = $session->get($this->getAuthenticationType() . '_email_authentication_data', []);
         $isVerifiedEmail = !empty($emailAuthenticationData['auth_success']);
         $isVerifiedID = !empty($verificationData['id_verified']);
         $isVerifiedStatus = !empty($verificationData['status_verified']);
@@ -765,9 +731,9 @@ class ApplicationForm extends AuthenticatedFormBase
 
         $session = $this->getRequest()->getSession();
         $savedData = $session->get('application_form_saved_data', []);
-        $emailAuthenticationData = $session->get('email_authentication_data', []);
+        $emailAuthenticationData = $session->get($this->getAuthenticationType() . '_email_authentication_data', []);
 
-        $email = strtolower(trim($session->get('verified_email') ?? $emailAuthenticationData['email'] ?? $form_state->getValue('email')));
+        $email = strtolower(trim($session->get($this->getAuthenticationType() . '_verified_email') ?? $emailAuthenticationData['email'] ?? $form_state->getValue('email')));
 
         try {
             $application = $this->database->select('esn_membership_manager_in_progress_applications', 'i')
@@ -862,7 +828,7 @@ class ApplicationForm extends AuthenticatedFormBase
         }
         if ($isVerifiedID) {
             $pdfData = $this->diditService->getPDF($application['didit_session_id']);
-            $values['id_document'][0] = $this->fileService->createApplicationFile($pdfData, "membership://temp_uploads", "id_document_{$application['id']}.pdf", null);
+            $values['id_document'][0] = $this->fileService->createApplicationFile($pdfData, "membership://temp_uploads", "id_document_{$application['id']}", null);
         }
         $fields[ApplicationField::IdentityDocumentFileID->value] = $values['id_document'][0];
         if ($hasESNcard) {
@@ -943,6 +909,7 @@ class ApplicationForm extends AuthenticatedFormBase
             $this->logger->error('Unable to delete in progress application. @error', ['@error' => $e->getMessage()]);
         }
 
+        $session->remove($this->getAuthenticationType() . '_email_authentication_data');
         $session->remove('application_form_saved_data');
         $session->remove('application_form_verification_data');
 

@@ -177,6 +177,14 @@ esn_membership_manager.apply_success:
   requirements:
     _access: 'TRUE'
 
+esn_membership_manager.dashboard:
+  path: '/memberships/dashboard'
+  defaults:
+    _form: '\Drupal\esn_membership_manager\Form\MembershipDashboard'
+    _title: 'Membership Dashboard'
+  requirements:
+    _access: 'TRUE'
+
 esn_membership_manager.terms_of_service:
   path: '/memberships/terms-of-service'
   defaults:

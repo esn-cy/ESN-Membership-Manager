@@ -67,6 +67,12 @@ class ApplicationStorage extends EnumBackedEntityStorage
         return $application instanceof ApplicationInterface ? $application : null;
     }
 
+    public function getByEmailAddress(string $email): ApplicationInterface|null
+    {
+        $application = $this->getByUniqueField(ApplicationField::Email, $email);
+        return $application instanceof ApplicationInterface ? $application : null;
+    }
+
     public function countByEmail(string $email): int
     {
         return $this->countByField(ApplicationField::Email, $email);
@@ -99,7 +105,7 @@ class ApplicationStorage extends EnumBackedEntityStorage
         }
 
         if (!empty($status)) {
-            $andGroup->condition(ApplicationField::ApprovalStatus->value, $status);
+            $andGroup->condition(ApplicationField::ApprovalStatus->value, $status, 'CONTAINS');
         }
 
         if (!empty($esncard)) {

@@ -280,7 +280,7 @@ function esn_membership_manager_cron(): void
     // Process 2-week deletions
     foreach ($results2W as $application) {
         $fidsToDelete = [];
-        if ($application->getProofDocument()) $fidsToDelete[ApplicationField::StatusProofFileID->value] = $application->getProofDocument()->id();
+        if ($application->getStatusDocument()) $fidsToDelete[ApplicationField::StatusProofFileID->value] = $application->getStatusDocument()->id();
         if ($application->getIDDocument()) $fidsToDelete[ApplicationField::IdentityDocumentFileID->value] = $application->getIDDocument()->id();
 
         if (!empty($fidsToDelete)) {

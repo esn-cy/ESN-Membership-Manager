@@ -120,10 +120,10 @@ abstract class AuthenticatedFormBase extends FormBase
             $form_state->set('api_message_type', 'status');
 
             $session = $this->getRequest()->getSession();
-            $authenticationData = $session->get('email_authentication_data', []);
+            $authenticationData = $session->get($this->getAuthenticationType() . '_email_authentication_data', []);
             $authenticationData['email_exists'] = true;
             $authenticationData['email'] = $email;
-            $session->set('email_authentication_data', $authenticationData);
+            $session->set($this->getAuthenticationType() . '_email_authentication_data', $authenticationData);
 
             $form_state->setRebuild();
             return;
@@ -168,14 +168,18 @@ abstract class AuthenticatedFormBase extends FormBase
         $form_state->set('code_sent', true);
 
         $session = $this->getRequest()->getSession();
-        $authenticationData = $session->get('email_authentication_data', []);
+        $authenticationData = $session->get($this->getAuthenticationType() . '_email_authentication_data', []);
         $authenticationData['code_sent'] = true;
         $authenticationData['email'] = $email;
-        $session->set('email_authentication_data', $authenticationData);
+        $session->set($this->getAuthenticationType() . '_email_authentication_data', $authenticationData);
 
         $form_state->setRebuild();
     }
 
+    /**
+     * Submit handler for verifying the verification code.
+     * @noinspection PhpUnusedParameterInspection
+     */
     public function verifyCode(array &$form, FormStateInterface $form_state): void
     {
         $email = strtolower($form_state->getValue('email'));
@@ -224,9 +228,9 @@ abstract class AuthenticatedFormBase extends FormBase
                 $form_state->set('auth_success', true);
 
                 $session = $this->getRequest()->getSession();
-                $authenticationData = $session->get('email_authentication_data', []);
+                $authenticationData = $session->get($this->getAuthenticationType() . '_email_authentication_data', []);
                 $authenticationData['auth_success'] = true;
-                $session->set('email_authentication_data', $authenticationData);
+                $session->set($this->getAuthenticationType() . '_email_authentication_data', $authenticationData);
 
                 if ($this->getAuthenticationType() == 'register') {
                     $savedData = $session->get('application_form_saved_data', []);
@@ -246,12 +250,12 @@ abstract class AuthenticatedFormBase extends FormBase
     protected function addAuthenticationDialog(array &$form, FormStateInterface $form_state): void
     {
         $session = $this->getRequest()->getSession();
-        $authenticationData = $session->get('email_authentication_data', []);
+        $authenticationData = $session->get($this->getAuthenticationType() . '_email_authentication_data', []);
 
-        $email = strtolower($session->get('verified_email') ?? $authenticationData['email'] ?? $form_state->getValue('email') ?? '');
+        $email = strtolower($session->get($this->getAuthenticationType() . '_verified_email') ?? $authenticationData['email'] ?? $form_state->getValue('email') ?? '');
         if (empty($email)) {
             $authenticationData = [];
-            $session->remove('email_authentication_data');
+            $session->remove($this->getAuthenticationType() . '_email_authentication_data');
         }
 
         $isCodeSent = !empty($authenticationData['code_sent']) || $form_state->get('code_sent');

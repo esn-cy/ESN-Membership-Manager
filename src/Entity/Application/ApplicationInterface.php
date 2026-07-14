@@ -28,6 +28,18 @@ interface ApplicationInterface extends EnumBackedEntityInterface
     public function getApprovalStatus(): string;
 
     /**
+     * Retrieves the all the statuses with the reason format of an application as an array containing the category and issue.
+     * @return ?array The rejection reasons, null if the application wasn't rejected.
+     */
+    public function getAllReasons(): ?array;
+
+    /**
+     * Retrieves the remediated rejection reasons of an application as an array containing the category and issue.
+     * @return ?array The rejection reasons, null if the application wasn't rejected.
+     */
+    public function getPendingReasons(): ?array;
+
+    /**
      * Retrieves the rejection reasons of an application as an array containing the category and issue.
      * @return ?array The rejection reasons, null if the application wasn't rejected.
      */
@@ -38,7 +50,7 @@ interface ApplicationInterface extends EnumBackedEntityInterface
      *
      * @return FileInterface|null
      */
-    public function getProofDocument(): ?FileInterface;
+    public function getStatusDocument(): ?FileInterface;
 
     /**
      * Safely retrieves the fully loaded File entity for the ID Document.

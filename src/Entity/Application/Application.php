@@ -52,7 +52,7 @@ class Application extends EnumBackedEntityBase implements ApplicationInterface
 
         /** @var ApplicationInterface $application */
         foreach ($entities as $application) {
-            if ($proof = $application->getProofDocument()) {
+            if ($proof = $application->getStatusDocument()) {
                 $fileService->deleteApplicationFile($proof->id(), $application->id());
             }
             if ($idDocument = $application->getIDDocument()) {
@@ -93,7 +93,7 @@ class Application extends EnumBackedEntityBase implements ApplicationInterface
     /**
      * {@inheritdoc}
      */
-    public function getProofDocument(): ?FileInterface
+    public function getStatusDocument(): ?FileInterface
     {
         return $this->getFile(ApplicationField::StatusProofFileID);
     }
@@ -136,6 +136,71 @@ class Application extends EnumBackedEntityBase implements ApplicationInterface
         return "{$this->getValue(ApplicationField::Name)} {$this->getValue(ApplicationField::Surname)}";
     }
 
+    private function getReasons(string $status): ?array
+    {
+        $reasons = [];
+        if (str_contains($status, '-')) {
+            $reasonsSplit = explode('/', $status);
+            if (count($reasonsSplit) > 1) {
+                foreach ($reasonsSplit as $reason) {
+                    $reasonParts = explode('-', $reason);
+                    if (count($reasonParts) != 3) {
+                        continue;
+                    }
+                    $reasons[] = [
+                        'status' => $reasonParts[0],
+                        'category' => $reasonParts[1],
+                        'issue' => $reasonParts[2],
+                    ];
+                }
+            } else {
+                $reasonParts = explode('-', $status);
+                $reasons[] = [
+                    'status' => $reasonParts[0],
+                    'category' => $reasonParts[1],
+                    'issue' => $reasonParts[2],
+                ];
+            }
+        }
+
+        return $reasons;
+    }
+
+    private function getDominantStatus(string $status): string
+    {
+        $successStatuses = ['Approved', 'Paid', 'Issued', 'Delivered', 'Blacklisted'];
+
+        if (str_contains($status, '/')) {
+            $reasons = $this->getReasons($status);
+
+            $isPending = false;
+            $successStatusIndex = -1;
+            foreach ($reasons as $reason) {
+                $currentStatus = $this->getDominantStatus($reason['status']);
+                if ($currentStatus == 'Rejected') {
+                    return $currentStatus;
+                }
+                if ($currentStatus == 'Pending') {
+                    $isPending = true;
+                    continue;
+                }
+                if ($successStatusIndex == -1) {
+                    $successStatusIndex = array_search($currentStatus, $successStatuses);
+                } elseif (($currentIndex = array_search($currentStatus, $successStatuses)) > $successStatusIndex) {
+                    $successStatusIndex = $currentIndex;
+                }
+            }
+            if ($isPending) {
+                return 'Pending';
+            } else {
+                return $successStatuses[$successStatusIndex];
+            }
+        } else {
+            preg_match('/^([a-zA-Z]+)/', $status, $matches);
+            return $matches[1];
+        }
+    }
+
     /**
      * {@inheritdoc}
      */
@@ -143,8 +208,33 @@ class Application extends EnumBackedEntityBase implements ApplicationInterface
     {
         $rawStatus = $this->getValue(ApplicationField::ApprovalStatus);
 
-        preg_match('/^([a-zA-Z]+)/', $rawStatus, $matches);
-        return $matches[1];
+        return $this->getDominantStatus($rawStatus);
+    }
+
+    /**
+     * {@inheritdoc}
+     */
+    public function getAllReasons(): ?array
+    {
+        $rawStatus = $this->getValue(ApplicationField::ApprovalStatus);
+
+        return $this->getReasons($rawStatus);
+    }
+
+    /**
+     * {@inheritdoc}
+     */
+    public function getPendingReasons(): ?array
+    {
+        $rawStatus = $this->getValue(ApplicationField::ApprovalStatus);
+        if (!str_starts_with($rawStatus, 'Pending')) {
+            return null;
+        }
+
+        $reasons = $this->getReasons($rawStatus);
+        return array_filter($reasons, function ($reason) {
+            return $reason['status'] == 'Pending';
+        });
     }
 
     /**
@@ -157,21 +247,10 @@ class Application extends EnumBackedEntityBase implements ApplicationInterface
             return null;
         }
 
-        $reasons = [];
-        if ($rawStatus !== 'Rejected') {
-            $reasonsSplit = explode('/', $rawStatus);
-            foreach ($reasonsSplit as $reason) {
-                if (str_starts_with($reason, 'Rejected-')) {
-                    $reasonParts = explode('-', $reason);
-                    $reasons[] = [
-                        'category' => $reasonParts[1],
-                        'issue' => $reasonParts[2],
-                    ];
-                }
-            }
-        }
-
-        return $reasons;
+        $reasons = $this->getReasons($rawStatus);
+        return array_filter($reasons, function ($reason) {
+            return $reason['status'] == 'Rejected';
+        });
     }
 
     /**

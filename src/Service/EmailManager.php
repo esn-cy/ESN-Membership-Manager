@@ -61,6 +61,8 @@ class EmailManager
             '#organisation_name' => $coreSettings->getOrganisationName(),
             '#authentication_type' => $data['authentication_type'] ?? NULL,
             '#authentication_code' => $data['authentication_code'] ?? NULL,
+
+            '#reasons' => $data['reasons'] ?? NULL,
         ];
 
         try {

@@ -1,0 +1,611 @@
+/* ==========================================================================
+   Fonts & Icons
+   ========================================================================== */
+
+@font-face {
+    font-family: 'Material Symbols Outlined';
+    font-style: normal;
+    font-weight: 100 700;
+    src: url("https://fonts.gstatic.com/s/materialsymbolsoutlined/v343/kJEhBvYX7BgnkSrUwT8OhrdQw4oELdPIeeII9v6oFsLjBuVY.woff2") format('woff2');
+}
+
+.material-symbols-outlined {
+    font-family: 'Material Symbols Outlined';
+    font-weight: normal;
+    font-style: normal;
+    font-size: 24px;
+    line-height: 1;
+    letter-spacing: normal;
+    text-transform: none;
+    display: inline-block;
+    white-space: nowrap;
+    overflow-wrap: normal;
+    direction: ltr;
+    font-feature-settings: 'liga';
+    -webkit-font-smoothing: antialiased;
+}
+
+/* ==========================================================================
+   Base & Variables
+   ========================================================================== */
+
+.esn-membership-manager-dashboard {
+    --brand-primary: #2e3192;
+    --brand-primary-dark: #1b1d5a;
+    --brand-secondary: #00aeef;
+    --brand-secondary-light: #c6e7ff;
+    --brand-secondary-dark: #004866;
+    --text-dark: #191c1e;
+    --text-muted: #777683;
+    --text-light: #808080;
+    --text-label: #464652;
+    --bg-white: #fff;
+    --bg-hover: #f7f9fc;
+    --bg-icon: #e0e3e6;
+    --bg-disabled: #707070;
+    --warning-text: #ba8d1a;
+    --warning-text-dark: #936900;
+    --error-text: #ba1a1a;
+    --error-text-dark: #93000a;
+    --warning-bg: #fff7d6;
+    --warning-bg-dark: #ece3c5;
+    --error-bg: #ffdad6;
+    --error-bg-dark: #ecc8c5;
+    --error-border: rgb(186 26 26 / 20%);
+    --success-bg: #eceef1;
+    --border-light: #e6e6e6;
+    --border-input: #ccc;
+    --radius-sm: 4px;
+    --radius-md: 8px;
+    --radius-pill: 9999px;
+    --shadow-sm: 0 2px 4px rgb(0 0 0 / 2%);
+    --transition-speed: 0.3s;
+
+    max-width: 1200px;
+    margin: 0 auto;
+    font-family: Lato, sans-serif;
+    color: var(--text-dark);
+}
+
+/* ==========================================================================
+   Typography
+   ========================================================================== */
+
+.esn-membership-manager-dashboard h2 {
+    max-width: 800px;
+    margin: 0 auto 1.5rem;
+    color: var(--brand-primary);
+    font-size: 2rem;
+    font-weight: 700;
+}
+
+.esn-membership-manager-dashboard h3 {
+    margin-bottom: 1rem;
+    color: var(--brand-primary);
+    font-size: 1.25rem;
+}
+
+.esn-membership-manager-dashboard p {
+    line-height: 1.6;
+}
+
+.esn-membership-manager-dashboard .text-muted {
+    color: var(--text-muted);
+}
+
+.esn-membership-manager-dashboard .text-small {
+    font-size: 0.875rem;
+}
+
+.esn-membership-manager-dashboard .text-error {
+    color: var(--error-text);
+}
+
+/* ==========================================================================
+   Layout & Structural Elements
+   ========================================================================== */
+
+.esn-membership-manager-dashboard .header {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-end;
+    margin-bottom: 2rem;
+}
+
+.esn-membership-manager-dashboard .section {
+    margin: 0 auto 4rem;
+    padding-top: 2rem;
+    border-top: 1px solid var(--border-light);
+}
+
+/* ==========================================================================
+   Alerts
+   ========================================================================== */
+
+.esn-membership-manager-dashboard .alert {
+    border-radius: var(--radius-md);
+    padding: 1.5rem;
+    margin-bottom: 2rem;
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: flex-end;
+    gap: 1.5rem;
+    box-shadow: var(--shadow-sm);
+}
+
+.esn-membership-manager-dashboard .alert div {
+    width: 100%;
+}
+
+.esn-membership-manager-dashboard .alert div div {
+    display: flex;
+    flex-direction: row;
+    gap: 5px;
+}
+
+.esn-membership-manager-dashboard .alert-error {
+    background-color: var(--error-bg);
+    border: 1px solid var(--error-border);
+    color: var(--error-text-dark);
+}
+
+.esn-membership-manager-dashboard .alert-error h3 {
+    color: var(--error-text-dark);
+    margin: 0 0 0.5rem;
+}
+
+.esn-membership-manager-dashboard .alert-error p {
+    margin: 0;
+}
+
+/* ==========================================================================
+   Stats Grid
+   ========================================================================== */
+
+.esn-membership-manager-dashboard .stats-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+    gap: 1.5rem;
+    margin-bottom: 3rem;
+}
+
+.esn-membership-manager-dashboard .stat-card,
+.esn-membership-manager-dashboard .stat-divided-card {
+    background-color: var(--bg-white);
+    border: 1px solid var(--border-light);
+    border-radius: var(--radius-md);
+    padding: 1.5rem;
+    box-shadow: var(--shadow-sm);
+    display: flex;
+}
+
+.esn-membership-manager-dashboard .stat-card {
+    flex-direction: column;
+}
+
+.esn-membership-manager-dashboard .stat-divided-card {
+    flex-direction: row;
+    justify-content: space-between;
+}
+
+.esn-membership-manager-dashboard .stat-divided-card div {
+    display: flex;
+    flex-direction: column;
+}
+
+.esn-membership-manager-dashboard .stat-header {
+    font-size: 0.75rem;
+    letter-spacing: 0.05em;
+    color: var(--text-label);
+    margin-bottom: 1rem;
+    font-weight: 700;
+}
+
+.esn-membership-manager-dashboard .stat-value {
+    font-size: 1.5rem;
+    font-weight: 700;
+    margin-bottom: 0.25rem;
+}
+
+.esn-membership-manager-dashboard .stat-subtext {
+    font-size: 0.875rem;
+    color: var(--text-muted);
+}
+
+.esn-membership-manager-dashboard .stat-divider {
+    display: flex;
+    margin: 0 1rem;
+}
+
+.esn-membership-manager-dashboard .stat-divider::before,
+.esn-membership-manager-dashboard .stat-divider::after {
+    content: '';
+    flex: 1;
+    width: 1px;
+    background-color: var(--border-input);
+}
+
+/* ==========================================================================
+   Panels & Info Grids
+   ========================================================================== */
+
+.esn-membership-manager-dashboard .panel {
+    max-width: 800px;
+    background-color: var(--bg-white);
+    border: 1px solid var(--border-light);
+    border-radius: var(--radius-md);
+    margin: 0 auto 1.5rem;
+    box-shadow: var(--shadow-sm);
+    overflow: hidden;
+}
+
+.esn-membership-manager-dashboard .panel-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 1.5rem;
+    border-bottom: 1px solid var(--border-light);
+}
+
+.esn-membership-manager-dashboard .panel-header h3 {
+    margin: 0;
+    font-size: 1.1rem;
+    color: var(--text-dark);
+}
+
+.esn-membership-manager-dashboard .panel-body,
+.esn-membership-manager-dashboard .divided-panel-body {
+    padding: 1.5rem;
+}
+
+.esn-membership-manager-dashboard .divided-panel-body {
+    display: flex;
+    flex-direction: row;
+    justify-content: space-evenly;
+}
+
+.esn-membership-manager-dashboard .divided-panel-body div {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 7.5px;
+}
+
+.esn-membership-manager-dashboard .divided-panel-body div h4 {
+    font-size: 1.25rem;
+    text-align: center;
+}
+
+.esn-membership-manager-dashboard .panel-divider {
+    display: flex;
+    margin: 0 1rem;
+    gap: 0 !important;
+}
+
+.esn-membership-manager-dashboard .panel-divider::before,
+.esn-membership-manager-dashboard .panel-divider::after {
+    content: '';
+    flex: 1;
+    width: 1px;
+    background-color: var(--border-input);
+}
+
+.esn-membership-manager-dashboard .info-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+    gap: 1.5rem 2rem;
+}
+
+.esn-membership-manager-dashboard .info-item label {
+    margin-bottom: 0.25rem;
+    color: var(--text-light);
+}
+
+.esn-membership-manager-dashboard div.info-value,
+.esn-membership-manager-dashboard input.info-value,
+.esn-membership-manager-dashboard select.info-value {
+    padding-top: 0.5rem;
+    padding-bottom: 0.5rem;
+    border-bottom: 1px solid transparent;
+    color: var(--text-dark);
+}
+
+.esn-membership-manager-dashboard div.info-value {
+
+}
+
+.esn-membership-manager-dashboard input.info-value,
+.esn-membership-manager-dashboard select.info-value {
+    display: block;
+    border: 1px solid var(--border-input);
+    border-radius: var(--radius-sm);
+    padding: 10px;
+    width: 100%;
+    box-sizing: border-box;
+    transition: border-color var(--transition-speed) ease;
+}
+
+/* ==========================================================================
+   Document List & Icons
+   ========================================================================== */
+
+.esn-membership-manager-dashboard .document-list {
+    display: flex;
+    flex-direction: column;
+}
+
+.esn-membership-manager-dashboard .document-item {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 1rem 1.5rem;
+    border-top: 1px solid var(--border-light);
+    transition: background-color 0.2s ease;
+}
+
+.esn-membership-manager-dashboard .document-item:last-child {
+    border-bottom: none;
+}
+
+.esn-membership-manager-dashboard .document-item:hover:not(.esn-doc-error) {
+    background-color: var(--bg-hover);
+}
+
+.esn-membership-manager-dashboard .document-info {
+    display: flex;
+    align-items: center;
+    gap: 1rem;
+}
+
+.esn-membership-manager-dashboard .document-title {
+    font-weight: 700;
+    color: var(--text-dark);
+}
+
+.esn-membership-manager-dashboard .icon-wrap {
+    width: 40px;
+    height: 40px;
+    border-radius: 50%;
+    background-color: var(--bg-icon);
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    color: var(--text-label);
+}
+
+.esn-membership-manager-dashboard .icon-error {
+    background-color: var(--error-bg);
+    color: var(--error-text);
+}
+
+.esn-membership-manager-dashboard .badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    padding: 0.25rem 0.75rem;
+    border-radius: var(--radius-pill);
+    font-size: 0.75rem;
+    font-weight: 700;
+}
+
+.esn-membership-manager-dashboard .badge .material-symbols-outlined {
+    font-size: 16px !important;
+    font-variation-settings: 'FILL' 1 !important;
+}
+
+.esn-membership-manager-dashboard .badge-success {
+    background-color: var(--success-bg);
+    color: var(--text-dark);
+    cursor: default;
+}
+
+.esn-membership-manager-dashboard .badge-success .material-symbols-outlined {
+    color: var(--brand-primary);
+}
+
+.esn-membership-manager-dashboard .badge-warning {
+    background-color: var(--warning-bg);
+    color: var(--warning-text);
+}
+
+.esn-membership-manager-dashboard .badge-warning .material-symbols-outlined {
+    color: var(--warning-text);
+}
+
+.esn-membership-manager-dashboard .badge-error {
+    background-color: var(--error-bg);
+    color: var(--error-text);
+}
+
+.esn-membership-manager-dashboard .badge-error .material-symbols-outlined {
+    color: var(--error-text);
+}
+
+/* ==========================================================================
+   Buttons & Actions
+   ========================================================================== */
+
+.esn-membership-manager-dashboard .panel-button-text {
+    background: none;
+    border: none;
+    color: var(--brand-secondary);
+    font-weight: 700;
+    text-decoration: none;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    gap: 4px;
+}
+
+.esn-membership-manager-dashboard .panel-button-text:hover {
+    text-decoration: underline;
+}
+
+.esn-membership-manager-dashboard .button,
+.esn-membership-manager-dashboard .error-button,
+.esn-membership-manager-dashboard .secondary-button,
+.esn-membership-manager-dashboard .disabled-secondary-button {
+    display: inline-block;
+    padding: 0.75rem 1.5rem;
+    border-radius: var(--radius-sm);
+    font-weight: 700;
+    text-align: center;
+    text-decoration: none;
+    cursor: pointer;
+    border: 1px solid transparent;
+    transition: background-color var(--transition-speed) ease, opacity var(--transition-speed) ease;
+}
+
+.esn-membership-manager-dashboard .error-button {
+    background-color: var(--error-text);
+    color: var(--bg-white);
+}
+
+.esn-membership-manager-dashboard .error-button:hover {
+    opacity: 0.9;
+}
+
+.esn-membership-manager-dashboard .secondary-button,
+.esn-membership-manager-dashboard .disabled-secondary-button {
+    width: 100%;
+    box-sizing: border-box;
+}
+
+.esn-membership-manager-dashboard .secondary-button {
+    background-color: var(--brand-secondary);
+    color: var(--brand-secondary-dark);
+}
+
+.esn-membership-manager-dashboard .secondary-button:hover {
+    background-color: var(--brand-secondary-light);
+}
+
+.esn-membership-manager-dashboard .disabled-secondary-button {
+    background-color: var(--bg-disabled);
+    color: var(--bg-white);
+}
+
+/* ==========================================================================
+   Managed File Uploads
+   ========================================================================== */
+
+.esn-membership-manager-dashboard .form-managed-file {
+    position: relative;
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    padding: 0.25rem 0.75rem;
+    border-radius: var(--radius-pill);
+    font-size: 0.75rem;
+    font-weight: 700;
+    cursor: pointer;
+    border: none;
+    margin: 0;
+    transition: all var(--transition-speed) ease;
+    background-color: var(--error-bg);
+    color: var(--error-text);
+}
+
+.esn-membership-manager-dashboard .form-managed-file:hover {
+    background-color: var(--error-bg-dark);
+    color: var(--error-text-dark);
+}
+
+.esn-membership-manager-dashboard .form-managed-file::before {
+    content: "upload";
+    font-family: 'Material Symbols Outlined';
+    font-size: 16px;
+    font-weight: normal;
+    font-style: normal;
+    line-height: 1;
+    font-feature-settings: 'liga';
+    -webkit-font-smoothing: antialiased;
+}
+
+.esn-membership-manager-dashboard .form-managed-file::after {
+    content: "Upload";
+    font-family: Lato, sans-serif;
+}
+
+.esn-membership-manager-dashboard .form-managed-file:has(input[name*="remove_button"]) {
+    background-color: var(--success-bg);
+    color: var(--text-dark);
+}
+
+.esn-membership-manager-dashboard .form-managed-file:has(input[name*="remove_button"])::before {
+    content: "check_circle";
+    color: var(--brand-primary);
+}
+
+.esn-membership-manager-dashboard .form-managed-file:has(input[name*="remove_button"])::after {
+    content: "Uploaded";
+}
+
+.esn-membership-manager-dashboard .form-managed-file:has(input[name*="remove_button"]):hover {
+    background-color: var(--error-bg);
+    color: var(--error-text);
+}
+
+.esn-membership-manager-dashboard .form-managed-file:has(input[name*="remove_button"]):hover::before {
+    content: "delete";
+    color: var(--error-text);
+}
+
+.esn-membership-manager-dashboard .form-managed-file:has(input[name*="remove_button"]):hover::after {
+    content: "Remove";
+}
+
+.esn-membership-manager-dashboard .form-managed-file input[type="file"],
+.esn-membership-manager-dashboard .form-managed-file input[name*="remove_button"] {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    opacity: 0;
+    cursor: pointer;
+    z-index: 10;
+}
+
+.esn-membership-manager-dashboard .form-managed-file > *:not(input[type="file"], input[name*="remove_button"]) {
+    display: none !important;
+}
+
+/* ==========================================================================
+   Editing Fields
+   ========================================================================== */
+
+.esn-membership-manager-dashboard input.info-value[readonly],
+.esn-membership-manager-dashboard select.info-value[readonly] {
+    border-color: transparent;
+    background-color: transparent;
+    padding-left: 0;
+    padding-right: 0;
+    pointer-events: none;
+    color: var(--text-dark);
+    appearance: none;
+    background-image: none !important;
+}
+
+/* ==========================================================================
+   Media Queries
+   ========================================================================== */
+
+@media (width <= 600px) {
+    .esn-membership-manager-dashboard .divided-panel-body {
+        flex-direction: column;
+    }
+
+    .esn-membership-manager-dashboard .panel-divider {
+        margin: 1rem 0;
+        height: 2px;
+        width: 100%;
+    }
+
+    .panel-divider::before,
+    .panel-divider::after {
+        width: 100%;
+        height: 1px;
+    }
+}
