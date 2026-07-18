@@ -4,6 +4,7 @@ namespace Drupal\esn_membership_manager\Form;
 
 use Drupal\Component\Plugin\Exception\InvalidPluginDefinitionException;
 use Drupal\Component\Plugin\Exception\PluginNotFoundException;
+use Drupal\Component\Render\MarkupInterface;
 use Drupal\Core\Action\ActionBase;
 use Drupal\Core\Action\ActionManager;
 use Drupal\Core\Ajax\AjaxResponse;
@@ -17,7 +18,6 @@ use Drupal\Core\Logger\LoggerChannelFactoryInterface;
 use Drupal\Core\Render\Markup;
 use Drupal\Core\Url;
 use Drupal\esn_accounts_api\Entity\Organisation;
-use Drupal\esn_cyprus_core\Config\CoreSettings;
 use Drupal\esn_membership_manager\Config\ModuleSettings;
 use Drupal\esn_membership_manager\Entity\Application\ApplicationField;
 use Drupal\esn_membership_manager\Entity\Application\ApplicationInterface;
@@ -26,6 +26,7 @@ use Drupal\esn_membership_manager\Service\DiditService;
 use Drupal\esn_membership_manager\Service\EmailManager;
 use Drupal\esn_membership_manager\Service\FileService;
 use Drupal\esn_membership_manager\Utility\Nationalities;
+use Drupal\omnia\Config\OmniaSettings;
 use Exception;
 use GuzzleHttp\ClientInterface;
 use Symfony\Component\DependencyInjection\ContainerInterface;
@@ -116,6 +117,25 @@ class ApplicationForm extends AuthenticatedFormBase
     }
 
     /**
+     * {@inheritDoc}
+     */
+    protected function isAuthenticationRequired(): bool
+    {
+        return true;
+    }
+
+    /**
+     * {@inheritDoc}
+     */
+    protected function headerMarkup(): MarkupInterface|string
+    {
+        $moduleSettings = new ModuleSettings($this->configFactory());
+        $passName = $moduleSettings->getPassName();
+
+        return Markup::create('<h2>' . $this->t('Apply for an ESNcard / @scheme', ['@scheme' => $passName]) . '</h2>');
+    }
+
+    /**
      * {@inheritdoc}
      */
     public function buildForm(array $form, FormStateInterface $form_state): array
@@ -123,38 +143,26 @@ class ApplicationForm extends AuthenticatedFormBase
         $coreSettings = new CoreSettings($this->configFactory());
         $moduleSettings = new ModuleSettings($this->configFactory());
 
+        $session = $this->getRequest()->getSession();
+        $savedData = $session->get('application_form_saved_data', []);
+
         $form = parent::buildForm($form, $form_state);
+        if ($this->isDialogAdded) {
+            $session->remove('application_form_verification_data');
+
+            return $form;
+        }
 
         $passName = $moduleSettings->getPassName();
 
-        $session = $this->getRequest()->getSession();
-        $savedData = $session->get('application_form_saved_data', []);
-        $emailAuthenticationData = $session->get($this->getAuthenticationType() . '_email_authentication_data', []);
-
-        $email = strtolower($session->get($this->getAuthenticationType() . '_verified_email') ?? $emailAuthenticationData['email'] ?? $form_state->getValue('email') ?? '');
-        if (empty($email)) {
-            $savedData = [];
-            $session->remove('application_form_verification_data');
-        }
-
-        $isCodeVerified = !empty($emailAuthenticationData['auth_success']) || $form_state->get('auth_success');
-
-        $headerMarkup = '<h2>' . $this->t('Apply for an ESNcard / @scheme', ['@scheme' => $passName]) . '</h2>';
-        if ($isCodeVerified) {
-            $headerMarkup .=
-                '<p>' . $this->t('The @scheme is your digital identifier. It verifies your status as a mobility participant and grants you access to exclusive events.', ['@scheme' => $passName]) . '</p>' .
-                '<p>' . $this->t('The ESNcard is the official physical membership card of the Erasmus Student Network. It provides all the benefits of the @scheme, plus access to thousands of discounts at major brands and local businesses across Europe.', ['@scheme' => $passName]) . '</p>';
-        }
-
         $form['header'] = [
-            '#markup' => Markup::create($headerMarkup),
+            '#markup' => Markup::create(
+                '<h2>' . $this->t('Apply for an ESNcard / @scheme', ['@scheme' => $passName]) . '</h2>' .
+                '<p>' . $this->t('The @scheme is your digital identifier. It verifies your status as a mobility participant and grants you access to exclusive events.', ['@scheme' => $passName]) . '</p>' .
+                '<p>' . $this->t('The ESNcard is the official physical membership card of the Erasmus Student Network. It provides all the benefits of the @scheme, plus access to thousands of discounts at major brands and local businesses across Europe.', ['@scheme' => $passName]) . '</p>'
+            ),
             '#weight' => -30,
         ];
-
-        if (!$isCodeVerified) {
-            $this->addAuthenticationDialog($form, $form_state);
-            return $form;
-        }
 
         $form['#attached']['library'][] = 'esn_membership_manager/application_form';
         $form['#attributes']['class'][] = 'esn-membership-manager-form';
@@ -170,13 +178,13 @@ class ApplicationForm extends AuthenticatedFormBase
             '#description' => $this->t('A verification code will be sent to this email address.'),
             '#required' => TRUE,
             '#disabled' => TRUE,
-            '#default_value' => $email,
+            '#default_value' => $this->authenticatedEmail,
         ];
 
         try {
             $application = $this->database->select('esn_membership_manager_in_progress_applications', 'i')
                 ->fields('i')
-                ->condition('email', $email)
+                ->condition('email', $this->authenticatedEmail)
                 ->execute()
                 ->fetchAssoc();
         } catch (Exception) {
@@ -633,8 +641,7 @@ class ApplicationForm extends AuthenticatedFormBase
         $token = $verificationData['id_verification_token'] ?? null;
 
         if (empty($token)) {
-            $email = $session->get($this->getAuthenticationType() . '_email_authentication_data', [])['email'];
-            $verificationLink = $this->diditService->createVerificationSession($email);
+            $verificationLink = $this->diditService->createVerificationSession($this->authenticatedEmail);
         } else {
             $verificationLink = 'https://verify.didit.me/session/' . $token;
         }
@@ -693,12 +700,10 @@ class ApplicationForm extends AuthenticatedFormBase
 
         $session = $this->getRequest()->getSession();
         $verificationData = $session->get('application_form_verification_data', []);
-        $emailAuthenticationData = $session->get($this->getAuthenticationType() . '_email_authentication_data', []);
-        $isVerifiedEmail = !empty($emailAuthenticationData['auth_success']);
         $isVerifiedID = !empty($verificationData['id_verified']);
         $isVerifiedStatus = !empty($verificationData['status_verified']);
 
-        if (!$isVerifiedEmail) {
+        if (!$this->isAuthenticated) {
             return;
         }
 
@@ -731,9 +736,8 @@ class ApplicationForm extends AuthenticatedFormBase
 
         $session = $this->getRequest()->getSession();
         $savedData = $session->get('application_form_saved_data', []);
-        $emailAuthenticationData = $session->get($this->getAuthenticationType() . '_email_authentication_data', []);
 
-        $email = strtolower(trim($session->get($this->getAuthenticationType() . '_verified_email') ?? $emailAuthenticationData['email'] ?? $form_state->getValue('email')));
+        $email = $this->authenticatedEmail ?? strtolower(trim($form_state->getValue('email')));
 
         try {
             $application = $this->database->select('esn_membership_manager_in_progress_applications', 'i')

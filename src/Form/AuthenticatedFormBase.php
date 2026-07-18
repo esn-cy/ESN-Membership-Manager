@@ -2,6 +2,7 @@
 
 namespace Drupal\esn_membership_manager\Form;
 
+use Drupal\Component\Render\MarkupInterface;
 use Drupal\Core\Database\Connection;
 use Drupal\Core\Datetime\DrupalDateTime;
 use Drupal\Core\Entity\EntityTypeManagerInterface;
@@ -22,6 +23,10 @@ abstract class AuthenticatedFormBase extends FormBase
     protected EntityTypeManagerInterface $entityTypeManager;
     protected ClientInterface $httpClient;
     protected LoggerChannelInterface $logger;
+
+    protected bool $isAuthenticated = false;
+    protected ?string $authenticatedEmail = null;
+    protected bool $isDialogAdded = false;
 
     public function __construct(
         Connection                    $database,
@@ -59,6 +64,21 @@ abstract class AuthenticatedFormBase extends FormBase
     }
 
     /**
+     * @return string Either `login` or `register`.
+     */
+    abstract protected function getAuthenticationType(): string;
+
+    /**
+     * @return bool Whether an unauthenticated user will be prompted with the login window upon form access.
+     */
+    abstract protected function isAuthenticationRequired(): bool;
+
+    /**
+     * @return MarkupInterface|string The header markup to be display on top of the authentication dialog.
+     */
+    abstract protected function headerMarkup(): MarkupInterface|string;
+
+    /**
      * {@inheritDoc}
      */
     abstract public function getFormId(): string;
@@ -81,6 +101,21 @@ abstract class AuthenticatedFormBase extends FormBase
 
         $form['#prefix'] = '<div id="authenticated-form-wrapper">';
         $form['#suffix'] = '</div>';
+
+        $this->isDialogAdded = false;
+
+        $session = $this->getRequest()->getSession();
+        $emailAuthenticationData = $session->get($this->getAuthenticationType() . '_email_authentication_data', []);
+
+        $this->isAuthenticated = !empty($emailAuthenticationData['auth_success']) || $form_state->get('auth_success');
+        if ($this->isAuthenticated) {
+            $this->authenticatedEmail = strtolower($session->get($this->getAuthenticationType() . '_verified_email') ?? $emailAuthenticationData['email']);
+        } else {
+            $this->authenticatedEmail = null;
+            if ($this->isAuthenticationRequired()) {
+                $this->addAuthenticationDialog($form, $form_state);
+            }
+        }
 
         return $form;
     }
@@ -269,6 +304,11 @@ abstract class AuthenticatedFormBase extends FormBase
         $form['#attached']['library'][] = 'esn_membership_manager/login_form';
         $form['#attributes']['class'][] = 'esn-membership-manager-login-form';
 
+        $form['header'] = [
+            '#markup' => $this->headerMarkup(),
+            '#weight' => -30,
+        ];
+
         $form['auth'] = [
             '#type' => 'fieldset'
         ];
@@ -325,11 +365,7 @@ abstract class AuthenticatedFormBase extends FormBase
                 '#limit_validation_errors' => [['email'], ['verification_code']],
             ];
         }
+
+        $this->isDialogAdded = true;
     }
-
-    /**
-     * @noinspection PhpUnusedParameterInspection
-     */
-
-    abstract protected function getAuthenticationType(): string;
 }

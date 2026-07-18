@@ -3,6 +3,7 @@
 namespace Drupal\esn_membership_manager\Form;
 
 use DateInterval;
+use Drupal\Component\Render\MarkupInterface;
 use Drupal\Core\Database\Connection;
 use Drupal\Core\Datetime\DrupalDateTime;
 use Drupal\Core\Entity\EntityStorageException;
@@ -42,12 +43,66 @@ class MembershipDashboard extends AuthenticatedFormBase
         $this->fileService = $fileService;
     }
 
+    public static function create(ContainerInterface $container): self
+    {
+        /** @var Connection $database */
+        $database = $container->get('database');
+
+        /** @var EntityTypeManagerInterface $entityTypeManager */
+        $entityTypeManager = $container->get('entity_type.manager');
+
+        /** @var ClientInterface $httpClient */
+        $httpClient = $container->get('http_client');
+
+        /** @var LoggerChannelFactoryInterface $loggerFactory */
+        $loggerFactory = $container->get('logger.factory');
+
+        /** @var ModuleHandlerInterface $moduleHandler */
+        $moduleHandler = $container->get('module_handler');
+
+        /** @var FileService $fileService */
+        $fileService = $container->get('esn_membership_manager.file_service');
+
+        return new static(
+            $database,
+            $entityTypeManager,
+            $httpClient,
+            $loggerFactory,
+            $moduleHandler,
+            $fileService,
+        );
+    }
+
     /**
      * @inheritDoc
      */
     public function getFormId(): string
     {
         return 'esn_membership_manager_dashboard';
+    }
+
+    /**
+     * {@inheritDoc}
+     */
+    protected function getAuthenticationType(): string
+    {
+        return 'login';
+    }
+
+    /**
+     * {@inheritDoc}
+     */
+    protected function isAuthenticationRequired(): bool
+    {
+        return true;
+    }
+
+    /**
+     * {@inheritDoc}
+     */
+    protected function headerMarkup(): MarkupInterface|string
+    {
+        return Markup::create('<h2>' . $this->t('Manage your Application') . '</h2>');
     }
 
     /**
@@ -59,38 +114,26 @@ class MembershipDashboard extends AuthenticatedFormBase
         $moduleSettings = new ModuleSettings($this->configFactory());
 
         $form = parent::buildForm($form, $form_state);
-
-        $passName = $moduleSettings->getPassName();
-
-        $session = $this->getRequest()->getSession();
-        $emailAuthenticationData = $session->get($this->getAuthenticationType() . '_email_authentication_data', []);
-
-        $isCodeVerified = !empty($emailAuthenticationData['auth_success']) || $form_state->get('auth_success');
-
-        if (!$isCodeVerified) {
-            $form['header'] = [
-                '#markup' => Markup::create('<h2>' . $this->t('Manage your Application', ['@scheme' => $passName]) . '</h2>'),
-                '#weight' => -30,
-            ];
-
-            $this->addAuthenticationDialog($form, $form_state);
+        if ($this->isDialogAdded) {
             return $form;
         }
 
         $form['#attributes']['class'][] = 'esn-membership-manager-dashboard';
         $form['#attached']['library'][] = 'esn_membership_manager/membership_dashboard';
 
-        $email = strtolower($session->get($this->getAuthenticationType() . '_verified_email') ?? $emailAuthenticationData['email']);
-
         /** @var ApplicationStorage $storage */
         try {
             $storage = $this->entityTypeManager->getStorage('membership_application');
         } catch (Exception) {
-            $this->messenger()->addError($this->t('Could not verify your session. Please log in again.'));
+            $this->messenger()->addError($this->t('Could not retrieve your application. Please try again later.'));
             return $form;
         }
 
-        $application = $storage->getByEmailAddress($email);
+        $application = $storage->getByEmailAddress($this->authenticatedEmail);
+        if (empty($application)) {
+            $this->messenger()->addError($this->t('Could not retrieve your application. Please try again later.'));
+            return $form;
+        }
 
         $form['overview'] = [
             '#type' => 'container',
@@ -857,41 +900,9 @@ class MembershipDashboard extends AuthenticatedFormBase
         return $form;
     }
 
-    protected function getAuthenticationType(): string
-    {
-        return 'login';
-    }
-
-    public static function create(ContainerInterface $container): self
-    {
-        /** @var Connection $database */
-        $database = $container->get('database');
-
-        /** @var EntityTypeManagerInterface $entityTypeManager */
-        $entityTypeManager = $container->get('entity_type.manager');
-
-        /** @var ClientInterface $httpClient */
-        $httpClient = $container->get('http_client');
-
-        /** @var LoggerChannelFactoryInterface $loggerFactory */
-        $loggerFactory = $container->get('logger.factory');
-
-        /** @var ModuleHandlerInterface $moduleHandler */
-        $moduleHandler = $container->get('module_handler');
-
-        /** @var FileService $fileService */
-        $fileService = $container->get('esn_membership_manager.file_service');
-
-        return new static(
-            $database,
-            $entityTypeManager,
-            $httpClient,
-            $loggerFactory,
-            $moduleHandler,
-            $fileService,
-        );
-    }
-
+    /**
+     * @noinspection PhpUnusedParameterInspection
+     */
     public function processFileUploadAttributes(&$element, FormStateInterface $form_state, &$complete_form): array
     {
         if (isset($element['upload'])) {
@@ -904,7 +915,6 @@ class MembershipDashboard extends AuthenticatedFormBase
     /**
      * @noinspection PhpUnusedParameterInspection
      */
-
     public function processPhotoUploadAttributes(&$element, FormStateInterface $form_state, &$complete_form): array
     {
         if (isset($element['upload'])) {
@@ -913,10 +923,6 @@ class MembershipDashboard extends AuthenticatedFormBase
 
         return $element;
     }
-
-    /**
-     * @noinspection PhpUnusedParameterInspection
-     */
 
     /**
      * @throws EntityStorageException
@@ -964,12 +970,7 @@ class MembershipDashboard extends AuthenticatedFormBase
      */
     protected function loadUserApplication(): ?ApplicationInterface
     {
-        $session = $this->getRequest()->getSession();
-
-        $emailAuthenticationData = $session->get($this->getAuthenticationType() . '_email_authentication_data', []);
-        $email = strtolower($session->get($this->getAuthenticationType() . '_verified_email') ?? $emailAuthenticationData['email'] ?? '');
-
-        if (empty($email)) {
+        if (empty($this->authenticatedEmail)) {
             $this->messenger()->addError($this->t('Could not verify your session. Please log in again.'));
             return null;
         }
@@ -977,7 +978,7 @@ class MembershipDashboard extends AuthenticatedFormBase
         try {
             /** @var ApplicationStorage $storage */
             $storage = $this->entityTypeManager->getStorage('membership_application');
-            $application = $storage->getByEmailAddress($email);
+            $application = $storage->getByEmailAddress($this->authenticatedEmail);
 
             if (!$application) {
                 $this->messenger()->addError($this->t('No active application found for this email.'));
