@@ -322,9 +322,9 @@ class ApplicationController extends ControllerBase implements ContainerInjection
         $currentY = 10;
 
         foreach ($applications as $application) {
-            $path = $this->fileService->getFileURL(!empty($application->getFacePhoto()) ? $application->getFacePhoto()->id() : null);
+            $path = $this->fileService->getFilePath(!empty($application->getFacePhoto()) ? $application->getFacePhoto()->id() : null);
 
-            if (!empty($path) && !file_exists($path)) {
+            if (empty($path) || !file_exists($path)) {
                 continue;
             }
 
