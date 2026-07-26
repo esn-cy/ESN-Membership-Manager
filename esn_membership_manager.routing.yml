@@ -246,7 +246,7 @@ esn_membership_manager.weeztix_oauth_callback:
 esn_membership_manager.file_download:
   path: '/memberships/files/{applicationID}/{filename}'
   defaults:
-    _controller: '\Drupal\esn_membership_manager\Controller\FileAccessController::download'
+    _controller: '\Drupal\esn_membership_manager\Controller\FileAccessController::downloadMembershipFile'
     _title: 'Download File'
   requirements:
     _access: 'TRUE'

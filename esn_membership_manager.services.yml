@@ -22,6 +22,7 @@ services:
       - '@file_system'
       - '@file.repository'
       - '@file.usage'
+      - '@stream_wrapper_manager'
       - '@logger.factory'
 
   esn_membership_manager.cron_service:

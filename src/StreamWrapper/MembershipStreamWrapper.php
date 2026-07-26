@@ -1,33 +1,30 @@
-<?php
+<?php /** @noinspection PhpUnused */
 
 namespace Drupal\esn_membership_manager\StreamWrapper;
 
 use Drupal\Core\GeneratedUrl;
-use Drupal\Core\StreamWrapper\PrivateStream;
-use Drupal\Core\StringTranslation\TranslatableMarkup;
 use Drupal\Core\Url;
+use Drupal\omnia\StreamWrapper\StreamWrapperBase;
 
 /**
  * Defines a custom stream wrapper for ESN Membership Manager (membership://).
  */
-class MembershipStreamWrapper extends PrivateStream
+class MembershipStreamWrapper extends StreamWrapperBase
 {
-    static protected bool $secureChecked = FALSE;
 
-    /**
-     * {@inheritdoc}
-     */
-    public function getName(): string|TranslatableMarkup
+    function moduleMachineName(): string
     {
-        return t('ESN Membership Manager Files');
+        return 'esn_membership_manager';
     }
 
-    /**
-     * {@inheritdoc}
-     */
-    public function getDescription(): string|TranslatableMarkup
+    function moduleFormatedName(): string
     {
-        return t('Dedicated private storage for ESN Membership Manager applications.');
+        return 'ESN Membership Manager';
+    }
+
+    function isPrivate(): bool
+    {
+        return true;
     }
 
     /**
@@ -46,53 +43,5 @@ class MembershipStreamWrapper extends PrivateStream
             'applicationID' => $parts[0],
             'filename' => $parts[1]
         ], ['absolute' => TRUE])->toString();
-    }
-
-    /**
-     * {@inheritdoc}
-     */
-    public function mkdir($uri, $mode, $options): bool
-    {
-        $result = parent::mkdir($uri, $mode, $options);
-        if ($result) {
-            $this->ensureHtaccess();
-        }
-        return $result;
-    }
-
-    /**
-     * Ensures that the private directory is protected by an .htaccess file.
-     */
-    protected function ensureHtaccess(): void
-    {
-        $directory = $this->getDirectoryPath();
-
-        if (is_dir($directory)) {
-            $htaccessPath = $directory . '/.htaccess';
-            if (!file_exists($htaccessPath)) {
-                $content = "Order deny,allow\nDeny from all\n";
-                $content .= "<IfModule mod_authz_core.c>\n  Require all denied\n</IfModule>\n";
-                file_put_contents($htaccessPath, $content);
-            }
-            self::$secureChecked = TRUE;
-        }
-    }
-
-    /**
-     * {@inheritdoc}
-     */
-    public function getDirectoryPath(): string
-    {
-        return DRUPAL_ROOT . '/../../private/esn_membership_manager_storage';
-    }
-
-    /**
-     * {@inheritdoc}
-     */
-    public function stream_open($uri, $mode, $options, &$opened_path): bool
-    {
-        if (!self::$secureChecked)
-            $this->ensureHtaccess();
-        return parent::stream_open($uri, $mode, $options, $opened_path);
     }
 }
