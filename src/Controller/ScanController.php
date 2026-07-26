@@ -6,7 +6,7 @@ use Drupal\Core\Controller\ControllerBase;
 use Drupal\Core\Datetime\DrupalDateTime;
 use Drupal\Core\Logger\LoggerChannelFactoryInterface;
 use Drupal\Core\Logger\LoggerChannelInterface;
-use Drupal\esn_membership_manager\Config\ModuleSettings;
+use Drupal\esn_membership_manager\Config\MembershipSettings;
 use Drupal\esn_membership_manager\Entity\Application\ApplicationField;
 use Drupal\esn_membership_manager\Entity\Application\ApplicationStorage;
 use Drupal\esn_membership_manager\Entity\GuestPass\GuestPassField;
@@ -132,7 +132,7 @@ class ScanController extends ControllerBase
     protected function scanGuest(string $identifier): JsonResponse
     {
         $this->config('');
-        $moduleSettings = new ModuleSettings($this->configFactory);
+        $membershipSettings = new MembershipSettings($this->configFactory);
 
         try {
             /** @var GuestPassStorage $storage */
@@ -158,7 +158,7 @@ class ScanController extends ControllerBase
             return new JsonResponse(['status' => 'error', 'message' => 'Unable to update redeemed date.'], 500);
         }
 
-        if ($moduleSettings->getGoogleWalletSwitch()) {
+        if ($membershipSettings->getGoogleWalletSwitch()) {
             try {
                 $this->googleService->deleteApplicationObject($guestPass->id(), 'guest');
             } catch (Exception) {

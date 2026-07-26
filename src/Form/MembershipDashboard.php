@@ -13,7 +13,7 @@ use Drupal\Core\Form\FormStateInterface;
 use Drupal\Core\Logger\LoggerChannelFactoryInterface;
 use Drupal\Core\Render\Markup;
 use Drupal\Core\Url;
-use Drupal\esn_membership_manager\Config\ModuleSettings;
+use Drupal\esn_membership_manager\Config\MembershipSettings;
 use Drupal\esn_membership_manager\Entity\Application\ApplicationField;
 use Drupal\esn_membership_manager\Entity\Application\ApplicationInterface;
 use Drupal\esn_membership_manager\Entity\Application\ApplicationStorage;
@@ -111,7 +111,7 @@ class MembershipDashboard extends AuthenticatedFormBase
      */
     public function buildForm(array $form, FormStateInterface $form_state): array
     {
-        $moduleSettings = new ModuleSettings($this->configFactory());
+        $membershipSettings = new MembershipSettings($this->configFactory());
 
         $form = parent::buildForm($form, $form_state);
         if ($this->isDialogAdded) {
@@ -255,7 +255,7 @@ class MembershipDashboard extends AuthenticatedFormBase
 
         $isApproved = in_array($application->getApprovalStatus(), ['Approved', 'Paid', 'Issued', 'Delivered']);
 
-        if ($isApproved && ($moduleSettings->getGoogleWalletSwitch() || $moduleSettings->getAppleWalletSwitch())) {
+        if ($isApproved && ($membershipSettings->getGoogleWalletSwitch() || $membershipSettings->getAppleWalletSwitch())) {
             $buttonText = 'Add to Wallet';
             $buttonHref = '#wallet';
         } elseif ($application->getApprovalStatus() == 'Approved' && $application->getValue(ApplicationField::HasESNcard)) {
@@ -787,7 +787,7 @@ class MembershipDashboard extends AuthenticatedFormBase
             ];
         }
 
-        if ($isApproved && ($moduleSettings->getGoogleWalletSwitch() || $moduleSettings->getAppleWalletSwitch())) {
+        if ($isApproved && ($membershipSettings->getGoogleWalletSwitch() || $membershipSettings->getAppleWalletSwitch())) {
             $form['wallet_section'] = [
                 '#type' => 'container',
                 '#attributes' => [
@@ -807,7 +807,7 @@ class MembershipDashboard extends AuthenticatedFormBase
                 ],
             ];
 
-            if ($moduleSettings->getGoogleWalletSwitch()) {
+            if ($membershipSettings->getGoogleWalletSwitch()) {
                 $googleWalletPassLink = Url::fromRoute(
                     'esn_membership_manager.add_to_google_wallet',
                     ['identifier' => $application->getValue(ApplicationField::PassToken)],
@@ -815,7 +815,7 @@ class MembershipDashboard extends AuthenticatedFormBase
                 )->toString();
             }
 
-            if ($moduleSettings->getAppleWalletSwitch()) {
+            if ($membershipSettings->getAppleWalletSwitch()) {
                 $appleWalletPassLink = Url::fromRoute(
                     'esn_membership_manager.download_apple_pass',
                     ['identifier' => $application->getValue(ApplicationField::PassToken)],
@@ -824,7 +824,7 @@ class MembershipDashboard extends AuthenticatedFormBase
             }
 
             if (in_array($application->getApprovalStatus(), ['Paid', 'Issued', 'Delivered'])) {
-                if ($moduleSettings->getGoogleWalletSwitch()) {
+                if ($membershipSettings->getGoogleWalletSwitch()) {
                     $googleWalletCardLink = Url::fromRoute(
                         'esn_membership_manager.add_to_google_wallet',
                         ['identifier' => $application->getValue(ApplicationField::ESNcardNumber)],
@@ -832,7 +832,7 @@ class MembershipDashboard extends AuthenticatedFormBase
                     )->toString();
                 }
 
-                if ($moduleSettings->getAppleWalletSwitch()) {
+                if ($membershipSettings->getAppleWalletSwitch()) {
                     $appleWalletCardLink = Url::fromRoute(
                         'esn_membership_manager.download_apple_pass',
                         ['identifier' => $application->getValue(ApplicationField::ESNcardNumber)],
@@ -888,7 +888,7 @@ class MembershipDashboard extends AuthenticatedFormBase
                 </div>
             ',
                 '#context' => [
-                    'pass_name' => $moduleSettings->getPassName(),
+                    'pass_name' => $membershipSettings->getPassName(),
                     'google_pass' => $googleWalletPassLink ?? null,
                     'apple_pass' => $appleWalletPassLink ?? null,
                     'google_card' => $googleWalletCardLink ?? null,

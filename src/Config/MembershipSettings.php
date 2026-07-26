@@ -6,7 +6,7 @@ use Drupal\Core\Config\Config;
 use Drupal\Core\Config\ConfigFactoryInterface;
 use Drupal\Core\Config\ImmutableConfig;
 
-class ModuleSettings
+class MembershipSettings
 {
     public const CONFIG_NAME = 'esn_membership_manager.settings';
 

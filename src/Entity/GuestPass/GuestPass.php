@@ -3,8 +3,8 @@
 namespace Drupal\esn_membership_manager\Entity\GuestPass;
 
 use Drupal\Core\Datetime\DrupalDateTime;
-use Drupal\esn_cyprus_core\Entity\EnumBackedEntityBase;
 use Drupal\esn_membership_manager\Entity\Application\ApplicationInterface;
+use Drupal\omnia\Entity\EnumBackedEntityBase;
 
 /**
  * @ContentEntityType(

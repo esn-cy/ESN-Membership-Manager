@@ -8,7 +8,7 @@ use Drupal\Core\Logger\LoggerChannelFactoryInterface;
 use Drupal\Core\Logger\LoggerChannelInterface;
 use Drupal\Core\Url;
 use Drupal\esn_accounts_api\Entity\Organisation;
-use Drupal\esn_cyprus_core\Config\CoreSettings;
+use Drupal\omnia\Config\OmniaSettings;
 use Exception;
 use GuzzleHttp\ClientInterface;
 use GuzzleHttp\Exception\GuzzleException;
@@ -83,7 +83,7 @@ class ESNAccountsController extends ControllerBase
         }
 
         $this->config('');
-        $coreSettings = new CoreSettings($this->configFactory);
+        $omniaSettings = new OmniaSettings($this->configFactory);
 
         try {
             $serviceURL = urlencode(Url::fromRoute('esn_membership_manager.apply_verify_esn', [], ['absolute' => true])->toString() . '?token=' . $token);
@@ -103,9 +103,9 @@ class ESNAccountsController extends ControllerBase
 
                 $organizations = $this->entityTypeManager()->getStorage('esn_organisation');
 
-                $sectionMode = $coreSettings->getSectionMode();
+                $sectionMode = $omniaSettings->getSectionMode();
                 /** @var Organisation $nationalOrganisation */
-                $nationalOrganisation = $organizations->load($coreSettings->getNationalOrganisationID());
+                $nationalOrganisation = $organizations->load($omniaSettings->getNationalOrganisationID());
 
                 $sections = [];
                 if (!$sectionMode) {
@@ -116,7 +116,7 @@ class ESNAccountsController extends ControllerBase
                     }
                 } else {
                     /** @var Organisation $section */
-                    $section = $organizations->load($coreSettings->getOrganisationID());
+                    $section = $organizations->load($omniaSettings->getOrganisationID());
                     if (!empty($section)) {
                         $sections[$section->getCode()] = $section;
                     }

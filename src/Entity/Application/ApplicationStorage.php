@@ -4,7 +4,7 @@ namespace Drupal\esn_membership_manager\Entity\Application;
 
 use DateInterval;
 use Drupal\Core\Datetime\DrupalDateTime;
-use Drupal\esn_cyprus_core\Entity\EnumBackedEntityStorage;
+use Drupal\omnia\Entity\EnumBackedEntityStorage;
 
 class ApplicationStorage extends EnumBackedEntityStorage
 {

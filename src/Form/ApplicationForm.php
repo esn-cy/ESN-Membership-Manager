@@ -18,7 +18,7 @@ use Drupal\Core\Logger\LoggerChannelFactoryInterface;
 use Drupal\Core\Render\Markup;
 use Drupal\Core\Url;
 use Drupal\esn_accounts_api\Entity\Organisation;
-use Drupal\esn_membership_manager\Config\ModuleSettings;
+use Drupal\esn_membership_manager\Config\MembershipSettings;
 use Drupal\esn_membership_manager\Entity\Application\ApplicationField;
 use Drupal\esn_membership_manager\Entity\Application\ApplicationInterface;
 use Drupal\esn_membership_manager\Entity\Application\ApplicationStorage;
@@ -129,8 +129,8 @@ class ApplicationForm extends AuthenticatedFormBase
      */
     protected function headerMarkup(): MarkupInterface|string
     {
-        $moduleSettings = new ModuleSettings($this->configFactory());
-        $passName = $moduleSettings->getPassName();
+        $membershipSettings = new MembershipSettings($this->configFactory());
+        $passName = $membershipSettings->getPassName();
 
         return Markup::create('<h2>' . $this->t('Apply for an ESNcard / @scheme', ['@scheme' => $passName]) . '</h2>');
     }
@@ -140,8 +140,8 @@ class ApplicationForm extends AuthenticatedFormBase
      */
     public function buildForm(array $form, FormStateInterface $form_state): array
     {
-        $coreSettings = new CoreSettings($this->configFactory());
-        $moduleSettings = new ModuleSettings($this->configFactory());
+        $omniaSettings = new OmniaSettings($this->configFactory());
+        $membershipSettings = new MembershipSettings($this->configFactory());
 
         $session = $this->getRequest()->getSession();
         $savedData = $session->get('application_form_saved_data', []);
@@ -153,7 +153,7 @@ class ApplicationForm extends AuthenticatedFormBase
             return $form;
         }
 
-        $passName = $moduleSettings->getPassName();
+        $passName = $membershipSettings->getPassName();
 
         $form['header'] = [
             '#markup' => Markup::create(
@@ -196,7 +196,7 @@ class ApplicationForm extends AuthenticatedFormBase
         ];
 
         $personalFieldsDisabled = false;
-        if ($moduleSettings->getDiditSwitch() && !empty($application)) {
+        if ($membershipSettings->getDiditSwitch() && !empty($application)) {
             $verificationData = $session->get('application_form_verification_data', []);
             $verificationData['id_verification_token'] = $application['didit_session_token'];
             $session->set('application_form_verification_data', $verificationData);
@@ -335,8 +335,8 @@ class ApplicationForm extends AuthenticatedFormBase
             $organisations = $this->entityTypeManager->getStorage('esn_organisation');
             $sections = [];
 
-            if (!$coreSettings->getSectionMode()) {
-                $noID = $coreSettings->getNationalOrganisationID();
+            if (!$omniaSettings->getSectionMode()) {
+                $noID = $omniaSettings->getNationalOrganisationID();
                 /** @var Organisation $nationalOrganisation */
                 $nationalOrganisation = $organisations->load($noID);
                 if ($nationalOrganisation) {
@@ -349,7 +349,7 @@ class ApplicationForm extends AuthenticatedFormBase
                     ksort($sections);
                 }
             } else {
-                $sectionName = $coreSettings->getNationalOrganisationID();
+                $sectionName = $omniaSettings->getNationalOrganisationID();
                 if ($sectionName) {
                     $sections[$sectionName] = $sectionName;
                 }
@@ -426,7 +426,7 @@ class ApplicationForm extends AuthenticatedFormBase
                         break;
                     case 'Foreign Roles':
                         $form['mobility_details']['verified_status'] = [
-                            '#markup' => Markup::create('<p class="alert alert-warning">' . $this->t("You don't have any roles in {$coreSettings->getOrganisationName()}. Please fill in the following fields manually.") . '</p>'),
+                            '#markup' => Markup::create('<p class="alert alert-warning">' . $this->t("You don't have any roles in {$omniaSettings->getOrganisationName()}. Please fill in the following fields manually.") . '</p>'),
                         ];
                         break;
                     case 'Success':
@@ -678,16 +678,6 @@ class ApplicationForm extends AuthenticatedFormBase
         }
 
         return $response;
-    }
-
-    /**
-     * AJAX callback to update the actions' wrapper.
-     * @noinspection PhpParameterByRefIsNotUsedAsReferenceInspection
-     * @noinspection PhpUnusedParameterInspection
-     */
-    public function updateForm(array &$form, FormStateInterface $form_state): array
-    {
-        return $form;
     }
 
 

@@ -43,7 +43,7 @@ esn_membership_manager.manage_esncard_numbers:
 esn_membership_manager.settings:
   title: "ESN Membership Manager Settings"
   description: "Configure settings for the ESN Membership Manager module."
-  parent: esn_cyprus_core.category
+  parent: omnia.category
   route_name: esn_membership_manager.settings
   weight: 10
   options:

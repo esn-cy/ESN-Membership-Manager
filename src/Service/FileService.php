@@ -2,7 +2,7 @@
 
 namespace Drupal\esn_membership_manager\Service;
 
-use Drupal\esn_cyprus_core\Service\FileServiceBase;
+use Drupal\omnia\Service\FileServiceBase;
 
 /**
  * Service for managing files within the ESN Membership Manager module.

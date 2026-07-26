@@ -3,8 +3,8 @@
 namespace Drupal\esn_membership_manager\Entity\Application;
 
 use Drupal\Core\Datetime\DrupalDateTime;
-use Drupal\esn_cyprus_core\Entity\EnumBackedEntityInterface;
 use Drupal\file\FileInterface;
+use Drupal\omnia\Entity\EnumBackedEntityInterface;
 
 interface ApplicationInterface extends EnumBackedEntityInterface
 {

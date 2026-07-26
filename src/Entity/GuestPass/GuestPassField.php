@@ -2,7 +2,7 @@
 
 namespace Drupal\esn_membership_manager\Entity\GuestPass;
 
-use Drupal\esn_cyprus_core\Entity\FieldEnumInterface;
+use Drupal\omnia\Entity\FieldEnumInterface;
 
 enum GuestPassField: string implements FieldEnumInterface
 {
@@ -55,6 +55,11 @@ enum GuestPassField: string implements FieldEnumInterface
             self::PassToken => true,
             default => false,
         };
+    }
+
+    public function unlimitedCardinality(): bool
+    {
+        return false;
     }
 
     public function default(): null

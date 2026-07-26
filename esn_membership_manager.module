@@ -1,12 +1,9 @@
 <?php /** @noinspection PhpUnused */
 
-use Drupal\Core\Logger\LoggerChannelInterface;
 use Drupal\Core\Render\Markup;
 use Drupal\Core\StreamWrapper\StreamWrapperManager;
-use Drupal\esn_membership_manager\Config\ModuleSettings;
-use Drupal\esn_membership_manager\Entity\Application\ApplicationField;
-use Drupal\esn_membership_manager\Entity\Application\ApplicationStorage;
-use Drupal\esn_membership_manager\Service\FileService;
+use Drupal\esn_membership_manager\Config\MembershipSettings;
+use Drupal\esn_membership_manager\Service\CronService;
 use Drupal\user\Entity\User;
 
 /**
@@ -119,9 +116,9 @@ function esn_membership_manager_theme($existing, $type, $theme, $path): array
  */
 function esn_membership_manager_mail($key, &$message, $params): void
 {
-    $moduleSettings = new ModuleSettings(Drupal::configFactory());
-    $fromEmail = $moduleSettings->getEmailAddress();
-    $fromName = $moduleSettings->getEmailName();
+    $membershipSettings = new MembershipSettings(Drupal::configFactory());
+    $fromEmail = $membershipSettings->getEmailAddress();
+    $fromName = $membershipSettings->getEmailName();
 
     if ($fromEmail) {
         if ($fromName) {
@@ -213,7 +210,7 @@ function esn_membership_manager_file_download($uri): array|int|null
 /**
  * Implements hook_preprocess_page().
  */
-function esn_membership_preprocess_page(&$variables): void
+function esn_membership_manager_preprocess_page(&$variables): void
 {
     $routeName = Drupal::routeMatch()->getRouteName();
 
@@ -253,75 +250,12 @@ function esn_membership_manager_preprocess_menu(&$variables): void
 
 /**
  * Implements hook_cron().
- *
- * Handles GDPR Retention policies:
- * 1. Proofs & ID Scans: Deleted after 2 weeks (14 days).
- * 2. PII & Face Photos: Deleted after 1 year (365 days).
  */
 function esn_membership_manager_cron(): void
 {
-    /** @var LoggerChannelInterface $logger */
-    $logger = Drupal::service('logger.factory')->get('esn_membership_manager');
-
-    try {
-        /** @var ApplicationStorage $storage */
-        $storage = Drupal::entityTypeManager()->getStorage('membership_application');
-
-        $results2W = $storage->get2WeekDeletions();
-        $results1Y = $storage->get1YearDeletions();
-    } catch (Exception $e) {
-        $logger->error('Database Query Error: There was an issue fetching the applications. @message', ['@message' => $e->getMessage()]);
-        return;
-    }
-
-    /** @var FileService $fileService */
-    $fileService = Drupal::service('esn_membership_manager.file_service');
-
-    // Process 2-week deletions
-    foreach ($results2W as $application) {
-        $fidsToDelete = [];
-        if ($application->getStatusDocument()) $fidsToDelete[ApplicationField::StatusProofFileID->value] = $application->getStatusDocument()->id();
-        if ($application->getIDDocument()) $fidsToDelete[ApplicationField::IdentityDocumentFileID->value] = $application->getIDDocument()->id();
-
-        if (!empty($fidsToDelete)) {
-            foreach ($fidsToDelete as $fieldName => $fid) {
-                if ($fileService->deleteApplicationFile($fid, $application->id())) {
-                    try {
-                        $application->setNull(ApplicationField::from($fieldName));
-                        $application->save();
-                    } catch (Exception $e) {
-                        $logger->warning('Database Warning: Unable to nullify field @field for application @id. Message: @message', [
-                            '@field' => $fieldName,
-                            '@id' => $application->id,
-                            '@message' => $e->getMessage()
-                        ]);
-                    }
-                }
-            }
-        }
-    }
-
-    // Process 1-year deletions
-    foreach ($results1Y as $application) {
-        // Anonymize the record
-        try {
-            $application::postDelete($storage, [$application]);
-
-            $application->setValue(ApplicationField::Name, 'Anonymized');
-            $application->setValue(ApplicationField::Surname, 'Anonymized');
-            $application->setValue(ApplicationField::Email, $application->id() . '@anonymized.email');
-            $application->setValue(ApplicationField::DateOfBirth, $application->getDateOfBirth()->format('Y-01-01'));
-            $application->setNull(ApplicationField::FacePhotoFileID);
-            $application->setNull(ApplicationField::PaymentLink);
-            $application->setNull(ApplicationField::PaymentLinkID);
-            $application->save();
-        } catch (Exception $e) {
-            $logger->warning('Database Warning: Unable to anonymize application ID: @id. Message: @message', [
-                '@id' => $application->id(),
-                '@message' => $e->getMessage()
-            ]);
-        }
-    }
+    /** @var CronService $cronService */
+    $cronService = Drupal::service('esn_membership_manager.cron_service');
+    $cronService->execute();
 }
 
 /**

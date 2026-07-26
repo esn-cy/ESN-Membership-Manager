@@ -6,12 +6,12 @@ use Drupal;
 use Drupal\Core\Datetime\DrupalDateTime;
 use Drupal\Core\Entity\EntityStorageInterface;
 use Drupal\Core\Logger\LoggerChannelInterface;
-use Drupal\esn_cyprus_core\Entity\EnumBackedEntityBase;
-use Drupal\esn_membership_manager\Config\ModuleSettings;
+use Drupal\esn_membership_manager\Config\MembershipSettings;
 use Drupal\esn_membership_manager\Service\FileService;
 use Drupal\esn_membership_manager\Service\GoogleService;
 use Drupal\esn_membership_manager\Service\StripeService;
 use Drupal\file\FileInterface;
+use Drupal\omnia\Entity\EnumBackedEntityBase;
 use Exception;
 
 /**
@@ -39,7 +39,7 @@ class Application extends EnumBackedEntityBase implements ApplicationInterface
     {
         parent::postDelete($storage, $entities);
 
-        $moduleSettings = new ModuleSettings(Drupal::configFactory());
+        $membershipSettings = new MembershipSettings(Drupal::configFactory());
         $database = Drupal::database();
         /** @var LoggerChannelInterface $logger */
         $logger = Drupal::service('logger.factory')->get('esn_membership_manager');
@@ -69,14 +69,14 @@ class Application extends EnumBackedEntityBase implements ApplicationInterface
                 $stripeService->disablePaymentLink($paymentLinkID);
             }
 
-            if ($moduleSettings->getGoogleWalletSwitch()) {
+            if ($membershipSettings->getGoogleWalletSwitch()) {
                 if ($application->getValue(ApplicationField::HasESNcard)) {
                     $googleService->deleteApplicationObject($application->id(), 'card');
                 }
                 $googleService->deleteApplicationObject($application->id(), 'pass');
             }
 
-            if ($moduleSettings->getAppleWalletSwitch()) {
+            if ($membershipSettings->getAppleWalletSwitch()) {
                 $database->delete('esn_membership_manager_apple_wallet_registrations')
                     ->condition('application_id', $application->id())
                     ->execute();

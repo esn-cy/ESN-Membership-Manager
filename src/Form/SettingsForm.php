@@ -11,9 +11,9 @@ use Drupal\Core\Form\FormStateInterface;
 use Drupal\Core\Render\Markup;
 use Drupal\Core\State\StateInterface;
 use Drupal\Core\Url;
-use Drupal\esn_cyprus_core\Config\CoreSettings;
-use Drupal\esn_membership_manager\Config\ModuleSettings;
+use Drupal\esn_membership_manager\Config\MembershipSettings;
 use Drupal\esn_membership_manager\Service\WeeztixService;
+use Drupal\omnia\Config\OmniaSettings;
 use Exception;
 use Symfony\Component\DependencyInjection\ContainerInterface;
 use Symfony\Component\HttpFoundation\File\UploadedFile;
@@ -82,7 +82,7 @@ class SettingsForm extends ConfigFormBase
      */
     public function buildForm(array $form, FormStateInterface $form_state): array
     {
-        $moduleSettings = new ModuleSettings($this->configFactory());
+        $membershipSettings = new MembershipSettings($this->configFactory());
 
         $form['switches'] = [
             '#type' => 'details',
@@ -93,31 +93,31 @@ class SettingsForm extends ConfigFormBase
         $form['switches']['switch_weeztix'] = [
             '#type' => 'checkbox',
             '#title' => $this->t('Enable Weeztix Integration'),
-            '#default_value' => $moduleSettings->getWeeztixSwitch(),
+            '#default_value' => $membershipSettings->getWeeztixSwitch(),
         ];
 
         $form['switches']['switch_google_sheets'] = [
             '#type' => 'checkbox',
             '#title' => $this->t('Enable Google Sheets Integration'),
-            '#default_value' => $moduleSettings->getGoogleSheetsSwitch(),
+            '#default_value' => $membershipSettings->getGoogleSheetsSwitch(),
         ];
 
         $form['switches']['switch_google_wallet'] = [
             '#type' => 'checkbox',
             '#title' => $this->t('Enable Google Wallet Integration'),
-            '#default_value' => $moduleSettings->getGoogleWalletSwitch(),
+            '#default_value' => $membershipSettings->getGoogleWalletSwitch(),
         ];
 
         $form['switches']['switch_apple_wallet'] = [
             '#type' => 'checkbox',
             '#title' => $this->t('Enable Apple Wallet Integration'),
-            '#default_value' => $moduleSettings->getAppleWalletSwitch(),
+            '#default_value' => $membershipSettings->getAppleWalletSwitch(),
         ];
 
         $form['switches']['switch_didit'] = [
             '#type' => 'checkbox',
             '#title' => $this->t('Enable Didit Integration'),
-            '#default_value' => $moduleSettings->getDiditSwitch(),
+            '#default_value' => $membershipSettings->getDiditSwitch(),
         ];
 
         $form['general'] = [
@@ -131,7 +131,7 @@ class SettingsForm extends ConfigFormBase
             '#type' => 'textfield',
             '#title' => $this->t('Pass Scheme Name'),
             '#description' => $this->t('Enter the name of the Pass Scheme.'),
-            '#default_value' => $moduleSettings->getPassName(),
+            '#default_value' => $membershipSettings->getPassName(),
             '#required' => true
         ];
 
@@ -139,7 +139,7 @@ class SettingsForm extends ConfigFormBase
             '#type' => 'textfield',
             '#title' => $this->t('Guest Pass Scheme Name'),
             '#description' => $this->t('Enter the name of the Guest Pass Scheme.'),
-            '#default_value' => $moduleSettings->getGuestPassName(),
+            '#default_value' => $membershipSettings->getGuestPassName(),
             '#required' => true
         ];
 
@@ -154,7 +154,7 @@ class SettingsForm extends ConfigFormBase
             '#type' => 'textfield',
             '#title' => $this->t('Sender Email Address'),
             '#description' => $this->t('Enter the email address from where the emails will be sent.'),
-            '#default_value' => $moduleSettings->getEmailAddress(),
+            '#default_value' => $membershipSettings->getEmailAddress(),
             '#required' => true
         ];
 
@@ -162,7 +162,7 @@ class SettingsForm extends ConfigFormBase
             '#type' => 'textfield',
             '#title' => $this->t('Sender Email Name'),
             '#description' => $this->t('Enter the user-friendly name from where the emails will be sent.'),
-            '#default_value' => $moduleSettings->getEmailName(),
+            '#default_value' => $membershipSettings->getEmailName(),
             '#required' => true
         ];
 
@@ -170,7 +170,7 @@ class SettingsForm extends ConfigFormBase
             '#type' => 'textarea',
             '#title' => $this->t('Email Footer'),
             '#description' => $this->t('Enter the HTML for the footer of the emails to be sent.'),
-            '#default_value' => $moduleSettings->getEmailFooter(),
+            '#default_value' => $membershipSettings->getEmailFooter(),
             '#required' => true
         ];
 
@@ -178,7 +178,7 @@ class SettingsForm extends ConfigFormBase
             '#type' => 'textfield',
             '#title' => $this->t('Administrator Email Address'),
             '#description' => $this->t('Enter the email address of the administrator of the platform.'),
-            '#default_value' => $moduleSettings->getAdminEmailAddress(),
+            '#default_value' => $membershipSettings->getAdminEmailAddress(),
             '#required' => true
         ];
 
@@ -193,7 +193,7 @@ class SettingsForm extends ConfigFormBase
             '#type' => 'textfield',
             '#title' => $this->t('Stripe Webhook Secret'),
             '#description' => $this->t('Enter the Stripe Webhook Secret.'),
-            '#default_value' => $moduleSettings->getStripeWebhookSecret(),
+            '#default_value' => $membershipSettings->getStripeWebhookSecret(),
             '#required' => true
         ];
 
@@ -201,7 +201,7 @@ class SettingsForm extends ConfigFormBase
             '#type' => 'textfield',
             '#title' => $this->t('Stripe Price ID for ESNcard'),
             '#description' => $this->t('Enter the Stripe Price ID for the main ESNcard product.'),
-            '#default_value' => $moduleSettings->getESNcardPriceID(false),
+            '#default_value' => $membershipSettings->getESNcardPriceID(false),
             '#required' => true
         ];
 
@@ -209,7 +209,7 @@ class SettingsForm extends ConfigFormBase
             '#type' => 'textfield',
             '#title' => $this->t('Stripe Price ID for Processing Fee'),
             '#description' => $this->t('Enter the Stripe Price ID for the processing fee product.'),
-            '#default_value' => $moduleSettings->getProcessingPriceID(false),
+            '#default_value' => $membershipSettings->getProcessingPriceID(false),
             '#required' => false
         ];
 
@@ -217,7 +217,7 @@ class SettingsForm extends ConfigFormBase
             '#type' => 'textfield',
             '#title' => $this->t('Stripe Price ID for ESNer ESNcard'),
             '#description' => $this->t('Enter the Stripe Price ID for the ESNer ESNcard product.'),
-            '#default_value' => $moduleSettings->getESNcardPriceID(true),
+            '#default_value' => $membershipSettings->getESNcardPriceID(true),
             '#required' => true
         ];
 
@@ -225,11 +225,11 @@ class SettingsForm extends ConfigFormBase
             '#type' => 'textfield',
             '#title' => $this->t('Stripe Price ID for ESNer Processing Fee'),
             '#description' => $this->t('Enter the Stripe Price ID for the ESNer processing fee product.'),
-            '#default_value' => $moduleSettings->getProcessingPriceID(true),
+            '#default_value' => $membershipSettings->getProcessingPriceID(true),
             '#required' => false
         ];
 
-        $weeztixEnabled = $form_state->getValue('switch_weeztix') ?? $moduleSettings->getWeeztixSwitch();
+        $weeztixEnabled = $form_state->getValue('switch_weeztix') ?? $membershipSettings->getWeeztixSwitch();
 
         $form['weeztix'] = [
             '#type' => 'details',
@@ -255,7 +255,7 @@ class SettingsForm extends ConfigFormBase
         $form['weeztix']['weeztix_client_id'] = [
             '#type' => 'textfield',
             '#title' => $this->t('Client ID'),
-            '#default_value' => $moduleSettings->getWeeztixClientID(),
+            '#default_value' => $membershipSettings->getWeeztixClientID(),
             '#disabled' => !$weeztixEnabled,
             '#required' => $weeztixEnabled
         ];
@@ -263,7 +263,7 @@ class SettingsForm extends ConfigFormBase
         $form['weeztix']['weeztix_client_secret'] = [
             '#type' => 'textfield',
             '#title' => $this->t('Client Secret'),
-            '#default_value' => $moduleSettings->getWeeztixClientSecret(),
+            '#default_value' => $membershipSettings->getWeeztixClientSecret(),
             '#disabled' => !$weeztixEnabled,
             '#required' => $weeztixEnabled
         ];
@@ -272,7 +272,7 @@ class SettingsForm extends ConfigFormBase
             '#type' => 'textfield',
             '#title' => $this->t('Coupon List ID / Campaign ID'),
             '#description' => $this->t('The ID of the list where coupons should be added.'),
-            '#default_value' => $moduleSettings->getWeeztixCouponListID(),
+            '#default_value' => $membershipSettings->getWeeztixCouponListID(),
             '#disabled' => !$weeztixEnabled,
             '#required' => $weeztixEnabled
         ];
@@ -300,7 +300,7 @@ class SettingsForm extends ConfigFormBase
             }
         }
 
-        $googleSheetsEnabled = $form_state->getValue('switch_google_sheets') ?? $moduleSettings->getGoogleSheetsSwitch();
+        $googleSheetsEnabled = $form_state->getValue('switch_google_sheets') ?? $membershipSettings->getGoogleSheetsSwitch();
 
         $form['google'] = [
             '#type' => 'details',
@@ -313,7 +313,7 @@ class SettingsForm extends ConfigFormBase
             '#type' => 'textfield',
             '#title' => $this->t('Spreadsheet ID'),
             '#description' => $this->t('The long ID string from the Google Sheet URL.'),
-            '#default_value' => $moduleSettings->getSpreadsheetID(),
+            '#default_value' => $membershipSettings->getSpreadsheetID(),
             '#disabled' => !$googleSheetsEnabled,
             '#required' => $googleSheetsEnabled
         ];
@@ -322,12 +322,12 @@ class SettingsForm extends ConfigFormBase
             '#type' => 'textfield',
             '#title' => $this->t('Sheet Name'),
             '#description' => $this->t('The name of the specific tab (e.g., "Data").'),
-            '#default_value' => $moduleSettings->getSheetName(),
+            '#default_value' => $membershipSettings->getSheetName(),
             '#disabled' => !$googleSheetsEnabled,
             '#required' => $googleSheetsEnabled
         ];
 
-        $appleWalletEnabled = $form_state->getValue('switch_apple_wallet') ?? $moduleSettings->getAppleWalletSwitch();
+        $appleWalletEnabled = $form_state->getValue('switch_apple_wallet') ?? $membershipSettings->getAppleWalletSwitch();
 
         $form['apple'] = [
             '#type' => 'details',
@@ -336,7 +336,7 @@ class SettingsForm extends ConfigFormBase
             '#open' => $appleWalletEnabled
         ];
 
-        $certString = $moduleSettings->getAppleCertificateP12();
+        $certString = $membershipSettings->getAppleCertificateP12();
 
         if ($certString) {
             $form['apple']['current_status'] = [
@@ -367,7 +367,7 @@ class SettingsForm extends ConfigFormBase
             '#type' => 'textfield',
             '#title' => $this->t('Pass Certificate Password'),
             '#description' => $this->t('The password you have set for your .p12 file.'),
-            '#default_value' => $moduleSettings->getAppleCertificatePassword(),
+            '#default_value' => $membershipSettings->getAppleCertificatePassword(),
             '#disabled' => !$appleWalletEnabled,
             '#required' => $appleWalletEnabled
         ];
@@ -376,12 +376,12 @@ class SettingsForm extends ConfigFormBase
             '#type' => 'textfield',
             '#title' => $this->t('Pass Type ID'),
             '#description' => $this->t('The Pass Type ID created on Certificates, Identifiers & Profiles.'),
-            '#default_value' => $moduleSettings->getApplePassTypeID(),
+            '#default_value' => $membershipSettings->getApplePassTypeID(),
             '#disabled' => !$appleWalletEnabled,
             '#required' => $appleWalletEnabled
         ];
 
-        $diditEnabled = $form_state->getValue('switch_didit') ?? $moduleSettings->getDiditSwitch();
+        $diditEnabled = $form_state->getValue('switch_didit') ?? $membershipSettings->getDiditSwitch();
 
         $form['didit'] = [
             '#type' => 'details',
@@ -394,7 +394,7 @@ class SettingsForm extends ConfigFormBase
             '#type' => 'textfield',
             '#title' => $this->t('Application API Key'),
             '#description' => $this->t('The API key found in Developers > API Keys.'),
-            '#default_value' => $moduleSettings->getDiditAPIKey(),
+            '#default_value' => $membershipSettings->getDiditAPIKey(),
             '#disabled' => !$diditEnabled,
             '#required' => $diditEnabled
         ];
@@ -403,7 +403,7 @@ class SettingsForm extends ConfigFormBase
             '#type' => 'textfield',
             '#title' => $this->t('Workflow ID'),
             '#description' => $this->t('The ID of the workflow to be used for verification.'),
-            '#default_value' => $moduleSettings->getDiditWorkflowID(),
+            '#default_value' => $membershipSettings->getDiditWorkflowID(),
             '#disabled' => !$diditEnabled,
             '#required' => $diditEnabled
         ];
@@ -442,9 +442,9 @@ class SettingsForm extends ConfigFormBase
      */
     public function submitForm(array &$form, FormStateInterface $form_state): void
     {
-        $moduleSettings = new ModuleSettings($this->configFactory(), true);
+        $membershipSettings = new MembershipSettings($this->configFactory(), true);
 
-        $moduleSettings
+        $membershipSettings
             ->setWeeztixSwitch($form_state->getValue('switch_weeztix'))
             ->setGoogleSheetsSwitch($form_state->getValue('switch_google_sheets'))
             ->setGoogleWalletSwitch($form_state->getValue('switch_google_wallet'))
@@ -474,12 +474,12 @@ class SettingsForm extends ConfigFormBase
         $appleCertificateP12 = $form_state->get('apple_certificate_string_p12');
         $appleCertificatePEM = $form_state->get('apple_certificate_string_pem');
         if ($appleCertificateP12 && $appleCertificatePEM) {
-            $moduleSettings->setAppleCertificateP12($appleCertificateP12);
-            $moduleSettings->setAppleCertificatePEM($appleCertificatePEM);
+            $membershipSettings->setAppleCertificateP12($appleCertificateP12);
+            $membershipSettings->setAppleCertificatePEM($appleCertificatePEM);
             $this->messenger()->addStatus($this->t('The Apple Pass Certificate has been saved.'));
         }
 
-        $moduleSettings->save();
+        $membershipSettings->save();
 
         parent::submitForm($form, $form_state);
     }
@@ -489,42 +489,42 @@ class SettingsForm extends ConfigFormBase
      */
     protected function getEditableConfigNames(): array
     {
-        return [ModuleSettings::CONFIG_NAME];
+        return [MembershipSettings::CONFIG_NAME];
     }
 
     public function switchToggle(array $form, FormStateInterface $form_state): array
     {
-        $coreSettings = new CoreSettings($this->configFactory());
-        $coreSettingsURL = Url::fromRoute('esn_cyprus_core.settings', [], ['absolute' => true])->toString();
+        $omniaSettings = new OmniaSettings($this->configFactory());
+        $omniaSettingsURL = Url::fromRoute('omnia.settings', [], ['absolute' => true])->toString();
 
         if ($form_state->getValue('switch_google_sheets') || $form_state->getValue('switch_google_wallet')) {
-            if ($coreSettings->getGoogleSwitch()) {
-                if (empty($coreSettings->getGoogleClientEmail())) {
+            if ($omniaSettings->getGoogleSwitch()) {
+                if (empty($omniaSettings->getGoogleClientEmail())) {
                     $form_state->setValue('switch_google_sheets', false);
                     $form_state->setValue('switch_google_wallet', false);
-                    $this->messenger()->addError(Markup::create('<p>Please configure the Google Credentials in the <a href="' . $coreSettingsURL . '">ESN Cyprus Core Settings</a> before you enable the integration here.</p>'));
+                    $this->messenger()->addError(Markup::create('<p>Please configure the Google Credentials in the <a href="' . $omniaSettingsURL . '">Omnia Settings</a> before you enable the integration here.</p>'));
                 }
 
-                if ($form_state->getValue('switch_google_wallet') && empty($coreSettings->getGoogleIssuerID())) {
+                if ($form_state->getValue('switch_google_wallet') && empty($omniaSettings->getGoogleIssuerID())) {
                     $form_state->setValue('switch_google_wallet', false);
-                    $this->messenger()->addError(Markup::create('<p>Please configure the Google Wallet Issuer ID in the <a href="' . $coreSettingsURL . '">ESN Cyprus Core Settings</a> before you enable the integration here.</p>'));
+                    $this->messenger()->addError(Markup::create('<p>Please configure the Google Wallet Issuer ID in the <a href="' . $omniaSettingsURL . '">Omnia Settings</a> before you enable the integration here.</p>'));
                 }
             } else {
                 $form_state->setValue('switch_google_sheets', false);
                 $form_state->setValue('switch_google_wallet', false);
-                $this->messenger()->addError(Markup::create('<p>Please enable the Google integration in the <a href="' . $coreSettingsURL . '">ESN Cyprus Core Settings</a> before you enable the integration here.</p>'));
+                $this->messenger()->addError(Markup::create('<p>Please enable the Google integration in the <a href="' . $omniaSettingsURL . '">Omnia Settings</a> before you enable the integration here.</p>'));
             }
         }
 
         if ($form_state->getValue('switch_apple_wallet')) {
-            if ($coreSettings->getAppleSwitch()) {
-                if (empty($coreSettings->getAppleTeamID())) {
+            if ($omniaSettings->getAppleSwitch()) {
+                if (empty($omniaSettings->getAppleTeamID())) {
                     $form_state->setValue('switch_apple_wallet', false);
-                    $this->messenger()->addError(Markup::create('<p>Please configure the Apple Team ID in the <a href="' . $coreSettingsURL . '">ESN Cyprus Core Settings</a> before you enable the integration here.</p>'));
+                    $this->messenger()->addError(Markup::create('<p>Please configure the Apple Team ID in the <a href="' . $omniaSettingsURL . '">Omnia Settings</a> before you enable the integration here.</p>'));
                 }
             } else {
                 $form_state->setValue('switch_apple_wallet', false);
-                $this->messenger()->addError(Markup::create('<p>Please enable the Apple integration in the <a href="' . $coreSettingsURL . '">ESN Cyprus Core Settings</a> before you enable the integration here.</p>'));
+                $this->messenger()->addError(Markup::create('<p>Please enable the Apple integration in the <a href="' . $omniaSettingsURL . '">Omnia Settings</a> before you enable the integration here.</p>'));
             }
         }
 

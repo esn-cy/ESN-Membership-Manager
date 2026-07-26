@@ -13,7 +13,7 @@ use Drupal\Core\Logger\LoggerChannelInterface;
 use Drupal\Core\Plugin\ContainerFactoryPluginInterface;
 use Drupal\Core\Session\AccountInterface;
 use Drupal\Core\Url;
-use Drupal\esn_membership_manager\Config\ModuleSettings;
+use Drupal\esn_membership_manager\Config\MembershipSettings;
 use Drupal\esn_membership_manager\Entity\Application\ApplicationField;
 use Drupal\esn_membership_manager\Entity\Application\ApplicationInterface;
 use Drupal\esn_membership_manager\Service\EmailManager;
@@ -109,7 +109,7 @@ class ApproveApplication extends ActionBase implements ContainerFactoryPluginInt
             throw new Exception('This status cannot be applied');
         }
 
-        $moduleSettings = new ModuleSettings($this->configFactory);
+        $membershipSettings = new MembershipSettings($this->configFactory);
 
         $token = strtoupper(md5(uniqid(rand(), true)));
 
@@ -167,7 +167,7 @@ class ApproveApplication extends ActionBase implements ContainerFactoryPluginInt
         try {
             $application->save();
 
-            if ($moduleSettings->getGoogleWalletSwitch()) {
+            if ($membershipSettings->getGoogleWalletSwitch()) {
                 $googleWalletLink = Url::fromRoute(
                     'esn_membership_manager.add_to_google_wallet',
                     ['identifier' => $token],
@@ -175,7 +175,7 @@ class ApproveApplication extends ActionBase implements ContainerFactoryPluginInt
                 )->toString();
             }
 
-            if ($moduleSettings->getAppleWalletSwitch()) {
+            if ($membershipSettings->getAppleWalletSwitch()) {
                 $appleWalletLink = Url::fromRoute(
                     'esn_membership_manager.download_apple_pass',
                     ['identifier' => $token],

@@ -24,6 +24,13 @@ services:
       - '@file.usage'
       - '@logger.factory'
 
+  esn_membership_manager.cron_service:
+    class: Drupal\esn_membership_manager\Service\CronService
+    arguments:
+      - '@entity_type.manager'
+      - '@file_system'
+      - '@logger.factory'
+
   esn_membership_manager.stripe_service:
     class: Drupal\esn_membership_manager\Service\StripeService
     arguments:

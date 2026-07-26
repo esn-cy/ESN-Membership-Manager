@@ -2,7 +2,7 @@
 
 namespace Drupal\esn_membership_manager\Entity\GuestPass;
 
-use Drupal\esn_cyprus_core\Entity\EnumBackedEntityStorage;
+use Drupal\omnia\Entity\EnumBackedEntityStorage;
 
 class GuestPassStorage extends EnumBackedEntityStorage
 {

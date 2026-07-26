@@ -2,7 +2,7 @@
 
 namespace Drupal\esn_membership_manager\Entity\Application;
 
-use Drupal\esn_cyprus_core\Entity\FieldEnumInterface;
+use Drupal\omnia\Entity\FieldEnumInterface;
 
 enum ApplicationField: string implements FieldEnumInterface
 {
@@ -88,6 +88,11 @@ enum ApplicationField: string implements FieldEnumInterface
             self::Email, self::ESNcardNumber, self::PassToken => true,
             default => false,
         };
+    }
+
+    public function unlimitedCardinality(): bool
+    {
+        return false;
     }
 
     public function isReadOnly(?bool $verifiedEmail = false, ?bool $verifiedID = false, ?bool $verifiedStatus = false): bool

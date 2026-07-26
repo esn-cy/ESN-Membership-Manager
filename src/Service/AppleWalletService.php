@@ -9,13 +9,13 @@ use Drupal\Core\Logger\LoggerChannelFactoryInterface;
 use Drupal\Core\Logger\LoggerChannelInterface;
 use Drupal\Core\Site\Settings;
 use Drupal\Core\Url;
-use Drupal\esn_cyprus_core\Config\CoreSettings;
-use Drupal\esn_cyprus_core\Service\AppleServiceBase;
-use Drupal\esn_cyprus_core\Service\FileServiceBase;
-use Drupal\esn_membership_manager\Config\ModuleSettings;
+use Drupal\esn_membership_manager\Config\MembershipSettings;
 use Drupal\esn_membership_manager\Entity\Application\ApplicationField;
 use Drupal\esn_membership_manager\Entity\Application\ApplicationInterface;
 use Drupal\esn_membership_manager\Entity\GuestPass\GuestPassInterface;
+use Drupal\omnia\Config\OmniaSettings;
+use Drupal\omnia\Service\AppleServiceBase;
+use Drupal\omnia\Service\FileServiceBase;
 use Exception;
 use GuzzleHttp\ClientInterface;
 
@@ -47,10 +47,10 @@ class AppleWalletService extends AppleServiceBase
      */
     public function createESNcard(ApplicationInterface $application): ?string
     {
-        $moduleSettings = new ModuleSettings($this->configFactory);
+        $membershipSettings = new MembershipSettings($this->configFactory);
 
-        $certificateP12 = $moduleSettings->getAppleCertificateP12();
-        $certificatePassword = $moduleSettings->getAppleCertificatePassword();
+        $certificateP12 = $membershipSettings->getAppleCertificateP12();
+        $certificatePassword = $membershipSettings->getAppleCertificatePassword();
 
         $serialNumber = 'esncard-' . $application->id();
 
@@ -157,8 +157,8 @@ class AppleWalletService extends AppleServiceBase
 
     protected function getCommonAttributes(string $serialNumber): array
     {
-        $coreSettings = new CoreSettings($this->configFactory);
-        $moduleSettings = new ModuleSettings($this->configFactory);
+        $omniaSettings = new OmniaSettings($this->configFactory);
+        $membershipSettings = new MembershipSettings($this->configFactory);
 
         $siteSalt = $this->settings::getHashSalt();
         $authToken = hash('sha256', $serialNumber . $siteSalt);
@@ -167,9 +167,9 @@ class AppleWalletService extends AppleServiceBase
 
         return [
             'formatVersion' => 1,
-            'organizationName' => $coreSettings->getOrganisationName(),
-            'teamIdentifier' => $coreSettings->getAppleTeamID(),
-            'passTypeIdentifier' => $moduleSettings->getApplePassTypeID(),
+            'organizationName' => $omniaSettings->getOrganisationName(),
+            'teamIdentifier' => $omniaSettings->getAppleTeamID(),
+            'passTypeIdentifier' => $membershipSettings->getApplePassTypeID(),
             'foregroundColor' => 'rgb(255, 255, 255)',
             'labelColor' => 'rgb(255, 255, 255)',
             'webServiceURL' => $apiRoot,
@@ -182,10 +182,10 @@ class AppleWalletService extends AppleServiceBase
      */
     public function createFreePass(ApplicationInterface $application): ?string
     {
-        $moduleSettings = new ModuleSettings($this->configFactory);
+        $membershipSettings = new MembershipSettings($this->configFactory);
 
-        $certificateP12 = $moduleSettings->getAppleCertificateP12();
-        $certificatePassword = $moduleSettings->getAppleCertificatePassword();
+        $certificateP12 = $membershipSettings->getAppleCertificateP12();
+        $certificatePassword = $membershipSettings->getAppleCertificatePassword();
 
         $serialNumber = 'free_pass-' . $application->id();
 
@@ -194,8 +194,8 @@ class AppleWalletService extends AppleServiceBase
 
         $passData = $this->getCommonAttributes($serialNumber) +
             [
-                'description' => $moduleSettings->getPassName(),
-                'logoText' => $moduleSettings->getPassName(),
+                'description' => $membershipSettings->getPassName(),
+                'logoText' => $membershipSettings->getPassName(),
                 'backgroundColor' => 'rgb(0, 174, 239)',
                 'serialNumber' => $serialNumber,
                 'generic' => [
@@ -272,10 +272,10 @@ class AppleWalletService extends AppleServiceBase
      */
     public function createGuestPass(GuestPassInterface $guestPass, ApplicationInterface $referer): ?string
     {
-        $moduleSettings = new ModuleSettings($this->configFactory);
+        $membershipSettings = new MembershipSettings($this->configFactory);
 
-        $certificateP12 = $moduleSettings->getAppleCertificateP12();
-        $certificatePassword = $moduleSettings->getAppleCertificatePassword();
+        $certificateP12 = $membershipSettings->getAppleCertificateP12();
+        $certificatePassword = $membershipSettings->getAppleCertificatePassword();
 
         $serialNumber = 'guest-' . $guestPass->id();
 
@@ -285,8 +285,8 @@ class AppleWalletService extends AppleServiceBase
 
         $passData = $this->getCommonAttributes($serialNumber) +
             [
-                'description' => $moduleSettings->getGuestPassName(),
-                'logoText' => $moduleSettings->getGuestPassName(),
+                'description' => $membershipSettings->getGuestPassName(),
+                'logoText' => $membershipSettings->getGuestPassName(),
                 'backgroundColor' => 'rgb(236, 0, 140)',
                 'serialNumber' => $serialNumber,
                 'generic' => [
@@ -355,13 +355,13 @@ class AppleWalletService extends AppleServiceBase
 
     public function sendApplicationUpdateNotification(string $pushToken): bool
     {
-        $moduleSettings = new ModuleSettings($this->configFactory);
+        $membershipSettings = new MembershipSettings($this->configFactory);
 
         return $this->sendUpdateNotification(
             $pushToken,
-            $moduleSettings->getApplePassTypeID(),
-            $moduleSettings->getAppleCertificatePEM(),
-            $moduleSettings->getAppleCertificatePassword()
+            $membershipSettings->getApplePassTypeID(),
+            $membershipSettings->getAppleCertificatePEM(),
+            $membershipSettings->getAppleCertificatePassword()
         );
     }
 }
