@@ -25,6 +25,7 @@ use Drupal\esn_membership_manager\Entity\Application\ApplicationStorage;
 use Drupal\esn_membership_manager\Service\DiditService;
 use Drupal\esn_membership_manager\Service\EmailManager;
 use Drupal\esn_membership_manager\Service\FileService;
+use Drupal\esn_membership_manager\Utility\MobilityStatuses;
 use Drupal\esn_membership_manager\Utility\Nationalities;
 use Drupal\omnia\Config\OmniaSettings;
 use Exception;
@@ -374,42 +375,7 @@ class ApplicationForm extends AuthenticatedFormBase
         } catch (InvalidPluginDefinitionException|PluginNotFoundException) {
         }
 
-        $statusOptions = [
-            'Erasmus+ Programme' => [
-                'erasmus_study' => $this->t('Study Exchange'),
-                'erasmus_train_traineeship' => $this->t('Traineeship'),
-                'erasmus_train_internship' => $this->t('Internship'),
-                'erasmus_train_apprenticeship' => $this->t('Apprenticeship'),
-                'erasmus_train_vet' => $this->t('VET'),
-                'erasmus_mundus' => $this->t('Erasmus Mundus Joint Masters'),
-            ],
-            'European Solidarity Corps' => [
-                'esc' => $this->t('European Solidarity Corps'),
-            ],
-            'International Full Degree Student' => [
-                'international_undergrad' => $this->t('Undergraduate'),
-                'international_postgrad' => $this->t('Postgraduate'),
-            ],
-            'Other Mobility Programme' => [
-                'other_study' => $this->t('Study Exchange (Other)'),
-                'other_train_traineeship' => $this->t('Traineeship (Other)'),
-                'other_train_internship' => $this->t('Internship (Other)'),
-                'other_train_apprenticeship' => $this->t('Apprenticeship (Other)'),
-                'other_volunteer' => $this->t('Volunteer (non-ESN)'),
-            ],
-            'ESN' => [
-                'esn_volunteer' => $this->t('ESN Volunteer'),
-                'esn_alumnus' => $this->t('ESN Alumnus'),
-            ],
-            'Mobility Contributors' => [
-                'mobility_buddy' => $this->t('Buddy'),
-                'mobility_mentor' => $this->t('Mentor'),
-                'mobility_ambassador' => $this->t('Mobility Ambassador'),
-            ]
-        ];
-
         $statusFieldsDisabled = false;
-
         if (!empty($application)) {
             $esnStatus = $application['esn_status'] ?? null;
             if (!empty($esnStatus)) {
@@ -452,7 +418,7 @@ class ApplicationForm extends AuthenticatedFormBase
         $form['mobility_details']['status'] = [
             '#type' => 'select',
             '#title' => $this->t('Current Status'),
-            '#options' => $statusOptions,
+            '#options' => MobilityStatuses::getGroupedOptions(),
             '#empty_option' => $this->t('- Select -'),
             '#default_value' => $form_state->getValue('status') ?? $savedData['status'] ?? '',
             '#required' => TRUE,
@@ -470,33 +436,12 @@ class ApplicationForm extends AuthenticatedFormBase
 
         $status = $form_state->getValue('status') ?? $savedData['status'] ?? $form_state->getUserInput()['status'] ?? NULL;
 
-        $organizationLabel = $this->t('Host Institution');
-        $proofLabelText = $this->t('Appropriate Certification');
         $showDynamicFields = !empty($status);
-
         if ($showDynamicFields) {
-            if (str_contains($status, '_study') || str_contains($status, '_mundus') || str_contains($status, '_vet')) {
-                $organizationLabel = $this->t('Host University');
-                $proofLabelText = str_starts_with($status, 'other') ? $this->t('Appropriate Certification') : $this->t('Learning Agreement');
-            } elseif (str_contains($status, '_train_')) {
-                $organizationLabel = $this->t('Host Organization');
-                $proofLabelText = str_starts_with($status, 'other') ? $this->t('Appropriate Certification') : $this->t('Traineeship Certificate');
-            } elseif ($status == 'esc') {
-                $organizationLabel = $this->t('Host Organization');
-                $proofLabelText = $this->t('ESC Certificate');
-            } elseif (str_starts_with($status, 'international_')) {
-                $organizationLabel = $this->t('University');
-                $proofLabelText = $this->t('International Application / Certificate of Studies');
-            } elseif (str_starts_with($status, 'esn_')) {
-                $organizationLabel = $this->t('ESN Section');
-                $proofLabelText = $this->t('ESN Certificate / Membership Proof');
-            } elseif (str_starts_with($status, 'mobility_')) {
-                $organizationLabel = $this->t('University / Organization');
-                $proofLabelText = $this->t('Appropriate Certification');
-            }
-        }
+            $labels = MobilityStatuses::getLabels($status);
+            $organizationLabel = $labels['organization_label'];
+            $proofLabelText = $labels['proof_label'];
 
-        if ($showDynamicFields) {
             if (!$statusFieldsDisabled && str_starts_with($status, 'esn_')) {
                 $form['mobility_details']['dynamic_container']['online_title'] = [
                     '#markup' => '<h4 class="verification-subtitle">' . $this->t('Instant (Recommended)') . '</h4>',
@@ -772,27 +717,7 @@ class ApplicationForm extends AuthenticatedFormBase
             return;
         }
 
-        $statuses = [
-            'erasmus_study' => 'Study Exchange',
-            'erasmus_train_traineeship' => 'Traineeship',
-            'erasmus_train_internship' => 'Internship',
-            'erasmus_train_apprenticeship' => 'Apprenticeship',
-            'erasmus_train_vet' => 'VET',
-            'erasmus_mundus' => 'Erasmus Mundus Joint Masters',
-            'esc' => 'European Solidarity Corps',
-            'international_undergrad' => 'Undergraduate',
-            'international_postgrad' => 'Postgraduate',
-            'other_study' => 'Study Exchange (Other)',
-            'other_train_traineeship' => 'Traineeship (Other)',
-            'other_train_internship' => 'Internship (Other)',
-            'other_train_apprenticeship' => 'Apprenticeship (Other)',
-            'other_volunteer' => 'Volunteer (non-ESN)',
-            'esn_volunteer' => 'ESN Volunteer',
-            'esn_alumnus' => 'ESN Alumnus',
-            'mobility_buddy' => 'Buddy',
-            'mobility_mentor' => 'Mentor',
-            'mobility_ambassador' => 'Mobility Ambassador'
-        ];
+        $statuses = MobilityStatuses::getFlatOptions();
 
         try {
             $dateOfBirth = (new DrupalDateTime($isVerifiedID ? $application['id_dob'] : $values['dob']))->format('Y-m-d');

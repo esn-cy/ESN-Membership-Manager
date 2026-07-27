@@ -4,7 +4,7 @@ namespace Drupal\esn_membership_manager\Form;
 
 use Drupal\Component\Utility\Crypt;
 use Drupal\Core\Config\ConfigFactoryInterface;
-use Drupal\Core\Entity\EntityTypeManagerInterface;
+use Drupal\Core\Extension\ModuleHandlerInterface;
 use Drupal\Core\File\FileSystemInterface;
 use Drupal\Core\Form\ConfigFormBase;
 use Drupal\Core\Form\FormStateInterface;
@@ -26,21 +26,21 @@ class SettingsForm extends ConfigFormBase
     protected WeeztixService $weeztixService;
     protected StateInterface $state;
     protected FileSystemInterface $fileSystem;
-    protected EntityTypeManagerInterface $entityTypeManager;
+    protected ModuleHandlerInterface $moduleHandler;
 
     public function __construct(
-        ConfigFactoryInterface     $configFactory,
-        WeeztixService             $weeztixService,
-        StateInterface             $state,
-        FileSystemInterface        $fileSystem,
-        EntityTypeManagerInterface $entityTypeManager,
+        ConfigFactoryInterface $configFactory,
+        WeeztixService         $weeztixService,
+        StateInterface         $state,
+        FileSystemInterface    $fileSystem,
+        ModuleHandlerInterface $moduleHandler,
     )
     {
         parent::__construct($configFactory);
         $this->weeztixService = $weeztixService;
         $this->state = $state;
         $this->fileSystem = $fileSystem;
-        $this->entityTypeManager = $entityTypeManager;
+        $this->moduleHandler = $moduleHandler;
     }
 
     public static function create(ContainerInterface $container): self
@@ -57,15 +57,15 @@ class SettingsForm extends ConfigFormBase
         /** @var FileSystemInterface $fileSystem */
         $fileSystem = $container->get('file_system');
 
-        /** @var EntityTypeManagerInterface $entityTypeManager */
-        $entityTypeManager = $container->get('entity_type.manager');
+        /** @var ModuleHandlerInterface $moduleHandler */
+        $moduleHandler = $container->get('module_handler');
 
         return new static(
             $configFactory,
             $weeztixService,
             $state,
             $fileSystem,
-            $entityTypeManager,
+            $moduleHandler,
         );
     }
 
@@ -89,6 +89,14 @@ class SettingsForm extends ConfigFormBase
             '#title' => $this->t('Enable / Disable Features'),
             '#open' => true
         ];
+
+        if ($this->moduleHandler->moduleExists('estia_housing')) {
+            $form['switches']['switch_estia'] = [
+                '#type' => 'checkbox',
+                '#title' => $this->t('Enable Estia Housing Integration'),
+                '#default_value' => $membershipSettings->getEstiaSwitch(),
+            ];
+        }
 
         $form['switches']['switch_weeztix'] = [
             '#type' => 'checkbox',
@@ -445,6 +453,7 @@ class SettingsForm extends ConfigFormBase
         $membershipSettings = new MembershipSettings($this->configFactory(), true);
 
         $membershipSettings
+            ->setEstiaSwitch($this->moduleHandler->moduleExists('estia_housing') && $membershipSettings->getEstiaSwitch())
             ->setWeeztixSwitch($form_state->getValue('switch_weeztix'))
             ->setGoogleSheetsSwitch($form_state->getValue('switch_google_sheets'))
             ->setGoogleWalletSwitch($form_state->getValue('switch_google_wallet'))

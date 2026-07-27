@@ -12,13 +12,27 @@ class MembershipSettings
 
     private Config|ImmutableConfig $config;
 
-    public function __construct(ConfigFactoryInterface $config_factory, bool $editable = false)
+    public function __construct(
+        ConfigFactoryInterface $configFactory,
+        bool                   $editable = false
+    )
     {
         if ($editable) {
-            $this->config = $config_factory->getEditable(self::CONFIG_NAME);
+            $this->config = $configFactory->getEditable(self::CONFIG_NAME);
         } else {
-            $this->config = $config_factory->get(self::CONFIG_NAME);
+            $this->config = $configFactory->get(self::CONFIG_NAME);
         }
+    }
+
+    public function getEstiaSwitch(): bool
+    {
+        return $this->config->get('switch_estia') ?? false;
+    }
+
+    public function setEstiaSwitch(bool $value): self
+    {
+        $this->config->set('switch_estia', $value);
+        return $this;
     }
 
     public function getWeeztixSwitch(): bool
