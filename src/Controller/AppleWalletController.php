@@ -30,7 +30,7 @@ class AppleWalletController extends ControllerBase
     protected LoggerChannelInterface $logger;
 
     public function __construct(
-        Settings $settings,
+        Settings                      $settings,
         AppleWalletService            $appleWalletService,
         Connection                    $database,
         LoggerChannelFactoryInterface $loggerFactory

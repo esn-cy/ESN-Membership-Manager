@@ -44,7 +44,7 @@ class ApproveApplication extends ActionBase implements ContainerFactoryPluginInt
         array                         $configuration, $plugin_id, $plugin_definition,
         ConfigFactoryInterface        $configFactory,
         Connection                    $database,
-        StripeService $stripeService,
+        StripeService                 $stripeService,
         EmailManager                  $emailManager,
         LoggerChannelFactoryInterface $loggerFactory
     )

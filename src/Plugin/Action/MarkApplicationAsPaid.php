@@ -42,8 +42,8 @@ class MarkApplicationAsPaid extends ActionBase implements ContainerFactoryPlugin
         Connection                    $database,
         LockBackendInterface          $lock,
         LoggerChannelFactoryInterface $loggerFactory,
-        ESNcardService $esncardService,
-        StripeService  $stripeService,
+        ESNcardService                $esncardService,
+        StripeService                 $stripeService,
     )
     {
         parent::__construct($configuration, $plugin_id, $plugin_definition);

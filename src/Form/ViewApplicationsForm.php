@@ -28,9 +28,9 @@ class ViewApplicationsForm extends FormBase
     protected LoggerChannelInterface $logger;
 
     public function __construct(
-        EntityTypeManagerInterface $entityTypeManager,
+        EntityTypeManagerInterface    $entityTypeManager,
         ActionManager                 $actionManager,
-        FileService                $fileService,
+        FileService                   $fileService,
         LoggerChannelFactoryInterface $loggerFactory
     )
     {

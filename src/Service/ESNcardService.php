@@ -28,7 +28,7 @@ class ESNcardService
     public function __construct(
         ConfigFactoryInterface        $configFactory,
         Connection                    $database,
-        EntityTypeManagerInterface $entityTypeManager,
+        EntityTypeManagerInterface    $entityTypeManager,
         LoggerChannelFactoryInterface $loggerFactory,
         StripeService                 $stripeService,
         EmailManager                  $emailManager,

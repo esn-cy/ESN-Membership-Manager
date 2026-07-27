@@ -34,7 +34,7 @@ class GoogleService extends GoogleServiceBase
 
     public function __construct(
         ConfigFactoryInterface        $configFactory,
-        FileServiceBase $fileService,
+        FileServiceBase               $fileService,
         LoggerChannelFactoryInterface $loggerFactory
     )
     {

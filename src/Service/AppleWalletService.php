@@ -30,7 +30,7 @@ class AppleWalletService extends AppleServiceBase
         ConfigFactoryInterface        $configFactory,
         Settings                      $settings,
         ModuleHandlerInterface        $moduleHandler,
-        FileServiceBase $fileService,
+        FileServiceBase               $fileService,
         ClientInterface               $httpClient,
         LoggerChannelFactoryInterface $loggerFactory
     )

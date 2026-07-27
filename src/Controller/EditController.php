@@ -29,7 +29,7 @@ class EditController extends ControllerBase
 
     public function __construct(
         Connection                    $database,
-        FileService $fileService,
+        FileService                   $fileService,
         LoggerChannelFactoryInterface $loggerFactory,
         GoogleService                 $googleService,
         AppleWalletService            $appleWalletService,
