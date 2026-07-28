@@ -27,7 +27,7 @@
     }
   },
   "require": {
-    "esn-cy/core": "^1.0",
+    "esn-cy/omnia": "^1.0",
     "esn/esn_accounts_api": "^1.1",
     "drupal/simple_oauth": "^6.1",
     "google/apiclient-services": "^0.441",

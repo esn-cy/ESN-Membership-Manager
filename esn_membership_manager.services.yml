@@ -29,7 +29,7 @@ services:
     class: Drupal\esn_membership_manager\Service\CronService
     arguments:
       - '@entity_type.manager'
-      - '@file_system'
+      - '@esn_membership_manager.file_service'
       - '@logger.factory'
 
   esn_membership_manager.stripe_service:
