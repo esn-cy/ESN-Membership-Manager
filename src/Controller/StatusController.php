@@ -9,6 +9,7 @@ use Drupal\Core\Logger\LoggerChannelFactoryInterface;
 use Drupal\Core\Logger\LoggerChannelInterface;
 use Drupal\esn_membership_manager\Entity\Application\ApplicationField;
 use Drupal\esn_membership_manager\Entity\Application\ApplicationStorage;
+use Drupal\esn_membership_manager\Utility\ApprovalStatuses;
 use Exception;
 use Symfony\Component\DependencyInjection\ContainerInterface;
 use Symfony\Component\HttpFoundation\JsonResponse;
@@ -45,39 +46,27 @@ class StatusController extends ControllerBase
     protected array $statuses = [
         [
             'name' => 'Approved',
-            'action' => 'esn_membership_manager_approve',
-            'passAllowed' => TRUE,
-            'cardAllowed' => TRUE
+            'action' => 'esn_membership_manager_approve'
         ],
         [
             'name' => 'Rejected',
-            'action' => 'esn_membership_manager_reject',
-            'passAllowed' => TRUE,
-            'cardAllowed' => TRUE
+            'action' => 'esn_membership_manager_reject'
         ],
         [
             'name' => 'Paid',
-            'action' => 'esn_membership_manager_mark_paid',
-            'passAllowed' => TRUE,
-            'cardAllowed' => TRUE
+            'action' => 'esn_membership_manager_mark_paid'
         ],
         [
             'name' => 'Issued',
-            'action' => 'esn_membership_manager_issue',
-            'passAllowed' => FALSE,
-            'cardAllowed' => TRUE
+            'action' => 'esn_membership_manager_issue'
         ],
         [
             'name' => 'Delivered',
-            'action' => 'esn_membership_manager_deliver',
-            'passAllowed' => FALSE,
-            'cardAllowed' => TRUE
+            'action' => 'esn_membership_manager_deliver'
         ],
         [
             'name' => 'Blacklisted',
-            'action' => 'esn_membership_manager_blacklist',
-            'passAllowed' => TRUE,
-            'cardAllowed' => FALSE
+            'action' => 'esn_membership_manager_blacklist'
         ]
     ];
 
@@ -126,7 +115,7 @@ class StatusController extends ControllerBase
                 return new JsonResponse(['status' => 'error', 'message' => 'An invalid card number was provided.'], 400);
             }
 
-            if (($isESNcard && !$selectedAction['cardAllowed']) || ($isPass && !$selectedAction['passAllowed'])) {
+            if ($isESNcard && in_array($baseStatus, ApprovalStatuses::PaidStatuses)) {
                 return new JsonResponse(['status' => 'error', 'message' => 'Action not allowed with this kind of identifier.'], 400);
             }
 
@@ -164,7 +153,7 @@ class StatusController extends ControllerBase
 
         $hasESNcard = $application->getValue(ApplicationField::HasESNcard);
 
-        if (($hasESNcard && !$selectedAction['cardAllowed']) || (!$hasESNcard && !$selectedAction['passAllowed'])) {
+        if ($hasESNcard && in_array($baseStatus, ApprovalStatuses::PaidStatuses)) {
             return new JsonResponse(['status' => 'error', 'message' => 'Action not allowed for this application.'], 400);
         }
 

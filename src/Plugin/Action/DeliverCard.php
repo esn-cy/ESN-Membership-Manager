@@ -9,8 +9,8 @@ use Drupal\Core\Logger\LoggerChannelFactoryInterface;
 use Drupal\Core\Logger\LoggerChannelInterface;
 use Drupal\Core\Plugin\ContainerFactoryPluginInterface;
 use Drupal\Core\Session\AccountInterface;
-use Drupal\esn_membership_manager\Entity\Application\ApplicationField;
 use Drupal\esn_membership_manager\Entity\Application\ApplicationInterface;
+use Drupal\esn_membership_manager\Utility\ApprovalStatuses;
 use Exception;
 use Symfony\Component\DependencyInjection\ContainerInterface;
 
@@ -64,18 +64,18 @@ class DeliverCard extends ActionBase implements ContainerFactoryPluginInterface
             return;
         }
 
-        if (!$application->getValue(ApplicationField::HasESNcard) || $application->getApprovalStatus() != 'Issued') {
-            $this->logger->warning('Application @id cannot be marked as delivered because its current status is @status.',
+        $issues = $application->addApprovalStatus(ApprovalStatuses::Delivered);
+        if (is_string($issues)) {
+            $this->logger->warning('Application @id cannot be marked as delivered. @issues.',
                 [
                     '@id' => $application->id(),
-                    '@status' => $application->getApprovalStatus()
+                    '@issues' => $issues
                 ]
             );
-            throw new Exception('This status cannot be applied');
+            throw new Exception('This status cannot be applied.');
         }
 
         try {
-            $application->setValue(ApplicationField::ApprovalStatus, 'Delivered');
             $application->save();
 
             $this->logger->notice('Delivered application @id', ['@id' => $application->id()]);

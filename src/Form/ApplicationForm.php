@@ -25,6 +25,7 @@ use Drupal\esn_membership_manager\Entity\Application\ApplicationStorage;
 use Drupal\esn_membership_manager\Service\DiditService;
 use Drupal\esn_membership_manager\Service\EmailManager;
 use Drupal\esn_membership_manager\Service\FileService;
+use Drupal\esn_membership_manager\Utility\ApprovalStatuses;
 use Drupal\esn_membership_manager\Utility\MobilityStatuses;
 use Drupal\esn_membership_manager\Utility\Nationalities;
 use Drupal\omnia\Config\OmniaSettings;
@@ -735,7 +736,7 @@ class ApplicationForm extends AuthenticatedFormBase
             ApplicationField::Section->value => trim($values['section'] ?? 'Unknown Section'),
             ApplicationField::MobilityStatus->value => trim($isVerifiedStatus ? $application['status_mobility'] : $statuses[$values['status']]),
             ApplicationField::HostInstitution->value => trim($isVerifiedStatus ? $application['status_host_institution'] : $values['host']),
-            ApplicationField::ApprovalStatus->value => 'Pending',
+            ApplicationField::ApprovalStatus->value => ApprovalStatuses::Pending,
             ApplicationField::HasVerifiedEmail->value => 1,
             ApplicationField::HasVerifiedID->value => (int)$isVerifiedID,
             ApplicationField::HasVerifiedStatus->value => (int)$isVerifiedStatus,

@@ -16,6 +16,7 @@ use Drupal\esn_membership_manager\Entity\Application\ApplicationField;
 use Drupal\esn_membership_manager\Entity\Application\ApplicationInterface;
 use Drupal\esn_membership_manager\Service\ESNcardService;
 use Drupal\esn_membership_manager\Service\StripeService;
+use Drupal\esn_membership_manager\Utility\ApprovalStatuses;
 use Exception;
 use Symfony\Component\DependencyInjection\ContainerInterface;
 
@@ -102,13 +103,25 @@ class MarkApplicationAsPaid extends ActionBase implements ContainerFactoryPlugin
             return 'Did not run due to an error acquiring a lock';
         }
 
-        if (!empty($application->getValue(ApplicationField::ESNcardNumber)) && $application->getApprovalStatus() == 'Paid') {
+        if (!empty($application->getValue(ApplicationField::ESNcardNumber)) && $application->isPaid()) {
             $this->logger->warning(
                 'Application @id was already paid. Duplicate payment event detected.',
                 ['@id' => $application->id()]
             );
             $this->lock->release('process_application_' . $application->id());
             return 'Duplicate payment event detected';
+        }
+
+        $issues = $application->addApprovalStatus(ApprovalStatuses::Paid);
+        if (is_string($issues)) {
+            $this->logger->warning('Application @id cannot be marked as paid. @issues.',
+                [
+                    '@id' => $application->id(),
+                    '@issues' => $issues
+                ]
+            );
+            $this->lock->release('process_application_' . $application->id());
+            return 'This status cannot be applied.';
         }
 
         $isManual = empty($linkID);
@@ -126,7 +139,6 @@ class MarkApplicationAsPaid extends ActionBase implements ContainerFactoryPlugin
 
         try {
             $application
-                ->setValue(ApplicationField::ApprovalStatus, 'Paid')
                 ->setValue(ApplicationField::DatePaid, (new DrupalDateTime())->format('Y-m-d\TH:i:s'))
                 ->setValue(ApplicationField::ESNcardNumber, $cardNumber);
 

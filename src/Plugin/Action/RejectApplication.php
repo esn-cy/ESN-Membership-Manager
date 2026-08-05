@@ -12,6 +12,7 @@ use Drupal\Core\Session\AccountInterface;
 use Drupal\esn_membership_manager\Entity\Application\ApplicationField;
 use Drupal\esn_membership_manager\Entity\Application\ApplicationInterface;
 use Drupal\esn_membership_manager\Service\EmailManager;
+use Drupal\esn_membership_manager\Utility\ApprovalStatuses;
 use Exception;
 use Symfony\Component\DependencyInjection\ContainerInterface;
 
@@ -72,22 +73,19 @@ class RejectApplication extends ActionBase implements ContainerFactoryPluginInte
             return;
         }
 
-        if ($application->getApprovalStatus() != 'Pending') {
-            $this->logger->warning('Application @id cannot be marked as rejected because its current status is @status.',
+        $issues = $application->addApprovalStatus(ApprovalStatuses::Rejected);
+        if (is_string($issues)) {
+            $this->logger->warning('Application @id cannot be marked as rejected. @issues.',
                 [
                     '@id' => $application->id(),
-                    '@status' => $application->getApprovalStatus()
+                    '@issues' => $issues
                 ]
             );
-            throw new Exception('This status cannot be applied');
+            throw new Exception('This status cannot be applied.');
         }
+        $application->clearPendingStatuses();
 
         try {
-            if (empty($reasons)) {
-                $application->setValue(ApplicationField::ApprovalStatus, 'Rejected');
-            } else {
-                $application->setValue(ApplicationField::ApprovalStatus, $reasons);
-            }
             $application->save();
 
             $emailReasons = [];

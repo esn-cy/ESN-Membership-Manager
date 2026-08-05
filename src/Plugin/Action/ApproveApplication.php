@@ -18,6 +18,7 @@ use Drupal\esn_membership_manager\Entity\Application\ApplicationField;
 use Drupal\esn_membership_manager\Entity\Application\ApplicationInterface;
 use Drupal\esn_membership_manager\Service\EmailManager;
 use Drupal\esn_membership_manager\Service\StripeService;
+use Drupal\esn_membership_manager\Utility\ApprovalStatuses;
 use Exception;
 use Stripe\Exception\ApiErrorException;
 use Symfony\Component\DependencyInjection\ContainerInterface;
@@ -99,15 +100,17 @@ class ApproveApplication extends ActionBase implements ContainerFactoryPluginInt
             return;
         }
 
-        if ($application->getApprovalStatus() != 'Pending' && $application->getApprovalStatus() != 'Rejected') {
-            $this->logger->warning('Application @id cannot be marked as approved because its current status is @status.',
+        $issues = $application->addApprovalStatus(ApprovalStatuses::Approved);
+        if (is_string($issues)) {
+            $this->logger->warning('Application @id cannot be marked as approved. @issues.',
                 [
                     '@id' => $application->id(),
-                    '@status' => $application->getApprovalStatus()
+                    '@issues' => $issues
                 ]
             );
-            throw new Exception('This status cannot be applied');
+            throw new Exception('This status cannot be applied.');
         }
+        $application->clearPendingStatuses();
 
         $membershipSettings = new MembershipSettings($this->configFactory);
 
@@ -115,7 +118,6 @@ class ApproveApplication extends ActionBase implements ContainerFactoryPluginInt
 
         $application
             ->setValue(ApplicationField::PassToken, $token)
-            ->setValue(ApplicationField::ApprovalStatus, 'Approved')
             ->setValue(ApplicationField::DateApproved, (new DrupalDateTime())->format('Y-m-d\TH:i:s'));
 
         $emailFields = [

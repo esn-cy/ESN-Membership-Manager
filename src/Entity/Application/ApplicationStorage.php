@@ -4,6 +4,7 @@ namespace Drupal\esn_membership_manager\Entity\Application;
 
 use DateInterval;
 use Drupal\Core\Datetime\DrupalDateTime;
+use Drupal\esn_membership_manager\Utility\ApprovalStatuses;
 use Drupal\omnia\Entity\EnumBackedEntityStorage;
 
 class ApplicationStorage extends EnumBackedEntityStorage
@@ -105,7 +106,30 @@ class ApplicationStorage extends EnumBackedEntityStorage
         }
 
         if (!empty($status)) {
-            $andGroup->condition(ApplicationField::ApprovalStatus->value, $status, 'CONTAINS');
+            $statusCondition = $query->andConditionGroup();
+
+            $statusCondition->condition(ApplicationField::ApprovalStatus->value, '%' . $status . '%', 'LIKE');
+
+            if ($status === ApprovalStatuses::Blacklisted) {
+                foreach (ApprovalStatuses::NegativeStatuses as $negativeStatus) {
+                    $statusCondition->condition(ApplicationField::ApprovalStatus->value, '%' . $negativeStatus . '%', 'NOT LIKE');
+                }
+            } elseif (in_array($status, ApprovalStatuses::PendingStatuses)) {
+                foreach (array_merge(ApprovalStatuses::NegativeStatuses, ApprovalStatuses::AuxiliaryStatuses) as $higherStatus) {
+                    $statusCondition->condition(ApplicationField::ApprovalStatus->value, '%' . $higherStatus . '%', 'NOT LIKE');
+                }
+            } elseif (in_array($status, ApprovalStatuses::PositiveStatuses)) {
+                foreach (array_merge(ApprovalStatuses::NegativeStatuses, ApprovalStatuses::AuxiliaryStatuses, ApprovalStatuses::PendingStatuses) as $higherStatus) {
+                    $statusCondition->condition(ApplicationField::ApprovalStatus->value, '%' . $higherStatus . '%', 'NOT LIKE');
+                }
+
+                $startIndex = array_search($status, ApprovalStatuses::PositiveStatuses) + 1;
+                for ($i = $startIndex; $i < count(ApprovalStatuses::PositiveStatuses); $i++) {
+                    $statusCondition->condition(ApplicationField::ApprovalStatus->value, '%' . ApprovalStatuses::PositiveStatuses[$i] . '%', 'NOT LIKE');
+                }
+            }
+
+            $andGroup->condition($statusCondition);
         }
 
         if (!empty($esncard)) {
@@ -155,7 +179,7 @@ class ApplicationStorage extends EnumBackedEntityStorage
     {
         $applicationIDs = $this->getQuery()
             ->accessCheck(FALSE)
-            ->condition(ApplicationField::ApprovalStatus->value, 'Paid')
+            ->condition(ApplicationField::ApprovalStatus->value, ApprovalStatuses::Paid, 'CONTAINS')
             ->exists(ApplicationField::FacePhotoFileID->value)
             ->sort(ApplicationField::ESNcardNumber->value)
             ->execute();
@@ -225,11 +249,11 @@ class ApplicationStorage extends EnumBackedEntityStorage
 
         $query = $this->getQuery()
             ->accessCheck(FALSE)
-            ->condition(ApplicationField::ApprovalStatus->value, 'Pending', '<>');
+            ->condition(ApplicationField::ApprovalStatus->value, ApprovalStatuses::Pending, 'NOT CONTAINS');
 
         $approvalCondition = $query->orConditionGroup()
             ->condition(ApplicationField::DateApproved->value, $twoWeeksAgo, '<')
-            ->condition(ApplicationField::ApprovalStatus->value, 'Rejected', 'STARTS_WITH');
+            ->condition(ApplicationField::ApprovalStatus->value, ApprovalStatuses::Rejected, 'CONTAINS');
 
         $filesExistCondition = $query->orConditionGroup()
             ->exists(ApplicationField::StatusProofFileID->value)

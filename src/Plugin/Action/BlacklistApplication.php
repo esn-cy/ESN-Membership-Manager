@@ -13,6 +13,7 @@ use Drupal\esn_membership_manager\Entity\Application\ApplicationField;
 use Drupal\esn_membership_manager\Entity\Application\ApplicationInterface;
 use Drupal\esn_membership_manager\Service\EmailManager;
 use Drupal\esn_membership_manager\Service\StripeService;
+use Drupal\esn_membership_manager\Utility\ApprovalStatuses;
 use Exception;
 use Symfony\Component\DependencyInjection\ContainerInterface;
 
@@ -79,16 +80,22 @@ class BlacklistApplication extends ActionBase implements ContainerFactoryPluginI
             return;
         }
 
+        $issues = $application->addApprovalStatus(ApprovalStatuses::Blacklisted);
+        if (is_string($issues)) {
+            $this->logger->warning('Application @id cannot be marked as blacklisted. @issues.',
+                [
+                    '@id' => $application->id(),
+                    '@issues' => $issues
+                ]
+            );
+            throw new Exception('This status cannot be applied.');
+        }
+
         if ($application->getValue(ApplicationField::HasESNcard)) {
-            if ($application->getApprovalStatus() != "Approved") {
-                $this->logger->warning('Application @id cannot be blacklisted.', ['@id' => $application->id()]);
-                throw new Exception('This status cannot be applied');
-            }
             $this->stripeService->disablePaymentLink($application->id());
         }
 
         try {
-            $application->setValue(ApplicationField::ApprovalStatus, 'Blacklisted');
             $application->save();
 
             $this->emailManager->sendEmail($application->getValue(ApplicationField::Email), 'pass_blacklist', ['name' => $application->getValue(ApplicationField::Name)]);

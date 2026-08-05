@@ -10,6 +10,7 @@ use Drupal\esn_membership_manager\Config\MembershipSettings;
 use Drupal\esn_membership_manager\Service\FileService;
 use Drupal\esn_membership_manager\Service\GoogleService;
 use Drupal\esn_membership_manager\Service\StripeService;
+use Drupal\esn_membership_manager\Utility\ApprovalStatuses;
 use Drupal\file\FileInterface;
 use Drupal\omnia\Entity\EnumBackedEntityBase;
 use Exception;
@@ -136,79 +137,41 @@ class Application extends EnumBackedEntityBase implements ApplicationInterface
         return "{$this->getValue(ApplicationField::Name)} {$this->getValue(ApplicationField::Surname)}";
     }
 
-    private function getReasons(string $status): ?array
-    {
-        $reasons = [];
-        if (str_contains($status, '-')) {
-            $reasonsSplit = explode('/', $status);
-            if (count($reasonsSplit) > 1) {
-                foreach ($reasonsSplit as $reason) {
-                    $reasonParts = explode('-', $reason);
-                    if (count($reasonParts) != 3) {
-                        continue;
-                    }
-                    $reasons[] = [
-                        'status' => $reasonParts[0],
-                        'category' => $reasonParts[1],
-                        'issue' => $reasonParts[2],
-                    ];
-                }
-            } else {
-                $reasonParts = explode('-', $status);
-                $reasons[] = [
-                    'status' => $reasonParts[0],
-                    'category' => $reasonParts[1],
-                    'issue' => $reasonParts[2],
-                ];
-            }
-        }
-
-        return $reasons;
-    }
-
-    private function getDominantStatus(string $status): string
-    {
-        $successStatuses = ['Approved', 'Paid', 'Issued', 'Delivered', 'Blacklisted'];
-
-        if (str_contains($status, '/')) {
-            $reasons = $this->getReasons($status);
-
-            $isPending = false;
-            $successStatusIndex = -1;
-            foreach ($reasons as $reason) {
-                $currentStatus = $this->getDominantStatus($reason['status']);
-                if ($currentStatus == 'Rejected') {
-                    return $currentStatus;
-                }
-                if ($currentStatus == 'Pending') {
-                    $isPending = true;
-                    continue;
-                }
-                if ($successStatusIndex == -1) {
-                    $successStatusIndex = array_search($currentStatus, $successStatuses);
-                } elseif (($currentIndex = array_search($currentStatus, $successStatuses)) > $successStatusIndex) {
-                    $successStatusIndex = $currentIndex;
-                }
-            }
-            if ($isPending) {
-                return 'Pending';
-            } else {
-                return $successStatuses[$successStatusIndex];
-            }
-        } else {
-            preg_match('/^([a-zA-Z]+)/', $status, $matches);
-            return $matches[1];
-        }
-    }
-
     /**
      * {@inheritdoc}
      */
     public function getApprovalStatus(): string
     {
-        $rawStatus = $this->getValue(ApplicationField::ApprovalStatus);
+        return ApprovalStatuses::getDominantStatus($this->getValue(ApplicationField::ApprovalStatus))->status;
+    }
 
-        return $this->getDominantStatus($rawStatus);
+    public function addApprovalStatus(string $status): bool|string
+    {
+        $currentStatus = $this->getValue(ApplicationField::ApprovalStatus);
+
+        if (
+            in_array($status, ApprovalStatuses::PaidStatuses) &&
+            !$this->getValue(ApplicationField::HasESNcard)
+        ) {
+            return 'This status cannot be applied as this application does not have an ESNcard.';
+        }
+
+        $issue = ApprovalStatuses::canAddStatus($currentStatus, $status);
+        if (!empty($issue)) {
+            return $issue;
+        }
+
+        $newStatus = ApprovalStatuses::addStatus($currentStatus, $status);
+        $this->setValue(ApplicationField::ApprovalStatus, $newStatus);
+        return true;
+    }
+
+    public function removeApprovalStatus(string $status): void
+    {
+        $currentStatus = $this->getValue(ApplicationField::ApprovalStatus);
+        $newStatus = ApprovalStatuses::removeStatus($currentStatus, $status);
+
+        $this->setValue(ApplicationField::ApprovalStatus, $newStatus);
     }
 
     /**
@@ -217,24 +180,34 @@ class Application extends EnumBackedEntityBase implements ApplicationInterface
     public function getAllReasons(): ?array
     {
         $rawStatus = $this->getValue(ApplicationField::ApprovalStatus);
-
-        return $this->getReasons($rawStatus);
-    }
+        $statuses = ApprovalStatuses::getStatuses($rawStatus);
+        return array_filter($statuses, function ($status) {
+            return !empty($status->category) || !empty($status->issue);
+        });    }
 
     /**
      * {@inheritdoc}
      */
     public function getPendingReasons(): ?array
     {
-        $rawStatus = $this->getValue(ApplicationField::ApprovalStatus);
-        if (!str_starts_with($rawStatus, 'Pending')) {
-            return null;
-        }
-
-        $reasons = $this->getReasons($rawStatus);
+        $reasons = $this->getAllReasons();
         return array_filter($reasons, function ($reason) {
-            return $reason['status'] == 'Pending';
+            return $reason->status === ApprovalStatuses::Pending;
         });
+    }
+
+    /**
+     * {@inheritdoc}
+     */
+    public function clearPendingStatuses(): void
+    {
+        $reasons = $this->getPendingReasons();
+        if (!empty($reasons)) {
+            foreach ($reasons as $reason) {
+                $this->removeApprovalStatus($reason->toString());
+            }
+        }
+        $this->removeApprovalStatus('Pending');
     }
 
     /**
@@ -242,15 +215,35 @@ class Application extends EnumBackedEntityBase implements ApplicationInterface
      */
     public function getRejectionReasons(): ?array
     {
-        $rawStatus = $this->getValue(ApplicationField::ApprovalStatus);
-        if (!str_starts_with($rawStatus, 'Rejected')) {
-            return null;
-        }
-
-        $reasons = $this->getReasons($rawStatus);
+        $reasons = $this->getAllReasons();
         return array_filter($reasons, function ($reason) {
-            return $reason['status'] == 'Rejected';
+            return $reason->status === ApprovalStatuses::Rejected;
         });
+    }
+
+    public function isApproved(): bool
+    {
+        return in_array($this->getApprovalStatus(), ApprovalStatuses::PositiveStatuses);
+    }
+
+    public function isPaid(): bool
+    {
+        return in_array($this->getApprovalStatus(), ApprovalStatuses::PaidStatuses);
+    }
+
+    public function isRejected(): bool
+    {
+        return in_array($this->getApprovalStatus(), ApprovalStatuses::NegativeStatuses, true);
+    }
+
+    public function isPending(): bool
+    {
+        return in_array($this->getApprovalStatus(), ApprovalStatuses::PendingStatuses, true);
+    }
+
+    public function isBlacklisted(): bool
+    {
+        return $this->getApprovalStatus() == ApprovalStatuses::Blacklisted;
     }
 
     /**

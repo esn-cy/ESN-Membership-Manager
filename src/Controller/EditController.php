@@ -125,7 +125,9 @@ class EditController extends ControllerBase
             return new JsonResponse(['status' => 'error', 'message' => 'There was a problem updating the application.'], 500);
         }
 
-        if (!in_array($application->getApprovalStatus(), ['Pending', 'Rejected', 'Blacklisted']) && $membershipSettings->getGoogleWalletSwitch()) {
+        $isApproved = $application->isApproved();
+
+        if ($isApproved && $membershipSettings->getGoogleWalletSwitch()) {
             if ($application->getValue(ApplicationField::HasESNcard)) {
                 try {
                     $this->googleService->updateApplicationObject($application, 'card');
@@ -140,7 +142,7 @@ class EditController extends ControllerBase
             }
         }
 
-        if (!in_array($application->getApprovalStatus(), ['Pending', 'Rejected', 'Blacklisted']) && $membershipSettings->getAppleWalletSwitch()) {
+        if ($isApproved && $membershipSettings->getAppleWalletSwitch()) {
             try {
                 $query = $this->database->select('esn_membership_manager_apple_wallet_registrations', 'w')
                     ->fields('w', ['push_token']);
@@ -216,7 +218,9 @@ class EditController extends ControllerBase
                 return new JsonResponse(['status' => 'error', 'message' => 'Unable to write file.'], 500);
             }
 
-            if (!in_array($application->getApprovalStatus(), ['Pending', 'Rejected', 'Blacklisted']) && $membershipSettings->getGoogleWalletSwitch()) {
+            $isApproved = $application->isApproved();
+
+            if ($isApproved && $membershipSettings->getGoogleWalletSwitch()) {
                 try {
                     $this->googleService->updateApplicationObject($application, 'card');
                 } catch (Exception|GuzzleException $e) {
@@ -224,7 +228,7 @@ class EditController extends ControllerBase
                 }
             }
 
-            if (!in_array($application->getApprovalStatus(), ['Pending', 'Rejected', 'Blacklisted']) && $membershipSettings->getAppleWalletSwitch()) {
+            if ($isApproved && $membershipSettings->getAppleWalletSwitch()) {
                 try {
                     $pushTokens = $this->database->select('esn_membership_manager_apple_wallet_registrations', 'w')
                         ->fields('w', ['push_token'])

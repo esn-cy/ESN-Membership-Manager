@@ -194,8 +194,6 @@ class ApplicationController extends ControllerBase implements ContainerInjection
             ];
         }
 
-        $approvalStatus = $application->getApprovalStatus();
-
         return [
             '#theme' => 'emm_application_view',
             '#id' => $id,
@@ -215,7 +213,7 @@ class ApplicationController extends ControllerBase implements ContainerInjection
                 'crop' => Url::fromRoute('esn_membership_manager.crop')->toString(),
                 'status' => Url::fromRoute('esn_membership_manager.status')->toString()
             ],
-            '#is_paid' => $approvalStatus == "Paid" || $approvalStatus == "Issued" || $approvalStatus == "Delivered",
+            '#is_paid' => $application->isPaid(),
             '#is_proof_verified' => $hasVerifiedStatus,
             '#is_identity_verified' => $hasVerifiedID,
         ];

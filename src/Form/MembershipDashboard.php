@@ -17,7 +17,9 @@ use Drupal\esn_membership_manager\Config\MembershipSettings;
 use Drupal\esn_membership_manager\Entity\Application\ApplicationField;
 use Drupal\esn_membership_manager\Entity\Application\ApplicationInterface;
 use Drupal\esn_membership_manager\Entity\Application\ApplicationStorage;
+use Drupal\esn_membership_manager\Object\Status;
 use Drupal\esn_membership_manager\Service\FileService;
+use Drupal\esn_membership_manager\Utility\ApprovalStatuses;
 use Drupal\esn_membership_manager\Utility\Nationalities;
 use Exception;
 use GuzzleHttp\ClientInterface;
@@ -159,7 +161,7 @@ class MembershipDashboard extends AuthenticatedFormBase
         $rejectedDocuments = [];
         $pendingDocuments = [];
 
-        if ($application->getApprovalStatus() == 'Rejected') {
+        if ($application->isRejected()) {
             $reasons = $application->getRejectionReasons();
             $formatedReasons = [];
             $eligibilityIssues = [];
@@ -243,7 +245,7 @@ class MembershipDashboard extends AuthenticatedFormBase
                     ],
                 ];
             }
-        } elseif ($application->getApprovalStatus() == 'Pending') {
+        } elseif ($application->isPending()) {
             $reasons = $application->getPendingReasons();
 
             foreach ($reasons as $reason) {
@@ -253,12 +255,12 @@ class MembershipDashboard extends AuthenticatedFormBase
             }
         }
 
-        $isApproved = in_array($application->getApprovalStatus(), ['Approved', 'Paid', 'Issued', 'Delivered']);
+        $isApproved = $application->isApproved();
 
         if ($isApproved && ($membershipSettings->getGoogleWalletSwitch() || $membershipSettings->getAppleWalletSwitch())) {
             $buttonText = 'Add to Wallet';
             $buttonHref = '#wallet';
-        } elseif ($application->getApprovalStatus() == 'Approved' && $application->getValue(ApplicationField::HasESNcard)) {
+        } elseif ($isApproved && !$application->isPaid() && $application->getValue(ApplicationField::HasESNcard)) {
             $buttonText = 'Pay for ESNcard';
             $buttonHref = $application->getValue(ApplicationField::PaymentLink);
         } elseif (!$application->getValue(ApplicationField::HasESNcard)) {
@@ -344,7 +346,7 @@ class MembershipDashboard extends AuthenticatedFormBase
             $this->nationalities = new Nationalities($this->moduleHandler);
         }
 
-        $isPendingID = in_array('Identity', $pendingDocuments) && $application->getApprovalStatus() == 'Pending';
+        $isPendingID = in_array('Identity', $pendingDocuments) && $application->isPending();
         $isVerifiedID = $application->getValue(ApplicationField::HasVerifiedID) ?? false;
         $isApprovedID = !in_array('Identity', $rejectedDocuments);
 
@@ -437,81 +439,80 @@ class MembershipDashboard extends AuthenticatedFormBase
                         </div>',
         ];
 
-        switch ($application->getApprovalStatus()) {
-            /** @noinspection PhpMissingBreakStatementInspection */
-            case 'Pending':
-                if ($isPendingID) {
-                    $form['application_section']['personal_info']['status_badge'] = [
-                        '#markup' => '
-                        <span class="badge badge-warning">
-                            <span class="material-symbols-outlined">schedule</span> 
-                            In Review
-                        </span>
-                    ',
-                    ];
-                    break;
-                }
-            case 'Approved':
-            case 'Paid':
-            case 'Issued':
-            case 'Delivered':
-                $badgeText = $isVerifiedID ? 'Verified' : 'Approved';
-                $form['application_section']['personal_info']['status_badge'] = [
-                    '#markup' => '
+        if ($application->isPending()) {
+            if ($isPendingID) {
+                 $markup = '
+                    <span class="badge badge-warning">
+                        <span class="material-symbols-outlined">schedule</span> 
+                        In Review
+                    </span>
+                 ';
+            } else {
+                $markup = '
                     <span class="badge badge-success">
                         <span class="material-symbols-outlined">check_circle</span> 
-                        ' . $badgeText . '
+                        ' . ($isVerifiedID ? 'Verified' : 'Approved') . '
+                    </span>
+                 ';
+            }
+            $form['application_section']['personal_info']['status_badge'] = [
+                '#markup' => $markup
+            ];
+        } elseif ($application->isApproved()) {
+            $form['application_section']['personal_info']['status_badge'] = [
+                '#markup' => '
+                    <span class="badge badge-success">
+                        <span class="material-symbols-outlined">check_circle</span> 
+                        ' . ($isVerifiedID ? 'Verified' : 'Approved') . '
                     </span>
                     ',
-                ];
-                break;
-            case 'Rejected':
-                if ($isApprovedID) {
-                    $form['application_section']['personal_info']['status_badge'] = [
-                        '#markup' => '
+            ];
+        } elseif ($application->isRejected()) {
+            if ($isApprovedID) {
+                $form['application_section']['personal_info']['status_badge'] = [
+                    '#markup' => '
                         <span class="badge badge-warning">
                             <span class="material-symbols-outlined">warning</span> 
                             Pending Issues
                         </span>
                         ',
-                    ];
-                } elseif ($isRejectionFixable ?? false) {
-                    $form['application_section']['personal_info']['identity_upload'] = [
-                        '#type' => 'managed_file',
-                        '#title_display' => 'invisible',
-                        '#upload_location' => 'membership://temp_uploads/',
-                        '#upload_validators' => [
-                            'file_validate_extensions' => ['jpg jpeg png pdf'],
-                            'file_validate_size' => [8 * 1024 * 1024]
-                        ],
-                        '#attributes' => [
-                            'class' => ['auto-submit-file'],
-                        ],
-                        '#process' => [
-                            ['\Drupal\file\Element\ManagedFile', 'processManagedFile'],
-                            [$this, 'processFileUploadAttributes'],
-                        ],
-                    ];
+                ];
+            } elseif ($isRejectionFixable ?? false) {
+                $form['application_section']['personal_info']['identity_upload'] = [
+                    '#type' => 'managed_file',
+                    '#title_display' => 'invisible',
+                    '#upload_location' => 'membership://temp_uploads/',
+                    '#upload_validators' => [
+                        'file_validate_extensions' => ['jpg jpeg png pdf'],
+                        'file_validate_size' => [8 * 1024 * 1024]
+                    ],
+                    '#attributes' => [
+                        'class' => ['auto-submit-file'],
+                    ],
+                    '#process' => [
+                        ['\Drupal\file\Element\ManagedFile', 'processManagedFile'],
+                        [$this, 'processFileUploadAttributes'],
+                    ],
+                ];
 
-                    $form['hidden_actions']['submit_identity_file'] = [
-                        '#type' => 'submit',
-                        '#value' => 'Save Identity File',
-                        '#submit' => ['::submitIdentityFile'],
-                        '#attributes' => [
-                            'id' => 'edit-identity-upload-submit'
-                        ],
-                    ];
-                } else {
-                    $form['application_section']['personal_info']['status_badge'] = [
-                        '#markup' => '
+                $form['hidden_actions']['submit_identity_file'] = [
+                    '#type' => 'submit',
+                    '#value' => 'Save Identity File',
+                    '#submit' => ['::submitIdentityFile'],
+                    '#attributes' => [
+                        'id' => 'edit-identity-upload-submit'
+                    ],
+                ];
+            } else {
+                $form['application_section']['personal_info']['status_badge'] = [
+                    '#markup' => '
                         <span class="badge badge-error">
                             <span class="material-symbols-outlined">cancel</span> 
                             Rejected
                         </span>
                         ',
-                    ];
-                }
-                break;
+                ];
+            }
         }
 
         $form['application_section']['personal_info']['content_bottom'] = [
@@ -525,7 +526,7 @@ class MembershipDashboard extends AuthenticatedFormBase
             ],
         ];
 
-        $isPendingStatus = in_array('Status', $pendingDocuments) && $application->getApprovalStatus() == 'Pending';
+        $isPendingStatus = in_array('Status', $pendingDocuments) && $application->isPending();
         $isVerifiedStatus = $application->getValue(ApplicationField::HasVerifiedStatus) ?? false;
         $isApprovedStatus = !in_array('Status', $rejectedDocuments);
 
@@ -592,81 +593,80 @@ class MembershipDashboard extends AuthenticatedFormBase
                         </div>',
         ];
 
-        switch ($application->getApprovalStatus()) {
-            /** @noinspection PhpMissingBreakStatementInspection */
-            case 'Pending':
-                if ($isPendingStatus) {
-                    $form['application_section']['mobility_info']['status_badge'] = [
-                        '#markup' => '
-                        <span class="badge badge-warning">
-                            <span class="material-symbols-outlined">schedule</span> 
-                            In Review
-                        </span>
-                    ',
-                    ];
-                    break;
-                }
-            case 'Approved':
-            case 'Paid':
-            case 'Issued':
-            case 'Delivered':
-                $badgeText = $isVerifiedStatus ? 'Verified' : 'Approved';
-                $form['application_section']['mobility_info']['status_badge'] = [
-                    '#markup' => '
+        if ($application->isPending()) {
+            if ($isApprovedStatus) {
+                $markup = '
+                    <span class="badge badge-warning">
+                        <span class="material-symbols-outlined">schedule</span> 
+                        In Review
+                    </span>
+                 ';
+            } else {
+                $markup = '
                     <span class="badge badge-success">
                         <span class="material-symbols-outlined">check_circle</span> 
-                        ' . $badgeText . '
+                        ' . ($isVerifiedStatus ? 'Verified' : 'Approved') . '
+                    </span>
+                 ';
+            }
+            $form['application_section']['mobility_info']['status_badge'] = [
+                '#markup' => $markup
+            ];
+        } elseif ($application->isApproved()) {
+            $form['application_section']['mobility_info']['status_badge'] = [
+                '#markup' => '
+                    <span class="badge badge-success">
+                        <span class="material-symbols-outlined">check_circle</span> 
+                        ' . ($isVerifiedStatus ? 'Verified' : 'Approved') . '
                     </span>
                     ',
-                ];
-                break;
-            case 'Rejected':
-                if ($isApprovedStatus) {
-                    $form['application_section']['mobility_info']['status_badge'] = [
-                        '#markup' => '
+            ];
+        } elseif ($application->isRejected()) {
+            if ($isApprovedStatus) {
+                $form['application_section']['mobility_info']['status_badge'] = [
+                    '#markup' => '
                         <span class="badge badge-warning">
                             <span class="material-symbols-outlined">warning</span> 
                             Pending Issues
                         </span>
                         ',
-                    ];
-                } elseif ($isRejectionFixable ?? false) {
-                    $form['application_section']['mobility_info']['status_upload'] = [
-                        '#type' => 'managed_file',
-                        '#title_display' => 'invisible',
-                        '#upload_location' => 'membership://temp_uploads/',
-                        '#upload_validators' => [
-                            'file_validate_extensions' => ['jpg jpeg png pdf'],
-                            'file_validate_size' => [8 * 1024 * 1024]
-                        ],
-                        '#attributes' => [
-                            'class' => ['auto-submit-file'],
-                        ],
-                        '#process' => [
-                            ['\Drupal\file\Element\ManagedFile', 'processManagedFile'],
-                            [$this, 'processFileUploadAttributes'],
-                        ],
-                    ];
+                ];
+            } elseif ($isRejectionFixable ?? false) {
+                $form['application_section']['mobility_info']['status_upload'] = [
+                    '#type' => 'managed_file',
+                    '#title_display' => 'invisible',
+                    '#upload_location' => 'membership://temp_uploads/',
+                    '#upload_validators' => [
+                        'file_validate_extensions' => ['jpg jpeg png pdf'],
+                        'file_validate_size' => [8 * 1024 * 1024]
+                    ],
+                    '#attributes' => [
+                        'class' => ['auto-submit-file'],
+                    ],
+                    '#process' => [
+                        ['\Drupal\file\Element\ManagedFile', 'processManagedFile'],
+                        [$this, 'processFileUploadAttributes'],
+                    ],
+                ];
 
-                    $form['hidden_actions']['submit_status_file'] = [
-                        '#type' => 'submit',
-                        '#value' => 'Save Status File',
-                        '#submit' => ['::submitStatusFile'],
-                        '#attributes' => [
-                            'id' => 'edit-status-upload-submit'
-                        ],
-                    ];
-                } else {
-                    $form['application_section']['mobility_info']['status_badge'] = [
-                        '#markup' => '
+                $form['hidden_actions']['submit_status_file'] = [
+                    '#type' => 'submit',
+                    '#value' => 'Save Status File',
+                    '#submit' => ['::submitStatusFile'],
+                    '#attributes' => [
+                        'id' => 'edit-status-upload-submit'
+                    ],
+                ];
+            } else {
+                $form['application_section']['mobility_info']['status_badge'] = [
+                    '#markup' => '
                         <span class="badge badge-error">
                             <span class="material-symbols-outlined">cancel</span> 
                             Rejected
                         </span>
                         ',
-                    ];
-                }
-                break;
+                ];
+            }
         }
 
         $form['application_section']['mobility_info']['content_bottom'] = [
@@ -681,7 +681,7 @@ class MembershipDashboard extends AuthenticatedFormBase
                 ],
             ];
 
-            $isPendingPhoto = in_array('Photo', $pendingDocuments) && $application->getApprovalStatus() == 'Pending';
+            $isPendingPhoto = in_array('Photo', $pendingDocuments) && $application->isPending();
             $isApprovedPhoto = !in_array('Photo', $rejectedDocuments);
 
             $form['application_section']['esncard_photo']['content'] = [
@@ -706,80 +706,80 @@ class MembershipDashboard extends AuthenticatedFormBase
                 ],
             ];
 
-            switch ($application->getApprovalStatus()) {
-                /** @noinspection PhpMissingBreakStatementInspection */
-                case 'Pending':
-                    if ($isPendingPhoto) {
-                        $form['application_section']['esncard_photo']['status_badge'] = [
-                            '#markup' => '
-                            <span class="badge badge-warning">
-                                <span class="material-symbols-outlined">schedule</span> 
-                                In Review
-                            </span>
-                        ',
-                        ];
-                        break;
-                    }
-                case 'Approved':
-                case 'Paid':
-                case 'Issued':
-                case 'Delivered':
-                    $form['application_section']['esncard_photo']['status_badge'] = [
-                        '#markup' => '
+            if ($application->isPending()) {
+                if ($isPendingPhoto) {
+                    $markup = '
+                    <span class="badge badge-warning">
+                        <span class="material-symbols-outlined">schedule</span> 
+                        In Review
+                    </span>
+                 ';
+                } else {
+                    $markup = '
+                    <span class="badge badge-success">
+                        <span class="material-symbols-outlined">check_circle</span> 
+                        Approved
+                    </span>
+                 ';
+                }
+                $form['application_section']['mobility_info']['status_badge'] = [
+                    '#markup' => $markup
+                ];
+            } elseif ($application->isApproved()) {
+                $form['application_section']['esncard_photo']['status_badge'] = [
+                    '#markup' => '
                     <span class="badge badge-success">
                         <span class="material-symbols-outlined">check_circle</span> 
                         Approved
                     </span>
                     ',
-                    ];
-                    break;
-                case 'Rejected':
-                    if ($isApprovedPhoto) {
-                        $form['application_section']['esncard_photo']['status_badge'] = [
-                            '#markup' => '
+                ];
+            } elseif ($application->isRejected()) {
+                if ($isApprovedPhoto) {
+                    $form['application_section']['esncard_photo']['status_badge'] = [
+                        '#markup' => '
                         <span class="badge badge-warning">
                             <span class="material-symbols-outlined">warning</span> 
                             Pending Issues
                         </span>
                         ',
-                        ];
-                    } elseif ($isRejectionFixable ?? false) {
-                        $form['application_section']['esncard_photo']['photo_upload'] = [
-                            '#type' => 'managed_file',
-                            '#title_display' => 'invisible',
-                            '#upload_location' => 'membership://temp_uploads/',
-                            '#upload_validators' => [
-                                'file_validate_extensions' => ['jpg jpeg png'],
-                                'file_validate_size' => [8 * 1024 * 1024]
-                            ],
-                            '#attributes' => [
-                                'class' => ['auto-submit-file'],
-                            ],
-                            '#process' => [
-                                ['\Drupal\file\Element\ManagedFile', 'processManagedFile'],
-                                [$this, 'processPhotoUploadAttributes'],
-                            ],
-                        ];
+                    ];
+                } elseif ($isRejectionFixable ?? false) {
+                    $form['application_section']['esncard_photo']['photo_upload'] = [
+                        '#type' => 'managed_file',
+                        '#title_display' => 'invisible',
+                        '#upload_location' => 'membership://temp_uploads/',
+                        '#upload_validators' => [
+                            'file_validate_extensions' => ['jpg jpeg png'],
+                            'file_validate_size' => [8 * 1024 * 1024]
+                        ],
+                        '#attributes' => [
+                            'class' => ['auto-submit-file'],
+                        ],
+                        '#process' => [
+                            ['\Drupal\file\Element\ManagedFile', 'processManagedFile'],
+                            [$this, 'processPhotoUploadAttributes'],
+                        ],
+                    ];
 
-                        $form['hidden_actions']['submit_photo_file'] = [
-                            '#type' => 'submit',
-                            '#value' => 'Save Photo File',
-                            '#submit' => ['::submitPhotoFile'],
-                            '#attributes' => [
-                                'id' => 'edit-photo-upload-submit'
-                            ],
-                        ];
-                    } else {
-                        $form['application_section']['esncard_photo']['status_badge'] = [
-                            '#markup' => '
+                    $form['hidden_actions']['submit_photo_file'] = [
+                        '#type' => 'submit',
+                        '#value' => 'Save Photo File',
+                        '#submit' => ['::submitPhotoFile'],
+                        '#attributes' => [
+                            'id' => 'edit-photo-upload-submit'
+                        ],
+                    ];
+                } else {
+                    $form['application_section']['esncard_photo']['status_badge'] = [
+                        '#markup' => '
                         <span class="badge badge-error">
                             <span class="material-symbols-outlined">cancel</span> 
                             Rejected
                         </span>
                         ',
-                        ];
-                    }
-                    break;
+                    ];
+                }
             }
 
             $form['application_section']['esncard_photo']['content_bottom'] = [
@@ -823,7 +823,7 @@ class MembershipDashboard extends AuthenticatedFormBase
                 )->toString();
             }
 
-            if (in_array($application->getApprovalStatus(), ['Paid', 'Issued', 'Delivered'])) {
+            if ($application->isPaid()) {
                 if ($membershipSettings->getGoogleWalletSwitch()) {
                     $googleWalletCardLink = Url::fromRoute(
                         'esn_membership_manager.add_to_google_wallet',
@@ -897,6 +897,16 @@ class MembershipDashboard extends AuthenticatedFormBase
             ];
         }
 
+        if ($isApproved && $membershipSettings->getEstiaSwitch()) {
+            $form['estia_section'] = [
+                '#type' => 'container',
+                '#attributes' => [
+                    'class' => ['section'],
+                    'id' => 'estia',
+                ],
+            ];
+        }
+
         return $form;
     }
 
@@ -939,21 +949,25 @@ class MembershipDashboard extends AuthenticatedFormBase
 
         if ($application->getValue(ApplicationField::Name) != ($newName = trim($form_state->getValue('name')))) {
             $application->setValue(ApplicationField::Name, $newName);
+            $application->addApprovalStatus((new Status(ApprovalStatuses::Pending, 'Name', 'Changed'))->toString());
             $changesMade = true;
         }
 
         if ($application->getValue(ApplicationField::Surname) != ($newSurname = trim($form_state->getValue('surname')))) {
             $application->setValue(ApplicationField::Surname, $newSurname);
+            $application->addApprovalStatus((new Status(ApprovalStatuses::Pending, 'Surname', 'Changed'))->toString());
             $changesMade = true;
         }
 
         if ($application->getValue(ApplicationField::Nationality) != ($newNationality = trim($form_state->getValue('nationality')))) {
             $application->setValue(ApplicationField::Nationality, $newNationality);
+            $application->addApprovalStatus((new Status(ApprovalStatuses::Pending, 'Nationality', 'Changed'))->toString());
             $changesMade = true;
         }
 
         if ($application->getDateOfBirth()->format('Y-m-d') != ($newDateOfBirth = trim($form_state->getValue('date_of_birth')))) {
             $application->setValue(ApplicationField::DateOfBirth, DrupalDateTime::createFromFormat('Y-m-d', $newDateOfBirth)->format('Y-m-d\TH:i:s'));
+            $application->addApprovalStatus((new Status(ApprovalStatuses::Pending, 'DateOfBirth', 'Changed'))->toString());
             $changesMade = true;
         }
 
@@ -965,7 +979,7 @@ class MembershipDashboard extends AuthenticatedFormBase
 
     /**
      * Helper method to load the current user's membership application.
-     * * @return ApplicationInterface|null
+     * @return ApplicationInterface|null
      * The application entity, or null if not found/error.
      */
     protected function loadUserApplication(): ?ApplicationInterface
@@ -1115,21 +1129,21 @@ class MembershipDashboard extends AuthenticatedFormBase
                 }
             }
 
-            if ($application->getApprovalStatus() == 'Rejected') {
+            if ($application->isRejected()) {
                 $reasons = $application->getAllReasons();
-                $reasonsString = '';
 
                 foreach ($reasons as $reason) {
-                    if ($reason['status'] == 'Rejected' && $reason['category'] == $fileType) {
-                        $reason['status'] = 'Pending';
+                    if (in_array($reason->status, ApprovalStatuses::NegativeStatuses) && $reason->category == $fileType) {
+                        $application->removeApprovalStatus($reason->toString());
+
+                        $newPending = clone $reason;
+                        $newPending->status = ApprovalStatuses::Pending;
+
+                        $application->addApprovalStatus($newPending->toString());
                     }
-
-                    $reasonsString .= "{$reason['status']}-{$reason['category']}-{$reason['issue']}/";
                 }
-
-                $application->setValue(ApplicationField::ApprovalStatus, rtrim($reasonsString, "/"));
             } else {
-                $application->setValue(ApplicationField::ApprovalStatus, 'Pending');
+                $application->setValue(ApplicationField::ApprovalStatus, ApprovalStatuses::Pending);
             }
             $application->save();
         }
