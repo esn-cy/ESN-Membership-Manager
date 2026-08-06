@@ -276,11 +276,19 @@ class SettingsForm extends ConfigFormBase
             '#required' => $weeztixEnabled
         ];
 
-        $form['weeztix']['weeztix_coupon_list_id'] = [
+        $form['weeztix']['weeztix_pass_coupon_list_id'] = [
             '#type' => 'textfield',
-            '#title' => $this->t('Coupon List ID / Campaign ID'),
-            '#description' => $this->t('The ID of the list where coupons should be added.'),
-            '#default_value' => $membershipSettings->getWeeztixCouponListID(),
+            '#title' => $this->t('Pass Coupon List ID / Campaign ID'),
+            '#description' => $this->t('The ID of the list where the pass coupons should be added.'),
+            '#default_value' => $membershipSettings->getWeeztixPassCouponListID(),
+            '#disabled' => !$weeztixEnabled
+        ];
+
+        $form['weeztix']['weeztix_card_coupon_list_id'] = [
+            '#type' => 'textfield',
+            '#title' => $this->t('ESNcard Coupon List ID / Campaign ID'),
+            '#description' => $this->t('The ID of the list where the ESNcard coupons should be added.'),
+            '#default_value' => $membershipSettings->getWeeztixCardCouponListID(),
             '#disabled' => !$weeztixEnabled,
             '#required' => $weeztixEnabled
         ];
@@ -453,7 +461,7 @@ class SettingsForm extends ConfigFormBase
         $membershipSettings = new MembershipSettings($this->configFactory(), true);
 
         $membershipSettings
-            ->setEstiaSwitch($this->moduleHandler->moduleExists('estia_housing') && $membershipSettings->getEstiaSwitch())
+            ->setEstiaSwitch($this->moduleHandler->moduleExists('estia_housing') && $form_state->getValue('switch_estia'))
             ->setWeeztixSwitch($form_state->getValue('switch_weeztix'))
             ->setGoogleSheetsSwitch($form_state->getValue('switch_google_sheets'))
             ->setGoogleWalletSwitch($form_state->getValue('switch_google_wallet'))
@@ -472,7 +480,8 @@ class SettingsForm extends ConfigFormBase
             ->setProcessingPriceID($form_state->getValue('stripe_price_processing_esner'), true)
             ->setWeeztixClientID($form_state->getValue('weeztix_client_id'))
             ->setWeeztixClientSecret($form_state->getValue('weeztix_client_secret'))
-            ->setWeeztixCouponListID($form_state->getValue('weeztix_coupon_list_id'))
+            ->setWeeztixPassCouponListID($form_state->getValue('weeztix_pass_coupon_list_id'))
+            ->setWeeztixCardCouponListID($form_state->getValue('weeztix_card_coupon_list_id'))
             ->setSpreadsheetID($form_state->getValue('google_spreadsheet_id'))
             ->setSheetName($form_state->getValue('google_sheet_name'))
             ->setAppleCertificatePassword($form_state->getValue('apple_certificate_password'))

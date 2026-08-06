@@ -217,8 +217,8 @@ class ESNcardService
 
         $membershipSettings = new MembershipSettings($this->configFactory);
 
-        if ($membershipSettings->getWeeztixSwitch()) {
-            $this->weeztixService->addCoupon($application->getValue(ApplicationField::ESNcardNumber), ['applies_to_count' => 1, 'usage_count' => 5]);
+        if ($membershipSettings->getWeeztixSwitch() && !empty($membershipSettings->getWeeztixCardCouponListID())) {
+            $this->weeztixService->addCoupon('card', $application->getValue(ApplicationField::ESNcardNumber), ['applies_to_count' => 1, 'usage_count' => 5]);
         }
 
         if ($membershipSettings->getGoogleSheetsSwitch()) {

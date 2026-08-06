@@ -18,6 +18,7 @@ use Drupal\esn_membership_manager\Entity\Application\ApplicationField;
 use Drupal\esn_membership_manager\Entity\Application\ApplicationInterface;
 use Drupal\esn_membership_manager\Service\EmailManager;
 use Drupal\esn_membership_manager\Service\StripeService;
+use Drupal\esn_membership_manager\Service\WeeztixService;
 use Drupal\esn_membership_manager\Utility\ApprovalStatuses;
 use Exception;
 use Stripe\Exception\ApiErrorException;
@@ -39,6 +40,7 @@ class ApproveApplication extends ActionBase implements ContainerFactoryPluginInt
     protected Connection $database;
     protected StripeService $stripeService;
     protected EmailManager $emailManager;
+    protected WeeztixService $weeztixService;
     protected LoggerChannelInterface $logger;
 
     public function __construct(
@@ -47,6 +49,7 @@ class ApproveApplication extends ActionBase implements ContainerFactoryPluginInt
         Connection                    $database,
         StripeService                 $stripeService,
         EmailManager                  $emailManager,
+        WeeztixService $weeztixService,
         LoggerChannelFactoryInterface $loggerFactory
     )
     {
@@ -55,6 +58,7 @@ class ApproveApplication extends ActionBase implements ContainerFactoryPluginInt
         $this->database = $database;
         $this->stripeService = $stripeService;
         $this->emailManager = $emailManager;
+        $this->weeztixService = $weeztixService;
         $this->logger = $loggerFactory->get('esn_membership_manager');
     }
 
@@ -75,6 +79,9 @@ class ApproveApplication extends ActionBase implements ContainerFactoryPluginInt
         /** @var EmailManager $emailManager */
         $emailManager = $container->get('esn_membership_manager.email_manager');
 
+        /** @var WeeztixService $weeztixService */
+        $weeztixService = $container->get('esn_membership_manager.weeztix_service');
+
         /** @var LoggerChannelFactoryInterface $loggerFactory */
         $loggerFactory = $container->get('logger.factory');
 
@@ -86,6 +93,7 @@ class ApproveApplication extends ActionBase implements ContainerFactoryPluginInt
             $database,
             $stripeService,
             $emailManager,
+            $weeztixService,
             $loggerFactory
         );
     }
@@ -183,6 +191,10 @@ class ApproveApplication extends ActionBase implements ContainerFactoryPluginInt
                     ['identifier' => $token],
                     ['absolute' => TRUE]
                 )->toString();
+            }
+
+            if ($membershipSettings->getWeeztixSwitch() && !empty($membershipSettings->getWeeztixPassCouponListID())) {
+                $this->weeztixService->addCoupon('pass', $token, ['applies_to_count' => 1, 'usage_count' => 5]);
             }
 
             $emailFields += [

@@ -227,14 +227,25 @@ class MembershipSettings
         return $this;
     }
 
-    public function getWeeztixCouponListID(): ?string
+    public function getWeeztixPassCouponListID(): ?string
     {
-        return $this->config->get('weeztix_coupon_list_id');
+        return $this->config->get('weeztix_pass_coupon_list_id');
     }
 
-    public function setWeeztixCouponListID(string $value): self
+    public function setWeeztixPassCouponListID(string $value): self
     {
-        $this->config->set('weeztix_coupon_list_id', $value);
+        $this->config->set('weeztix_pass_coupon_list_id', $value);
+        return $this;
+    }
+
+    public function getWeeztixCardCouponListID(): ?string
+    {
+        return $this->config->get('weeztix_card_coupon_list_id');
+    }
+
+    public function setWeeztixCardCouponListID(string $value): self
+    {
+        $this->config->set('weeztix_card_coupon_list_id', $value);
         return $this;
     }
 

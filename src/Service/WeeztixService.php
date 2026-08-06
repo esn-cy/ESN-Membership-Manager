@@ -54,25 +54,32 @@ class WeeztixService
         return 'https://login.weeztix.com/login?' . http_build_query($query);
     }
 
-    public function addCoupon(string $couponCode, array $additionalData = []): bool
+    public function addCoupon(string $type, string $couponCode, array $additionalData = []): bool
     {
         $membershipSettings = new MembershipSettings($this->configFactory);
-        $listID = $membershipSettings->getWeeztixCouponListID();
+        if ($type == 'pass') {
+            $listID = $membershipSettings->getWeeztixPassCouponListID();
+        } elseif ($type == 'card') {
+            $listID = $membershipSettings->getWeeztixCardCouponListID();
+        } else {
+            $this->logger->error('Type parameter is invalid.');
+            return false;
+        }
 
         if (empty($listID)) {
             $this->logger->error('Weeztix List ID configuration is missing. Please check module settings.');
-            return FALSE;
+            return false;
         }
 
         $token = $this->getAccessToken();
         if (!$token) {
             $this->logger->error('Access token could not be fetched.');
-            return FALSE;
+            return false;
         }
 
 
         $listID = trim($listID);
-        if (empty($listID)) return FALSE;
+        if (empty($listID)) return false;
 
         $codeObject = array_merge([
             'code' => $couponCode
@@ -98,14 +105,14 @@ class WeeztixService
 
             if ($statusCode >= 200 && $statusCode < 300) {
                 $this->logger->info('Successfully added coupon @code to Weeztix.', ['@code' => $couponCode]);
-                return TRUE;
+                return true;
             } else {
                 $this->logger->error('Weeztix API returned unexpected status: @status', ['@status' => $statusCode]);
-                return FALSE;
+                return false;
             }
         } catch (GuzzleException $e) {
             $this->logger->error('HTTP Request failed: @message', ['@message' => $e->getMessage()]);
-            return FALSE;
+            return false;
         }
     }
 
