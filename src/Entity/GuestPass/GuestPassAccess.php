@@ -15,9 +15,9 @@ class GuestPassAccess extends EntityAccessControlHandler
     protected function checkAccess(EntityInterface $entity, $operation, AccountInterface $account): AccessResultReasonInterface|AccessResultNeutral|AccessResult|AccessResultInterface
     {
         return match ($operation) {
-            'view' => AccessResult::allowedIfHasPermission($account, 'view applications'),
-            'update' => AccessResult::allowedIfHasPermissions($account, ['approve applications', 'reject applications', 'scan cards'], 'OR'),
-            'delete' => AccessResult::allowedIfHasPermission($account, 'delete applications'),
+            'view' => AccessResult::allowedIfHasPermission($account, 'view guest passes'),
+            'update' => AccessResult::allowedIfHasPermissions($account, ['approve guest passes', 'scan cards'], 'OR'),
+            'delete' => AccessResult::allowedIfHasPermission($account, 'approve guest passes'),
             default => AccessResult::neutral(),
         };
     }

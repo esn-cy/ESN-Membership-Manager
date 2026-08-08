@@ -7,6 +7,7 @@ use Drupal\Core\Logger\LoggerChannelFactoryInterface;
 use Drupal\Core\Logger\LoggerChannelInterface;
 use Drupal\Core\Mail\MailManagerInterface;
 use Drupal\Core\Render\RendererInterface;
+use Drupal\Core\Url;
 use Drupal\esn_membership_manager\Config\MembershipSettings;
 use Drupal\omnia\Config\OmniaSettings;
 use Exception;
@@ -48,8 +49,11 @@ class EmailManager
 
             '#name' => $data['name'] ?? NULL,
             '#scheme_name' => $membershipSettings->getPassName(),
+            '#guest_scheme_name' => $membershipSettings->getGuestPassName(),
             '#logo_location' => $omniaSettings->getOrganisationLogoURL(),
             '#custom_footer' => $membershipSettings->getEmailFooter(),
+
+            '#dashboard_url' => Url::fromRoute('esn_membership_manager.dashboard', [], ['absolute' => true]),
 
             '#pass_token' => $data['pass_token'] ?? NULL,
             '#payment_link' => $data['payment_link'] ?? NULL,

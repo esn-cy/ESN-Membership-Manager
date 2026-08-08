@@ -11,6 +11,7 @@ use Drupal\Core\Form\FormStateInterface;
 use Drupal\Core\Logger\LoggerChannelFactoryInterface;
 use Drupal\Core\Logger\LoggerChannelInterface;
 use Drupal\Core\Url;
+use Drupal\esn_membership_manager\Entity\Application\ApplicationInterface;
 use Drupal\esn_membership_manager\Entity\Application\ApplicationStorage;
 use Exception;
 use GuzzleHttp\ClientInterface;
@@ -123,6 +124,7 @@ abstract class AuthenticatedFormBase extends FormBase
     /**
      * AJAX callback to update the form.
      * @noinspection PhpUnusedParameterInspection
+     * @noinspection PhpParameterByRefIsNotUsedAsReferenceInspection
      */
     public function updateForm(array &$form, FormStateInterface $form_state): array
     {
@@ -135,7 +137,7 @@ abstract class AuthenticatedFormBase extends FormBase
      */
     public function sendCode(array &$form, FormStateInterface $form_state): void
     {
-        $email = $form_state->getValue('email');
+        $email = trim($form_state->getValue('email'));
 
         try {
             /** @var ApplicationStorage $storage */
@@ -330,6 +332,7 @@ abstract class AuthenticatedFormBase extends FormBase
         }
 
         if ($this->getAuthenticationType() == 'register' && $emailExists) {
+            $this->isDialogAdded = true;
             return;
         }
 
@@ -367,5 +370,26 @@ abstract class AuthenticatedFormBase extends FormBase
         }
 
         $this->isDialogAdded = true;
+    }
+
+    /**
+     * @throws Exception
+     */
+    protected function getApplication(): ApplicationInterface
+    {
+        /** @var ApplicationStorage $storage */
+        try {
+            $storage = $this->entityTypeManager->getStorage('membership_application');
+        } catch (Exception $e) {
+            $this->logger->error('Unable to instantiate application storage. ' . $e->getMessage());
+            throw new Exception('Unable to instantiate application storage.', 500);
+        }
+
+        $application = $storage->getByEmailAddress($this->authenticatedEmail);
+        if (empty($application)) {
+            throw new Exception('Application not found.', 404);
+        }
+
+        return $application;
     }
 }

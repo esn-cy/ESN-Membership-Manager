@@ -10,7 +10,6 @@ use Drupal\Core\Logger\LoggerChannelInterface;
 use Drupal\Core\Site\Settings;
 use Drupal\esn_membership_manager\Entity\Application\ApplicationField;
 use Drupal\esn_membership_manager\Entity\Application\ApplicationStorage;
-use Drupal\esn_membership_manager\Entity\GuestPass\GuestPassField;
 use Drupal\esn_membership_manager\Entity\GuestPass\GuestPassStorage;
 use Drupal\esn_membership_manager\Service\AppleWalletService;
 use Exception;
@@ -214,7 +213,7 @@ class AppleWalletController extends ControllerBase
                 return new Response('', 200);
             }
 
-            $applicationID = str_replace(['esncard-', 'free_pass-', 'guest-'], '', $serialNumber);
+            $applicationID = str_replace(['esncard-', 'free_pass-'], '', $serialNumber);
 
             try {
                 $this->database->insert('esn_membership_manager_apple_wallet_registrations')
@@ -279,26 +278,18 @@ class AppleWalletController extends ControllerBase
         foreach ($registeredSerialNumbers as $serialNumber) {
             $isESNcard = str_starts_with($serialNumber, 'esncard-') == 1;
             $isPass = str_starts_with($serialNumber, 'free_pass-') == 1;
-            $isGuest = str_starts_with($serialNumber, 'guest-') == 1;
 
-            if (!$isESNcard && !$isPass && !$isGuest) {
+            if (!$isESNcard && !$isPass) {
                 continue;
             }
 
             try {
-                if ($isGuest) {
-                    $id = str_replace('guest-', '', $serialNumber);
+                $id = $isESNcard ?
+                    str_replace('esncard-', '', $serialNumber) :
+                    str_replace('free_pass-', '', $serialNumber);
 
-                    /** @var GuestPassStorage $storage */
-                    $storage = $this->entityTypeManager()->getStorage('membership_guest');
-                } else {
-                    $id = $isESNcard ?
-                        str_replace('esncard-', '', $serialNumber) :
-                        str_replace('free_pass-', '', $serialNumber);
-
-                    /** @var ApplicationStorage $storage */
-                    $storage = $this->entityTypeManager()->getStorage('membership_application');
-                }
+                /** @var ApplicationStorage $storage */
+                $storage = $this->entityTypeManager()->getStorage('membership_application');
             } catch (Exception $e) {
                 $this->logger->error('Unable to retrieve the last modified date for @serial: @error.', ['@serial' => $serialNumber, '@error' => $e->getMessage()]);
                 continue;
@@ -346,8 +337,6 @@ class AppleWalletController extends ControllerBase
             $type = 'card';
         } elseif (str_starts_with($serialNumber, 'free_pass-') == 1) {
             $type = 'pass';
-        } elseif (str_starts_with($serialNumber, 'guest-') == 1) {
-            $type = 'guest';
         } else {
             return new JsonResponse(['error' => 'Unexpected serial number structure.'], 400);
         }
@@ -355,17 +344,11 @@ class AppleWalletController extends ControllerBase
         $id = match ($type) {
             'card' => str_replace('esncard-', '', $serialNumber),
             'pass' => str_replace('free_pass-', '', $serialNumber),
-            'guest' => str_replace('guest-', '', $serialNumber),
         };
 
         try {
-            if ($type == 'guest') {
-                /** @var GuestPassStorage $storage */
-                $storage = $this->entityTypeManager()->getStorage('membership_guest');
-            } else {
-                /** @var ApplicationStorage $storage */
-                $storage = $this->entityTypeManager()->getStorage('membership_application');
-            }
+            /** @var ApplicationStorage $storage */
+            $storage = $this->entityTypeManager()->getStorage('membership_application');
         } catch (Exception $e) {
             $this->logger->error('Unable to retrieve the application for @serial: @error.', ['@serial' => $serialNumber, '@error' => $e->getMessage()]);
             return new JsonResponse(['error' => 'Unable to retrieve the application.'], 500);
@@ -386,7 +369,6 @@ class AppleWalletController extends ControllerBase
                 match ($type) {
                     'card' => $pass->getValue(ApplicationField::ESNcardNumber),
                     'pass' => $pass->getValue(ApplicationField::PassToken),
-                    'guest' => $pass->getValue(GuestPassField::PassToken),
                 }
             );
         } catch (BadRequestHttpException|HttpException|NotFoundHttpException $e) {

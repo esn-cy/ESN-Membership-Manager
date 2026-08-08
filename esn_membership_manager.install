@@ -308,6 +308,7 @@ function esn_membership_manager_schema(): array
 /**
  * @throws InvalidPluginDefinitionException
  * @throws PluginNotFoundException
+ * @throws Exception
  */
 function esn_membership_manager_update_3001(&$sandbox): ?TranslatableMarkup
 {
@@ -384,4 +385,17 @@ function esn_membership_manager_update_3001(&$sandbox): ?TranslatableMarkup
     }
 
     return null;
+}
+
+/**
+ * @throws PluginNotFoundException
+ */
+function esn_membership_manager_update_3002(): void
+{
+    $entityTypeManager = Drupal::entityTypeManager();
+    $updateManager = Drupal::entityDefinitionUpdateManager();
+
+    if (!$updateManager->getEntityType('membership_guest')) {
+        $updateManager->installEntityType($entityTypeManager->getDefinition('membership_guest'));
+    }
 }

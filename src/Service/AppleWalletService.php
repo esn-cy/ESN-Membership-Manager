@@ -12,6 +12,7 @@ use Drupal\Core\Url;
 use Drupal\esn_membership_manager\Config\MembershipSettings;
 use Drupal\esn_membership_manager\Entity\Application\ApplicationField;
 use Drupal\esn_membership_manager\Entity\Application\ApplicationInterface;
+use Drupal\esn_membership_manager\Entity\GuestPass\GuestPassField;
 use Drupal\esn_membership_manager\Entity\GuestPass\GuestPassInterface;
 use Drupal\omnia\Config\OmniaSettings;
 use Drupal\omnia\Service\AppleServiceBase;
@@ -283,7 +284,11 @@ class AppleWalletService extends AppleServiceBase
         $approvedDate->setTime(0, 0);
         $expiryDate = (clone $approvedDate)->add(new DateInterval("P7D"));
 
-        $passData = $this->getCommonAttributes($serialNumber) +
+        $commonAttributes = $this->getCommonAttributes($serialNumber);
+        unset($commonAttributes['webServiceURL']);
+        unset($commonAttributes['authenticationToken']);
+
+        $passData = $commonAttributes +
             [
                 'description' => $membershipSettings->getGuestPassName(),
                 'logoText' => $membershipSettings->getGuestPassName(),
@@ -333,8 +338,8 @@ class AppleWalletService extends AppleServiceBase
                     [
                         'format' => 'PKBarcodeFormatAztec',
                         'messageEncoding' => 'iso-8859-1',
-                        'message' => $guestPass->getValue(ApplicationField::PassToken),
-                        'altText' => $guestPass->getValue(ApplicationField::PassToken),
+                        'message' => $guestPass->getValue(GuestPassField::PassToken),
+                        'altText' => $guestPass->getValue(GuestPassField::PassToken),
                     ]
                 ],
             ];

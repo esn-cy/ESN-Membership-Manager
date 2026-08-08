@@ -612,10 +612,9 @@ class ApplicationForm extends AuthenticatedFormBase
 
             $verificationLink = 'https://accounts.esn.org/cas/login?service=' . urlencode($serviceLink);
 
-            $session = $this->getRequest()->getSession();
             $this->database->update('esn_membership_manager_in_progress_applications')
                 ->fields(['esn_token' => $token])
-                ->condition('email', $session->get('application_form_saved_data', [])['email'])
+                ->condition('email', $this->authenticatedEmail)
                 ->execute();
 
             $response->addCommand(new RedirectCommand($verificationLink));

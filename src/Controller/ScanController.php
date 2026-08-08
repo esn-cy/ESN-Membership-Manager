@@ -149,19 +149,21 @@ class ScanController extends ControllerBase
             throw new NotFoundHttpException('Guest Pass not found.', null, 404);
         }
 
-        try {
-            $guestPass->setValue(GuestPassField::DateRedeemed, (new DrupalDateTime())->format('Y-m-d\TH:i:s'));
-
-            $guestPass->save();
-        } catch (Exception $e) {
-            $this->logger->error('Scan update failed: @message', ['@message' => $e->getMessage()]);
-            return new JsonResponse(['status' => 'error', 'message' => 'Unable to update redeemed date.'], 500);
-        }
-
-        if ($membershipSettings->getGoogleWalletSwitch()) {
+        $redeemDate = !empty($guestPass->getDateRedeemed()) ? $guestPass->getDateRedeemed()->format('Y-m-d') : null;
+        if (empty($redeemDate)) {
             try {
-                $this->googleService->deleteApplicationObject($guestPass->id(), 'guest');
-            } catch (Exception) {
+                $guestPass->setValue(GuestPassField::DateRedeemed, (new DrupalDateTime())->format('Y-m-d\TH:i:s'));
+                $guestPass->save();
+            } catch (Exception $e) {
+                $this->logger->error('Scan update failed: @message', ['@message' => $e->getMessage()]);
+                return new JsonResponse(['status' => 'error', 'message' => 'Unable to update redeemed date.'], 500);
+            }
+
+            if ($membershipSettings->getGoogleWalletSwitch()) {
+                try {
+                    $this->googleService->deleteApplicationObject($guestPass->id(), 'guest');
+                } catch (Exception) {
+                }
             }
         }
 
@@ -172,7 +174,7 @@ class ScanController extends ControllerBase
             'refererSurname' => $referrer->getValue(ApplicationField::Surname),
             'refererMobilityStatus' => $referrer->getValue(ApplicationField::MobilityStatus),
             'dateApproved' => !empty($guestPass->getDateApproved()) ? $guestPass->getDateApproved()->format('Y-m-d') : null,
-            'dateRedeemed' => !empty($guestPass->getDateRedeemed()) ? $guestPass->getDateRedeemed()->format('Y-m-d') : null,
+            'dateRedeemed' => $redeemDate,
         ], 200);
     }
 }

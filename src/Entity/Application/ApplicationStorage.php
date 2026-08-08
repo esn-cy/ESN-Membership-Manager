@@ -21,7 +21,7 @@ class ApplicationStorage extends EnumBackedEntityStorage
      */
     public function loadByProperties(array $values = []): array
     {
-        $entities = parent::loadMultiple($values);
+        $entities = parent::loadByProperties($values);
 
         return array_filter($entities, fn($entity) => $entity instanceof ApplicationInterface);
     }
@@ -249,11 +249,11 @@ class ApplicationStorage extends EnumBackedEntityStorage
 
         $query = $this->getQuery()
             ->accessCheck(FALSE)
-            ->condition(ApplicationField::ApprovalStatus->value, ApprovalStatuses::Pending, 'NOT CONTAINS');
+            ->condition(ApplicationField::ApprovalStatus->value, '%' . ApprovalStatuses::Pending . '%', 'NOT LIKE');
 
         $approvalCondition = $query->orConditionGroup()
             ->condition(ApplicationField::DateApproved->value, $twoWeeksAgo, '<')
-            ->condition(ApplicationField::ApprovalStatus->value, ApprovalStatuses::Rejected, 'CONTAINS');
+            ->condition(ApplicationField::ApprovalStatus->value, '%' . ApprovalStatuses::Rejected . '%', 'LIKE');
 
         $filesExistCondition = $query->orConditionGroup()
             ->exists(ApplicationField::StatusProofFileID->value)

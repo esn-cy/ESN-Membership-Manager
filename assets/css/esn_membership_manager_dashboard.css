@@ -291,6 +291,20 @@
     background-color: var(--border-input);
 }
 
+.esn-membership-manager-dashboard .panel-input {
+    padding: 0 1.5rem 1.5rem;
+}
+
+.esn-membership-manager-dashboard .panel-button {
+    display: block !important;
+    margin: 0 1.5rem 1.5rem auto;
+}
+
+.esn-membership-manager-dashboard .panel-table {
+    margin: 1.5rem;
+    border: 0 transparent;
+}
+
 .esn-membership-manager-dashboard .info-grid {
     display: grid;
     grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
@@ -442,7 +456,7 @@
     text-decoration: underline;
 }
 
-.esn-membership-manager-dashboard .button,
+.esn-membership-manager-dashboard .main-button,
 .esn-membership-manager-dashboard .error-button,
 .esn-membership-manager-dashboard .secondary-button,
 .esn-membership-manager-dashboard .disabled-secondary-button {

@@ -15,6 +15,13 @@ services:
       - '@esn_membership_manager.weeztix_service'
       - '@esn_membership_manager.google_service'
 
+  esn_membership_manager.guest_pass_service:
+    class: Drupal\esn_membership_manager\Service\GuestPassService
+    arguments:
+      - '@entity_type.manager'
+      - '@config.factory'
+      - '@plugin.manager.action'
+
   esn_membership_manager.file_service:
     class: Drupal\esn_membership_manager\Service\FileService
     arguments:

@@ -209,6 +209,14 @@ esn_membership_manager.view_applications:
   requirements:
     _permission: 'view applications'
 
+esn_membership_manager.view_guest_passes:
+  path: '/memberships/guest-passes'
+  defaults:
+    _form: '\Drupal\esn_membership_manager\Form\ViewGuestPassesForm'
+    _title: 'View Guest Passes'
+  requirements:
+    _permission: 'view guest passes'
+
 esn_membership_manager.scan_page:
   path: '/memberships/scan'
   defaults:

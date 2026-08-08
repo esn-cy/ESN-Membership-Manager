@@ -13,6 +13,7 @@ use Drupal\Core\State\StateInterface;
 use Drupal\Core\Url;
 use Drupal\esn_membership_manager\Config\MembershipSettings;
 use Drupal\esn_membership_manager\Service\WeeztixService;
+use Drupal\esn_membership_manager\Utility\MobilityStatuses;
 use Drupal\omnia\Config\OmniaSettings;
 use Exception;
 use Symfony\Component\DependencyInjection\ContainerInterface;
@@ -90,6 +91,12 @@ class SettingsForm extends ConfigFormBase
             '#open' => true
         ];
 
+        $form['switches']['switch_guest_pass'] = [
+            '#type' => 'checkbox',
+            '#title' => $this->t('Enable Guest Passes'),
+            '#default_value' => $membershipSettings->getGuestPassSwitch(),
+        ];
+
         if ($this->moduleHandler->moduleExists('estia_housing')) {
             $form['switches']['switch_estia'] = [
                 '#type' => 'checkbox',
@@ -143,14 +150,6 @@ class SettingsForm extends ConfigFormBase
             '#required' => true
         ];
 
-        $form['general']['guest_pass_name'] = [
-            '#type' => 'textfield',
-            '#title' => $this->t('Guest Pass Scheme Name'),
-            '#description' => $this->t('Enter the name of the Guest Pass Scheme.'),
-            '#default_value' => $membershipSettings->getGuestPassName(),
-            '#required' => true
-        ];
-
         $form['email'] = [
             '#type' => 'details',
             '#title' => $this->t('Email Settings'),
@@ -188,6 +187,83 @@ class SettingsForm extends ConfigFormBase
             '#description' => $this->t('Enter the email address of the administrator of the platform.'),
             '#default_value' => $membershipSettings->getAdminEmailAddress(),
             '#required' => true
+        ];
+
+        $guestPassEnabled = $form_state->getValue('switch_guest_pass') ?? $membershipSettings->getGuestPassSwitch();
+
+
+        $form['guest_pass'] = [
+            '#type' => 'details',
+            '#title' => $this->t('Guest Pass Settings'),
+            '#description' => $this->t('Configuration for the parameters needed for Guest Passes.'),
+            '#open' => $guestPassEnabled
+        ];
+
+        $form['guest_pass']['guest_pass_name'] = [
+            '#type' => 'textfield',
+            '#title' => $this->t('Guest Pass Scheme Name'),
+            '#description' => $this->t('Enter the name of the Guest Pass Scheme.'),
+            '#default_value' => $membershipSettings->getGuestPassName(),
+            '#required' => $guestPassEnabled
+        ];
+
+        $form['guest_pass']['guest_pass_instant_limit'] = [
+            '#type' => 'number',
+            '#title' => $this->t('Instant Limit'),
+            '#description' => $this->t('Enter the Instant Guest Pass Limit. After a single application requests more than the instant limit, their guest pass applications will be waitlisted.'),
+            '#default_value' => $membershipSettings->getGuestPassInstantLimit(),
+            '#required' => $guestPassEnabled
+        ];
+
+        $form['guest_pass']['guest_pass_special_mobilities'] = [
+            '#type' => 'select',
+            '#title' => $this->t('Special Mobility Statuses'),
+            '#description' => $this->t('Select the mobilities that get special rules for guest passes. The special rules override the instant limit and apply quantitative limits per person and per event.'),
+            '#options' => MobilityStatuses::getGroupedOptions(),
+            '#empty_option' => $this->t('- Select -'),
+            '#default_value' => $membershipSettings->getGuestPassSpecialMobilities(),
+            '#multiple' => true,
+        ];
+
+        $form['guest_pass']['special_interval'] = [
+            '#type' => 'fieldset',
+            '#title' => $this->t('Special Interval'),
+            '#description' => $this->t('Define the interval for the special rules.'),
+        ];
+
+        $form['guest_pass']['special_interval']['container'] = [
+            '#type' => 'container',
+            '#attributes' => ['class' => ['container-inline']],
+        ];
+
+        $form['guest_pass']['special_interval']['container']['guest_pass_special_interval_number'] = [
+            '#type' => 'number',
+            '#default_value' => !empty($membershipSettings->getGuestPassSpecialInterval()) ? substr($membershipSettings->getGuestPassSpecialInterval(), 1, -1) : null,
+        ];
+
+        $form['guest_pass']['special_interval']['container']['guest_pass_special_interval_period'] = [
+            '#type' => 'select',
+            '#options' => [
+                'D' => $this->t('Day(s)'),
+                'M' => $this->t('Month(s)'),
+                'Y' => $this->t('Year(s)'),
+            ],
+            '#empty_option' => $this->t('- Select -'),
+            '#default_value' => !empty($membershipSettings->getGuestPassSpecialInterval()) ? substr($membershipSettings->getGuestPassSpecialInterval(), -1, 1) : null,
+        ];
+
+        $form['guest_pass']['guest_pass_special_per_person_limit'] = [
+            '#type' => 'number',
+            '#title' => $this->t('Special Per Person Limit'),
+            '#description' => $this->t('Enter the Special Per Person Limit. After a special application requests more than this limit per interval, their guest pass applications will be waitlisted.'),
+            '#default_value' => $membershipSettings->getGuestPassSpecialPerPersonLimit(),
+        ];
+
+        $form['guest_pass']['guest_pass_special_concurrent_limit'] = [
+            '#type' => 'number',
+            '#title' => $this->t('Special Concurrent Limit'),
+            '#description' => $this->t('Enter the Special Concurrent Limit. After a special application requests a guest pass after the concurrent limit per interval, their guest pass applications will be waitlisted.'),
+            '#default_value' => $membershipSettings->getGuestPassSpecialConcurrentLimit(),
         ];
 
         $form['stripe'] = [
@@ -461,6 +537,7 @@ class SettingsForm extends ConfigFormBase
         $membershipSettings = new MembershipSettings($this->configFactory(), true);
 
         $membershipSettings
+            ->setGuestPassSwitch($form_state->getValue('switch_guest_pass'))
             ->setEstiaSwitch($this->moduleHandler->moduleExists('estia_housing') && $form_state->getValue('switch_estia'))
             ->setWeeztixSwitch($form_state->getValue('switch_weeztix'))
             ->setGoogleSheetsSwitch($form_state->getValue('switch_google_sheets'))
@@ -468,11 +545,14 @@ class SettingsForm extends ConfigFormBase
             ->setAppleWalletSwitch($form_state->getValue('switch_apple_wallet'))
             ->setDiditSwitch($form_state->getValue('switch_didit'))
             ->setPassName($form_state->getValue('pass_name'))
-            ->setGuestPassName($form_state->getValue('guest_pass_name'))
             ->setEmailAddress($form_state->getValue('email_address'))
             ->setEmailName($form_state->getValue('email_name'))
             ->setEmailFooter($form_state->getValue('email_footer'))
             ->setAdminEmailAddress($form_state->getValue('email_admin_address'))
+            ->setGuestPassName($form_state->getValue('guest_pass_name'))
+            ->setGuestPassInstantLimit($form_state->getValue('guest_pass_instant_limit'))
+            ->setGuestPassSpecialPerPersonLimit($form_state->getValue('guest_pass_special_per_person_limit'))
+            ->setGuestPassSpecialConcurrentLimit($form_state->getValue('guest_pass_special_concurrent_limit'))
             ->setStripeWebhookSecret($form_state->getValue('stripe_webhook_secret'))
             ->setESNcardPriceID($form_state->getValue('stripe_price_esncard'), false)
             ->setProcessingPriceID($form_state->getValue('stripe_price_processing'), false)
@@ -488,6 +568,18 @@ class SettingsForm extends ConfigFormBase
             ->setApplePassTypeID($form_state->getValue('apple_pass_type_id'))
             ->setDiditAPIKey($form_state->getValue('didit_api_key'))
             ->setDiditWorkflowID($form_state->getValue('didit_workflow_id'));
+
+        if (!empty($form_state->getValue('guest_pass_special_mobilities'))) {
+            if (is_array($form_state->getValue('guest_pass_special_mobilities'))) {
+                $membershipSettings->setGuestPassSpecialMobilities($form_state->getValue('guest_pass_special_mobilities'));
+            } else {
+                $membershipSettings->setGuestPassSpecialMobilities([$form_state->getValue('guest_pass_special_mobilities')]);
+            }
+        }
+
+        if (!empty($form_state->getValue('guest_pass_special_interval_number')) && !empty($form_state->getValue('guest_pass_special_interval_period'))) {
+            $membershipSettings->setGuestPassSpecialInterval('P' . $form_state->getValue('guest_pass_special_interval_number') . $form_state->getValue('guest_pass_special_interval_period'));
+        }
 
         $appleCertificateP12 = $form_state->get('apple_certificate_string_p12');
         $appleCertificatePEM = $form_state->get('apple_certificate_string_pem');

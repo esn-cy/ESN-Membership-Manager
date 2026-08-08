@@ -24,6 +24,17 @@ class MembershipSettings
         }
     }
 
+    public function getGuestPassSwitch(): bool
+    {
+        return $this->config->get('switch_guest_pass') ?? false;
+    }
+
+    public function setGuestPassSwitch(bool $value): self
+    {
+        $this->config->set('switch_guest_pass', $value);
+        return $this;
+    }
+
     public function getEstiaSwitch(): bool
     {
         return $this->config->get('switch_estia') ?? false;
@@ -101,17 +112,6 @@ class MembershipSettings
         return $this;
     }
 
-    public function getGuestPassName(): string
-    {
-        return $this->config->get('guest_pass_name') ?? 'ESN Guest Pass';
-    }
-
-    public function setGuestPassName(?string $value): self
-    {
-        $this->config->set('guest_pass_name', $value);
-        return $this;
-    }
-
     public function getEmailAddress(): ?string
     {
         return $this->config->get('email_address') ?? null;
@@ -153,6 +153,72 @@ class MembershipSettings
     public function setAdminEmailAddress(string $value): self
     {
         $this->config->set('admin_email_address', $value);
+        return $this;
+    }
+
+    public function getGuestPassName(): string
+    {
+        return $this->config->get('guest_pass_name') ?? 'ESN Guest Pass';
+    }
+
+    public function setGuestPassName(?string $value): self
+    {
+        $this->config->set('guest_pass_name', $value);
+        return $this;
+    }
+
+    public function getGuestPassInstantLimit(): int
+    {
+        return $this->config->get('guest_pass_instant_limit') ?? 0;
+    }
+
+    public function setGuestPassInstantLimit(int $value): self
+    {
+        $this->config->set('guest_pass_instant_limit', $value);
+        return $this;
+    }
+
+    public function getGuestPassSpecialMobilities(): ?array
+    {
+        return $this->config->get('guest_pass_special_mobilities');
+    }
+
+    public function setGuestPassSpecialMobilities(array $value): self
+    {
+        $this->config->set('guest_pass_special_mobilities', $value);
+        return $this;
+    }
+
+    public function getGuestPassSpecialInterval(): ?string
+    {
+        return $this->config->get('guest_pass_special_interval');
+    }
+
+    public function setGuestPassSpecialInterval(string $value): self
+    {
+        $this->config->set('guest_pass_special_interval', $value);
+        return $this;
+    }
+
+    public function getGuestPassSpecialPerPersonLimit(): ?int
+    {
+        return $this->config->get('guest_pass_special_per_person_limit');
+    }
+
+    public function setGuestPassSpecialPerPersonLimit(int $value): self
+    {
+        $this->config->set('guest_pass_special_per_person_limit', $value);
+        return $this;
+    }
+
+    public function getGuestPassSpecialConcurrentLimit(): ?int
+    {
+        return $this->config->get('guest_pass_special_concurrent_limit');
+    }
+
+    public function setGuestPassSpecialConcurrentLimit(int $value): self
+    {
+        $this->config->set('guest_pass_special_concurrent_limit', $value);
         return $this;
     }
 

@@ -17,6 +17,7 @@ function esn_membership_manager_theme($existing, $type, $theme, $path): array
         'logo_location' => 'https://esn.org/sites/default/files/ESN_full-logo-Satellite.png',
         'custom_footer' => '',
         'scheme_name' => 'ESN Pass',
+        'guest_scheme_name' => 'ESN Guest Pass',
     ];
 
     return [
@@ -47,7 +48,8 @@ function esn_membership_manager_theme($existing, $type, $theme, $path): array
 
         'emm_both_rejection' => [
             'variables' => array_merge($commonVars, [
-                'reasons' => []
+                'reasons' => [],
+                'dashboard_url' => ''
             ]),
         ],
 
@@ -65,6 +67,14 @@ function esn_membership_manager_theme($existing, $type, $theme, $path): array
 
         'emm_card_issuance' => [
             'variables' => $commonVars,
+        ],
+
+        'emm_guest_approval' => [
+            'variables' => array_merge($commonVars, [
+                'pass_token' => '',
+                'google_wallet_link' => '',
+                'apple_wallet_link' => ''
+            ]),
         ],
 
         'emm_admin_backlogged' => [
@@ -138,6 +148,7 @@ function esn_membership_manager_mail($key, &$message, $params): void
     $message['headers']['MIME-Version'] = '1.0';
 
     $scheme = $params['scheme_name'] ?? 'ESN Pass';
+    $guestScheme = $params['guest_scheme_name'] ?? 'ESN Guest Pass';
     $organization = $params['organisation_name'] ?? 'ESN';
 
     switch ($key) {
@@ -171,6 +182,10 @@ function esn_membership_manager_mail($key, &$message, $params): void
 
         case 'card_issuance':
             $message['subject'] = t('ESNcard Issued', [], $options);
+            break;
+
+        case 'guest_approval':
+            $message['subject'] = t('@scheme Approved', ['@scheme' => $guestScheme], $options);
             break;
 
         case 'admin_backlogged':

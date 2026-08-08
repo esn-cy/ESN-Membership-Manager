@@ -17,8 +17,11 @@ use Drupal\esn_membership_manager\Config\MembershipSettings;
 use Drupal\esn_membership_manager\Entity\Application\ApplicationField;
 use Drupal\esn_membership_manager\Entity\Application\ApplicationInterface;
 use Drupal\esn_membership_manager\Entity\Application\ApplicationStorage;
+use Drupal\esn_membership_manager\Entity\GuestPass\GuestPassField;
+use Drupal\esn_membership_manager\Entity\GuestPass\GuestPassStorage;
 use Drupal\esn_membership_manager\Object\Status;
 use Drupal\esn_membership_manager\Service\FileService;
+use Drupal\esn_membership_manager\Service\GuestPassService;
 use Drupal\esn_membership_manager\Utility\ApprovalStatuses;
 use Drupal\esn_membership_manager\Utility\Nationalities;
 use Exception;
@@ -29,6 +32,7 @@ class MembershipDashboard extends AuthenticatedFormBase
 {
     protected ModuleHandlerInterface $moduleHandler;
     protected FileService $fileService;
+    protected GuestPassService $guestPassService;
     protected ?Nationalities $nationalities = null;
 
     public function __construct(
@@ -38,11 +42,13 @@ class MembershipDashboard extends AuthenticatedFormBase
         LoggerChannelFactoryInterface $loggerFactory,
         ModuleHandlerInterface        $moduleHandler,
         FileService                   $fileService,
+        GuestPassService $guestPassService,
     )
     {
         parent::__construct($database, $entityTypeManager, $httpClient, $loggerFactory);
         $this->moduleHandler = $moduleHandler;
         $this->fileService = $fileService;
+        $this->guestPassService = $guestPassService;
     }
 
     public static function create(ContainerInterface $container): self
@@ -65,6 +71,9 @@ class MembershipDashboard extends AuthenticatedFormBase
         /** @var FileService $fileService */
         $fileService = $container->get('esn_membership_manager.file_service');
 
+        /** @var GuestPassService $guestPassService */
+        $guestPassService = $container->get('esn_membership_manager.guest_pass_service');
+
         return new static(
             $database,
             $entityTypeManager,
@@ -72,6 +81,7 @@ class MembershipDashboard extends AuthenticatedFormBase
             $loggerFactory,
             $moduleHandler,
             $fileService,
+            $guestPassService,
         );
     }
 
@@ -123,16 +133,9 @@ class MembershipDashboard extends AuthenticatedFormBase
         $form['#attributes']['class'][] = 'esn-membership-manager-dashboard';
         $form['#attached']['library'][] = 'esn_membership_manager/membership_dashboard';
 
-        /** @var ApplicationStorage $storage */
         try {
-            $storage = $this->entityTypeManager->getStorage('membership_application');
+            $application = $this->getApplication();
         } catch (Exception) {
-            $this->messenger()->addError($this->t('Could not retrieve your application. Please try again later.'));
-            return $form;
-        }
-
-        $application = $storage->getByEmailAddress($this->authenticatedEmail);
-        if (empty($application)) {
             $this->messenger()->addError($this->t('Could not retrieve your application. Please try again later.'));
             return $form;
         }
@@ -315,9 +318,9 @@ class MembershipDashboard extends AuthenticatedFormBase
             ',
             '#context' => [
                 'approval_status' => $isApproved ? 'Active' : $application->getApprovalStatus(),
-                'date_approved' => !empty($application->getDateApproved()) ? $application->getDateApproved()->add(new DateInterval('P1Y'))->format('d/m/Y') : '--/--/----',
+                'date_approved' => !empty($application->getDateApproved()) ? (clone $application->getDateApproved())->add(new DateInterval('P1Y'))->format('d/m/Y') : '--/--/----',
                 'has_esncard' => $application->getValue(ApplicationField::HasESNcard) ?? false,
-                'date_paid' => !empty($application->getDatePaid()) ? $application->getDatePaid()->add(new DateInterval('P1Y'))->format('d/m/Y') : '--/--/----',
+                'date_paid' => !empty($application->getDatePaid()) ? (clone $application->getDatePaid())->add(new DateInterval('P1Y'))->format('d/m/Y') : '--/--/----',
                 'button_text' => $buttonText,
                 'button_href' => $buttonHref,
             ],
@@ -897,6 +900,177 @@ class MembershipDashboard extends AuthenticatedFormBase
             ];
         }
 
+
+        if ($isApproved && $membershipSettings->getGuestPassSwitch()) {
+            $form['guest_section'] = [
+                '#type' => 'container',
+                '#attributes' => [
+                    'class' => ['section'],
+                    'id' => 'guest',
+                ],
+            ];
+
+            $form['guest_section']['title'] = [
+                '#markup' => '<h2>Guest Passes</h2>',
+            ];
+
+            $form['guest_section']['description'] = [
+                '#markup' => Markup::create('
+                    <p style="max-width: 800px;margin: auto;">Guest Passes allow you to invite visiting friends and family to exclusive mobility events, helping us ensure a safe and organized experience for everyone.</p>
+                    <p style="max-width: 800px;margin: auto auto 1.5rem;">Approved guests will get a special digital pass to add to their mobile wallet. Please note that Guest Passes expire 7 days after approval.
+                     At the event, your guest must arrive at the venue together with you (the person who invited them). They must also bring a valid ID, as ID checks will be strictly enforced at the entrance.</p>
+                '),
+            ];
+
+            /** @noinspection PhpUnhandledExceptionInspection */
+            /** @var GuestPassStorage $guestPassStorage */
+            $guestPassStorage = $this->entityTypeManager->getStorage('membership_guest');
+
+            $activePasses = $guestPassStorage->getActiveByReferrerID($application->id());
+            if (!empty($activePasses)) {
+                $form['guest_section']['active'] = [
+                    '#type' => 'container',
+                    '#attributes' => [
+                        'class' => ['panel']
+                    ],
+                ];
+
+                $form['guest_section']['active']['title'] = [
+                    '#markup' => Markup::create('<div class="panel-header"> <h3>Active Passes</h3></div>'),
+                ];
+
+                $rows = [];
+                $now = new DrupalDateTime();
+                foreach ($activePasses as $pass) {
+                    $status = $pass->getApprovalStatus();
+                    if ($status === 'Approved') {
+                        $status = 'Active';
+                        $expiryDate = (clone $pass->getDateApproved())->add(new DateInterval('P7D'));
+                        $difference = $expiryDate->getTimestamp() - $now->getTimestamp();
+                        $days = $difference / (24 * 60 * 60);
+                        if ($days > 1) {
+                            $rounded = round($days);
+                            if ($rounded > 1) {
+                                $expiresIn = $rounded . ' Days';
+                            } else {
+                                $expiresIn = '1 Day';
+                            }
+                        } else {
+                            $hours = $days * 24;
+                            $rounded = round($hours);
+                            if ($rounded > 1) {
+                                $expiresIn = $rounded . ' Hours';
+                            } else {
+                                $expiresIn = '> 1 Hour';
+                            }
+                        }
+                    } else {
+                        $status = 'Pending';
+                        $expiresIn = '-';
+                    }
+
+                    $rows[] = [
+                        'full_name' => $pass->getFullName(),
+                        'email' => $pass->getValue(GuestPassField::Email),
+                        'status' => $status,
+                        'expires_in' => $expiresIn,
+                    ];
+                }
+
+                $form['guest_section']['active']['table'] = [
+                    '#type' => 'table',
+                    '#header' => [
+                        'full_name' => $this->t('Full Name'),
+                        'email' => $this->t('Email'),
+                        'status' => $this->t('Status'),
+                        'expires_in' => $this->t('Expires In'),
+                    ],
+                    '#rows' => $rows,
+                    '#attributes' => [
+                        'class' => ['panel-table'],
+                    ]
+                ];
+            }
+
+            $form['guest_section']['request'] = [
+                '#type' => 'container',
+                '#attributes' => [
+                    'class' => ['panel']
+                ],
+            ];
+
+            $form['guest_section']['request']['title'] = [
+                '#markup' => Markup::create('<div class="panel-header"> <h3>Request a Pass</h3></div>'),
+            ];
+
+            $form['guest_section']['request']['grid'] = [
+                '#type' => 'container',
+                '#attributes' => [
+                    'class' => ['panel-body', 'info-grid']
+                ],
+            ];
+
+            $form['guest_section']['request']['grid']['guest_name'] = [
+                '#type' => 'textfield',
+                '#attributes' => [
+                    'class' => ['info-value'],
+                ],
+                '#prefix' => '<div class="info-item"><label>Guest Name</label>',
+                '#suffix' => '</div>',
+            ];
+
+            $form['guest_section']['request']['grid']['guest_surname'] = [
+                '#type' => 'textfield',
+                '#attributes' => [
+                    'class' => ['info-value'],
+                ],
+                '#prefix' => '<div class="info-item"><label>Guest Surname</label>',
+                '#suffix' => '</div>',
+            ];
+
+            $form['guest_section']['request']['grid']['guest_email'] = [
+                '#type' => 'textfield',
+                '#attributes' => [
+                    'class' => ['info-value'],
+                ],
+                '#prefix' => '<div class="info-item"><label>Guest Email</label>',
+                '#suffix' => '</div>',
+            ];
+
+            $form['guest_section']['request']['reason'] = [
+                '#type' => 'textfield',
+                '#attributes' => [
+                    'class' => ['info-value'],
+                ],
+                '#prefix' => '<div class="info-item panel-input"><label>Reason for Invite</label>',
+                '#suffix' => '</div>',
+            ];
+
+            $form['guest_section']['request']['checkbox_id'] = [
+                '#type' => 'checkbox',
+                '#title' => $this->t('I understand that my guest will need a valid ID to use their ' . $membershipSettings->getGuestPassName() . '.'),
+                '#prefix' => '<div class="panel-input">',
+                '#suffix' => '</div>',
+            ];
+
+            $form['guest_section']['request']['checkbox_conduct'] = [
+                '#type' => 'checkbox',
+                '#title' => $this->t('I understand that I am responsible for the conduct of my guest.'),
+                '#prefix' => '<div class="panel-input">',
+                '#suffix' => '</div>',
+            ];
+
+            $form['guest_section']['request']['submit'] = [
+                '#type' => 'submit',
+                '#value' => 'Send Request',
+                '#submit' => ['::submitGuestPassRequest'],
+                '#element_validate' => ['::validateGuestPassRequest'],
+                '#attributes' => [
+                    'class' => ['panel-button', 'main-button'],
+                ],
+            ];
+        }
+
         if ($isApproved && $membershipSettings->getEstiaSwitch()) {
             $form['estia_section'] = [
                 '#type' => 'container',
@@ -1178,6 +1352,41 @@ class MembershipDashboard extends AuthenticatedFormBase
 
         if (!empty($fids) && isset($fids[0])) {
             $this->submitFile('Photo', $fids[0]);
+        }
+    }
+
+    private array $guestPassFields = ['guest_name', 'guest_surname', 'guest_email', 'reason', 'checkbox_id', 'checkbox_conduct'];
+
+    /** @noinspection PhpUnusedParameterInspection */
+    public function validateGuestPassRequest(array &$form, FormStateInterface $form_state): void
+    {
+        foreach ($this->guestPassFields as $field) {
+            if (empty($form_state->getValue($field))) {
+                $form_state->setErrorByName($field, $this->t('All fields are required.'));
+            }
+        }
+    }
+
+    /** @noinspection PhpUnusedParameterInspection */
+    public function submitGuestPassRequest(array $form, FormStateInterface $form_state): void
+    {
+        $fieldValues = [];
+        foreach ($this->guestPassFields as $field) {
+            if (empty(($value = $form_state->getValue($field)))) {
+                continue;
+            }
+            $fieldValues[$field] = trim($value);
+        }
+
+        if (count($this->guestPassFields) == count($fieldValues)) {
+            try {
+                $application = $this->getApplication();
+                $this->guestPassService->requestGuestPass($application, $fieldValues['guest_name'], $fieldValues['guest_surname'], $fieldValues['guest_email'], $fieldValues['reason']);
+            } catch (Exception $e) {
+                $this->logger->warning('Could not request a Guest Pass. ' . $e->getMessage());
+                $this->messenger()->addError($this->t('Could not request a Guest Pass. Please try again later.'));
+                return;
+            }
         }
     }
 

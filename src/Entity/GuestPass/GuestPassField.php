@@ -10,6 +10,7 @@ enum GuestPassField: string implements FieldEnumInterface
     case Name = 'name';
     case Surname = 'surname';
     case Email = 'email';
+    case Reason = 'reason';
     case PassToken = 'guest_pass_token';
     case DateCreated = 'date_created';
     case DateApproved = 'date_approved';
@@ -23,6 +24,7 @@ enum GuestPassField: string implements FieldEnumInterface
             self::Name => 'First Name',
             self::Surname => 'Last Name',
             self::Email => 'Email',
+            self::Reason => 'Reason',
             self::PassToken => 'Pass Token',
             self::DateCreated => 'Date Created',
             self::DateApproved => 'Date Approved',
@@ -36,6 +38,7 @@ enum GuestPassField: string implements FieldEnumInterface
         return match ($this) {
             self::RefererID => 'entity_reference',
             self::Name, self::Surname, self::PassToken => 'string',
+            self::Reason => 'string_long',
             self::Email => 'email',
             self::DateCreated, self::DateApproved, self::DateRedeemed, self::DateLastModified => 'datetime',
         };
@@ -44,7 +47,7 @@ enum GuestPassField: string implements FieldEnumInterface
     public function required(): bool
     {
         return match ($this) {
-            self::RefererID, self::Name, self::Surname, self::Email, self::DateCreated => true,
+            self::RefererID, self::Name, self::Surname, self::Email, self::Reason, self::DateCreated => true,
             default => false,
         };
     }
@@ -73,6 +76,7 @@ enum GuestPassField: string implements FieldEnumInterface
             self::Name, self::Surname, self::Email => ['max_length' => 255],
             self::PassToken, self::DateCreated, self::DateApproved, self::DateRedeemed, self::DateLastModified => ['max_length' => 64],
             self::RefererID => ['target_type' => 'membership_application'],
+            default => []
         };
     }
 }

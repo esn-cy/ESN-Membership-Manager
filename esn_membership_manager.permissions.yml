@@ -39,6 +39,14 @@ deliver cards:
   title: "Deliver Cards"
   description: "Allows users to mark cards as delivered"
 
+view guest passes:
+  title: "View Guest Passes"
+  description: "Allows users to view the Guest Passes"
+
+approve guest passes:
+  title: "Approve Guest Passes"
+  description: "Allows users to approve Guest Passes"
+
 scan cards:
   title: "Scan Cards"
   description: "Allows users to scan cards and passes"

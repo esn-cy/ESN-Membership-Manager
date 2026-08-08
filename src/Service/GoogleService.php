@@ -9,6 +9,7 @@ use Drupal\Core\Logger\LoggerChannelFactoryInterface;
 use Drupal\esn_membership_manager\Config\MembershipSettings;
 use Drupal\esn_membership_manager\Entity\Application\ApplicationField;
 use Drupal\esn_membership_manager\Entity\Application\ApplicationInterface;
+use Drupal\esn_membership_manager\Entity\GuestPass\GuestPassField;
 use Drupal\esn_membership_manager\Entity\GuestPass\GuestPassInterface;
 use Drupal\omnia\Config\OmniaSettings;
 use Drupal\omnia\Service\FileServiceBase;
@@ -616,8 +617,8 @@ class GoogleService extends GoogleServiceBase
             'classId' => $classID,
             'barcode' => new Barcode([
                 'type' => 'AZTEC',
-                'value' => $guestPass->getValue(ApplicationField::PassToken),
-                'alternateText' => strtoupper($guestPass->getValue(ApplicationField::PassToken)),
+                'value' => $guestPass->getValue(GuestPassField::PassToken),
+                'alternateText' => strtoupper($guestPass->getValue(GuestPassField::PassToken)),
             ]),
             'heroImage' => new Image([
                 'sourceUri' => new ImageUri([
