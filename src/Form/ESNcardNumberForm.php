@@ -14,18 +14,18 @@ use Symfony\Component\DependencyInjection\ContainerInterface;
 class ESNcardNumberForm extends FormBase
 {
     protected Connection $database;
-    protected LoggerChannelInterface $logger;
     protected ESNcardService $esncardService;
+    protected LoggerChannelInterface $logger;
 
     public function __construct(
         Connection                    $database,
-        LoggerChannelFactoryInterface $loggerFactory,
         ESNcardService                $esncardService,
+        LoggerChannelFactoryInterface $loggerFactory,
     )
     {
         $this->database = $database;
-        $this->logger = $loggerFactory->get('esn_membership_manager');
         $this->esncardService = $esncardService;
+        $this->logger = $loggerFactory->get('esn_membership_manager');
     }
 
     public static function create(ContainerInterface $container): self
@@ -33,16 +33,16 @@ class ESNcardNumberForm extends FormBase
         /** @var Connection $database */
         $database = $container->get('database');
 
-        /** @var LoggerChannelFactoryInterface $logger */
-        $logger = $container->get('logger.factory');
-
         /** @var ESNcardService $esncardService */
         $esncardService = $container->get('esn_membership_manager.esncard_service');
 
+        /** @var LoggerChannelFactoryInterface $logger */
+        $logger = $container->get('logger.factory');
+
         return new static(
             $database,
-            $logger,
             $esncardService,
+            $logger,
         );
     }
 

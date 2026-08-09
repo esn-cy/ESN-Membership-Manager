@@ -51,8 +51,8 @@ services:
       - '@config.factory'
       - '@http_client'
       - '@state'
-      - '@logger.factory'
       - '@datetime.time'
+      - '@logger.factory'
 
   esn_membership_manager.google_service:
     class: Drupal\esn_membership_manager\Service\GoogleService
@@ -65,19 +65,19 @@ services:
     class: Drupal\esn_membership_manager\Service\AppleWalletService
     arguments:
       - '@config.factory'
-      - '@settings'
       - '@module_handler'
       - '@esn_membership_manager.file_service'
       - '@http_client'
+      - '@settings'
       - '@logger.factory'
 
   esn_membership_manager.email_manager:
     class: Drupal\esn_membership_manager\Service\EmailManager
     arguments:
       - '@config.factory'
-      - '@logger.factory'
       - '@plugin.manager.mail'
       - '@renderer'
+      - '@logger.factory'
 
   esn_membership_manager.didit_service:
     class: Drupal\esn_membership_manager\Service\DiditService

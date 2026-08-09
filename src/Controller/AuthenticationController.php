@@ -2,8 +2,11 @@
 
 namespace Drupal\esn_membership_manager\Controller;
 
+use Drupal\Component\Plugin\Exception\InvalidPluginDefinitionException;
+use Drupal\Component\Plugin\Exception\PluginNotFoundException;
 use Drupal\Core\Controller\ControllerBase;
 use Drupal\Core\Database\Connection;
+use Drupal\Core\Entity\EntityTypeManagerInterface;
 use Drupal\Core\Logger\LoggerChannelFactoryInterface;
 use Drupal\Core\Logger\LoggerChannelInterface;
 use Drupal\esn_membership_manager\Entity\Application\ApplicationStorage;
@@ -16,37 +19,54 @@ use Symfony\Component\HttpFoundation\Request;
 class AuthenticationController extends ControllerBase
 {
     protected Connection $database;
-    protected LoggerChannelInterface $logger;
+    protected ApplicationStorage $applicationStorage;
     protected EmailManager $emailManager;
+    protected LoggerChannelInterface $logger;
     protected array $allowedTypes = ['login', 'register'];
 
-
+    /**
+     * @throws InvalidPluginDefinitionException
+     * @throws PluginNotFoundException
+     */
     public function __construct(
         Connection                    $database,
+        EntityTypeManagerInterface    $entityTypeManager,
+        EmailManager                  $emailManager,
         LoggerChannelFactoryInterface $loggerFactory,
-        EmailManager                  $emailManager
     )
     {
+        /** @var ApplicationStorage $applicationStorage */
+        $applicationStorage = $entityTypeManager->getStorage('membership_application');
+
         $this->database = $database;
-        $this->logger = $loggerFactory->get('esn_membership_manager');
+        $this->applicationStorage = $applicationStorage;
         $this->emailManager = $emailManager;
+        $this->logger = $loggerFactory->get('esn_membership_manager');
     }
 
+    /**
+     * @throws InvalidPluginDefinitionException
+     * @throws PluginNotFoundException
+     */
     public static function create(ContainerInterface $container): self
     {
         /** @var Connection $database */
         $database = $container->get('database');
 
-        /** @var LoggerChannelFactoryInterface $loggerFactory */
-        $loggerFactory = $container->get('logger.factory');
+        /** @var EntityTypeManagerInterface $entityTypeManager */
+        $entityTypeManager = $container->get('entity_type.manager');
 
         /** @var EmailManager $emailManager */
         $emailManager = $container->get('esn_membership_manager.email_manager');
 
+        /** @var LoggerChannelFactoryInterface $loggerFactory */
+        $loggerFactory = $container->get('logger.factory');
+
         return new static(
             $database,
+            $entityTypeManager,
+            $emailManager,
             $loggerFactory,
-            $emailManager
         );
     }
 
@@ -65,18 +85,10 @@ class AuthenticationController extends ControllerBase
 
         switch ($type) {
             case 'login':
-                try {
-                    $successMessage = 'A code was sent to your email address.';
-                    $emailHeader = 'Login';
+                $successMessage = 'A code was sent to your email address.';
+                $emailHeader = 'Login';
 
-                    /** @var ApplicationStorage $storage */
-                    $storage = $this->entityTypeManager()->getStorage('membership_application');
-
-                    $exists = $storage->countByEmail($email) > 0;
-                } catch (Exception $e) {
-                    $this->logger->error('Authentication code creation failed: @message', ['@message' => $e->getMessage()]);
-                    return new JsonResponse(['error' => 'There was an issue while processing your request. Please try again later.'], 500);
-                }
+                $exists = $this->applicationStorage->countByEmail($email) > 0;
                 break;
             case 'register':
                 $successMessage = 'A code was sent to your email address. If you do not receive it within 5 minutes, please check your spam or try a different email.';

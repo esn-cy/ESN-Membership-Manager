@@ -2,12 +2,17 @@
 
 namespace Drupal\esn_membership_manager\Controller;
 
+use Drupal\Component\Plugin\Exception\InvalidPluginDefinitionException;
+use Drupal\Component\Plugin\Exception\PluginNotFoundException;
+use Drupal\Core\Config\ConfigFactoryInterface;
 use Drupal\Core\Controller\ControllerBase;
 use Drupal\Core\Database\Connection;
 use Drupal\Core\Datetime\DrupalDateTime;
+use Drupal\Core\Entity\EntityTypeManagerInterface;
 use Drupal\Core\Logger\LoggerChannelFactoryInterface;
 use Drupal\Core\Logger\LoggerChannelInterface;
 use Drupal\Core\Site\Settings;
+use Drupal\esn_membership_manager\Config\MembershipSettings;
 use Drupal\esn_membership_manager\Entity\Application\ApplicationField;
 use Drupal\esn_membership_manager\Entity\Application\ApplicationStorage;
 use Drupal\esn_membership_manager\Entity\GuestPass\GuestPassStorage;
@@ -23,43 +28,73 @@ use Symfony\Component\HttpKernel\Exception\NotFoundHttpException;
 
 class AppleWalletController extends ControllerBase
 {
-    protected Settings $settings;
     protected AppleWalletService $appleWalletService;
+    protected ApplicationStorage $applicationStorage;
+    protected GuestPassStorage $guestPassStorage;
     protected Connection $database;
+    protected MembershipSettings $membershipSettings;
+    protected Settings $settings;
     protected LoggerChannelInterface $logger;
 
+    /**
+     * @throws InvalidPluginDefinitionException
+     * @throws PluginNotFoundException
+     */
     public function __construct(
-        Settings                      $settings,
         AppleWalletService            $appleWalletService,
+        EntityTypeManagerInterface    $entityTypeManager,
         Connection                    $database,
+        ConfigFactoryInterface        $configFactory,
+        Settings                      $settings,
         LoggerChannelFactoryInterface $loggerFactory
     )
     {
-        $this->settings = $settings;
+        /** @var ApplicationStorage $applicationStorage */
+        $applicationStorage = $entityTypeManager->getStorage('membership_application');
+
+        /** @var GuestPassStorage $guestPassStorage */
+        $guestPassStorage = $entityTypeManager->getStorage('membership_guest');
+
         $this->appleWalletService = $appleWalletService;
+        $this->applicationStorage = $applicationStorage;
+        $this->guestPassStorage = $guestPassStorage;
         $this->database = $database;
+        $this->membershipSettings = new MembershipSettings($configFactory);
+        $this->settings = $settings;
         $this->logger = $loggerFactory->get('esn_membership_manager');
     }
 
+    /**
+     * @throws InvalidPluginDefinitionException
+     * @throws PluginNotFoundException
+     */
     public static function create(ContainerInterface $container): self
     {
-        /** @var Settings $settings */
-        $settings = $container->get('settings');
-
         /** @var AppleWalletService $appleWalletService */
         $appleWalletService = $container->get('esn_membership_manager.apple_wallet_service');
 
+        /** @var EntityTypeManagerInterface $entityTypeManager */
+        $entityTypeManager = $container->get('entity_type.manager');
+
         /** @var Connection $database */
         $database = $container->get('database');
+
+        /** @var ConfigFactoryInterface $configFactory */
+        $configFactory = $container->get('config.factory');
+
+        /** @var Settings $settings */
+        $settings = $container->get('settings');
 
         /** @var LoggerChannelFactoryInterface $loggerFactory */
         $loggerFactory = $container->get('logger.factory');
 
         return new static(
-            $settings,
             $appleWalletService,
+            $entityTypeManager,
             $database,
-            $loggerFactory
+            $configFactory,
+            $settings,
+            $loggerFactory,
         );
     }
 
@@ -86,18 +121,10 @@ class AppleWalletController extends ControllerBase
             return $this->downloadGuest($identifier);
         }
 
-        try {
-            /** @var ApplicationStorage $storage */
-            $storage = $this->entityTypeManager()->getStorage('membership_application');
-
-            if ($isESNcard) {
-                $application = $storage->getByESNcard($identifier);
-            } elseif ($isPass) {
-                $application = $storage->getByPassToken($identifier);
-            }
-        } catch (Exception $e) {
-            $this->logger->error('Creation of Apple Wallet Pass failed: @message', ['@message' => $e->getMessage()]);
-            throw new HttpException(500, 'There was a problem getting the card/pass.', $e);
+        if ($isESNcard) {
+            $application = $this->applicationStorage->getByESNcard($identifier);
+        } elseif ($isPass) {
+            $application = $this->applicationStorage->getByPassToken($identifier);
         }
 
         if (empty($application)) {
@@ -135,16 +162,8 @@ class AppleWalletController extends ControllerBase
 
     protected function downloadGuest(string $identifier): Response
     {
-        try {
-            /** @var GuestPassStorage $storage */
-            $storage = $this->entityTypeManager()->getStorage('membership_guest');
-
-            $guestPass = $storage->getByPassToken($identifier);
-            $referer = $guestPass?->getReferer();
-        } catch (Exception $e) {
-            $this->logger->error('Scan query failed: @message', ['@message' => $e->getMessage()]);
-            throw new HttpException(500, 'There was a problem getting the guest pass.');
-        }
+        $guestPass = $this->guestPassStorage->getByPassToken($identifier);
+        $referer = $guestPass?->getReferer();
 
         if (empty($guestPass) || empty($referer)) {
             throw new NotFoundHttpException('Guest Pass not found.', null, 404);
@@ -283,19 +302,11 @@ class AppleWalletController extends ControllerBase
                 continue;
             }
 
-            try {
-                $id = $isESNcard ?
-                    str_replace('esncard-', '', $serialNumber) :
-                    str_replace('free_pass-', '', $serialNumber);
+            $id = $isESNcard ?
+                str_replace('esncard-', '', $serialNumber) :
+                str_replace('free_pass-', '', $serialNumber);
 
-                /** @var ApplicationStorage $storage */
-                $storage = $this->entityTypeManager()->getStorage('membership_application');
-            } catch (Exception $e) {
-                $this->logger->error('Unable to retrieve the last modified date for @serial: @error.', ['@serial' => $serialNumber, '@error' => $e->getMessage()]);
-                continue;
-            }
-
-            $pass = $storage->load($id);
+            $pass = $this->applicationStorage->load($id);
             if (empty($pass)) {
                 continue;
             }
@@ -328,6 +339,10 @@ class AppleWalletController extends ControllerBase
 
     public function getLatestPass(Request $request, string $passTypeIdentifier, string $serialNumber): Response
     {
+        if ($this->membershipSettings->getApplePassTypeID() !== $passTypeIdentifier) {
+            return new Response('', 204);
+        }
+
         $authHeader = $request->headers->get('Authorization');
         if (!$this->isValidAuthToken($authHeader, $serialNumber)) {
             return new JsonResponse(['error' => 'Unauthorized'], 401);
@@ -346,15 +361,7 @@ class AppleWalletController extends ControllerBase
             'pass' => str_replace('free_pass-', '', $serialNumber),
         };
 
-        try {
-            /** @var ApplicationStorage $storage */
-            $storage = $this->entityTypeManager()->getStorage('membership_application');
-        } catch (Exception $e) {
-            $this->logger->error('Unable to retrieve the application for @serial: @error.', ['@serial' => $serialNumber, '@error' => $e->getMessage()]);
-            return new JsonResponse(['error' => 'Unable to retrieve the application.'], 500);
-        }
-
-        $pass = $storage->load($id);
+        $pass = $this->applicationStorage->load($id);
 
         if (empty($pass)) {
             return new JsonResponse(['error' => 'Application not found.'], 404);

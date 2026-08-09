@@ -33,26 +33,26 @@ use Symfony\Component\DependencyInjection\ContainerInterface;
 class MarkApplicationAsPaid extends ActionBase implements ContainerFactoryPluginInterface
 {
     protected Connection $database;
-    protected LockBackendInterface $lock;
-    protected LoggerChannelInterface $logger;
     protected ESNcardService $esncardService;
     protected StripeService $stripeService;
+    protected LockBackendInterface $lock;
+    protected LoggerChannelInterface $logger;
 
     public function __construct(
         array                         $configuration, $plugin_id, $plugin_definition,
         Connection                    $database,
-        LockBackendInterface          $lock,
-        LoggerChannelFactoryInterface $loggerFactory,
         ESNcardService                $esncardService,
         StripeService                 $stripeService,
+        LockBackendInterface          $lock,
+        LoggerChannelFactoryInterface $loggerFactory,
     )
     {
         parent::__construct($configuration, $plugin_id, $plugin_definition);
         $this->database = $database;
-        $this->logger = $loggerFactory->get('esn_membership_manager');
-        $this->lock = $lock;
         $this->esncardService = $esncardService;
         $this->stripeService = $stripeService;
+        $this->lock = $lock;
+        $this->logger = $loggerFactory->get('esn_membership_manager');
     }
 
     public static function create(
@@ -63,27 +63,27 @@ class MarkApplicationAsPaid extends ActionBase implements ContainerFactoryPlugin
         /** @var Connection $database */
         $database = $container->get('database');
 
-        /** @var LockBackendInterface $lock */
-        $lock = $container->get('lock');
-
-        /** @var LoggerChannelFactoryInterface $loggerFactory */
-        $loggerFactory = $container->get('logger.factory');
-
         /** @var ESNcardService $esncardService */
         $esncardService = $container->get('esn_membership_manager.esncard_service');
 
         /** @var StripeService $stripeService */
         $stripeService = $container->get('esn_membership_manager.stripe_service');
 
+        /** @var LockBackendInterface $lock */
+        $lock = $container->get('lock');
+
+        /** @var LoggerChannelFactoryInterface $loggerFactory */
+        $loggerFactory = $container->get('logger.factory');
+
         return new static(
             $configuration,
             $plugin_id,
             $plugin_definition,
             $database,
-            $lock,
-            $loggerFactory,
             $esncardService,
             $stripeService,
+            $lock,
+            $loggerFactory,
         );
     }
 

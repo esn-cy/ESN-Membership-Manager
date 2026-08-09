@@ -2,8 +2,13 @@
 
 namespace Drupal\esn_membership_manager\Controller;
 
+use Drupal\Component\Plugin\Exception\InvalidPluginDefinitionException;
+use Drupal\Component\Plugin\Exception\PluginNotFoundException;
+use Drupal\Core\Config\ConfigFactoryInterface;
 use Drupal\Core\Controller\ControllerBase;
 use Drupal\Core\Database\Connection;
+use Drupal\Core\Entity\EntityStorageInterface;
+use Drupal\Core\Entity\EntityTypeManagerInterface;
 use Drupal\Core\Logger\LoggerChannelFactoryInterface;
 use Drupal\Core\Logger\LoggerChannelInterface;
 use Drupal\Core\Url;
@@ -20,19 +25,33 @@ class ESNAccountsController extends ControllerBase
 {
     protected Connection $database;
     protected ClientInterface $httpClient;
+    protected EntityStorageInterface $organisationStorage;
+    protected OmniaSettings $omniaSettings;
     protected LoggerChannelInterface $logger;
 
+    /**
+     * @throws InvalidPluginDefinitionException
+     * @throws PluginNotFoundException
+     */
     public function __construct(
         Connection                    $database,
         ClientInterface               $httpClient,
+        EntityTypeManagerInterface    $entityTypeManager,
+        ConfigFactoryInterface        $configFactory,
         LoggerChannelFactoryInterface $loggerFactory,
     )
     {
         $this->database = $database;
         $this->httpClient = $httpClient;
+        $this->organisationStorage = $entityTypeManager->getStorage('esn_organisation');
+        $this->omniaSettings = new OmniaSettings($configFactory);
         $this->logger = $loggerFactory->get('esn_membership_manager');
     }
 
+    /**
+     * @throws InvalidPluginDefinitionException
+     * @throws PluginNotFoundException
+     */
     public static function create(ContainerInterface $container): self
     {
         /** @var Connection $database */
@@ -41,13 +60,21 @@ class ESNAccountsController extends ControllerBase
         /** @var ClientInterface $httpClient */
         $httpClient = $container->get('http_client');
 
+        /** @var EntityTypeManagerInterface $entityTypeManager */
+        $entityTypeManager = $container->get('entity_type.manager');
+
+        /** @var ConfigFactoryInterface $configFactory */
+        $configFactory = $container->get('config.factory');
+
         /** @var LoggerChannelFactoryInterface $loggerFactory */
         $loggerFactory = $container->get('logger.factory');
 
         return new static(
             $database,
             $httpClient,
-            $loggerFactory
+            $entityTypeManager,
+            $configFactory,
+            $loggerFactory,
         );
     }
 
@@ -82,9 +109,6 @@ class ESNAccountsController extends ControllerBase
             return new RedirectResponse(Url::fromRoute('esn_membership_manager.apply', [], ['absolute' => true])->toString());
         }
 
-        $this->config('');
-        $omniaSettings = new OmniaSettings($this->configFactory);
-
         try {
             $serviceURL = urlencode(Url::fromRoute('esn_membership_manager.apply_verify_esn', [], ['absolute' => true])->toString() . '?token=' . $token);
             $response = $this->httpClient->get("https://accounts.esn.org/cas/serviceValidate?service=$serviceURL&ticket=$ticket");
@@ -101,22 +125,20 @@ class ESNAccountsController extends ControllerBase
                     return new RedirectResponse(Url::fromRoute('esn_membership_manager.apply', [], ['absolute' => true])->toString());
                 }
 
-                $organizations = $this->entityTypeManager()->getStorage('esn_organisation');
-
-                $sectionMode = $omniaSettings->getSectionMode();
+                $sectionMode = $this->omniaSettings->getSectionMode();
                 /** @var Organisation $nationalOrganisation */
-                $nationalOrganisation = $organizations->load($omniaSettings->getNationalOrganisationID());
+                $nationalOrganisation = $this->organisationStorage->load($this->omniaSettings->getNationalOrganisationID());
 
                 $sections = [];
                 if (!$sectionMode) {
                     /** @var Organisation[] $sectionsByID */
-                    $sectionsByID = $organizations->loadByProperties(['type' => 'section', 'country_code' => $nationalOrganisation->getCountryCode()]);
+                    $sectionsByID = $this->organisationStorage->loadByProperties(['type' => 'section', 'country_code' => $nationalOrganisation->getCountryCode()]);
                     foreach ($sectionsByID as $section) {
                         $sections[$section->getCode()] = $section;
                     }
                 } else {
                     /** @var Organisation $section */
-                    $section = $organizations->load($omniaSettings->getOrganisationID());
+                    $section = $this->organisationStorage->load($this->omniaSettings->getOrganisationID());
                     if (!empty($section)) {
                         $sections[$section->getCode()] = $section;
                     }

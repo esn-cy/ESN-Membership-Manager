@@ -14,7 +14,6 @@ use Drupal\esn_membership_manager\Config\MembershipSettings;
 use Drupal\esn_membership_manager\Entity\Application\Application;
 use Drupal\esn_membership_manager\Entity\Application\ApplicationField;
 use Drupal\esn_membership_manager\Entity\GuestPass\GuestPassField;
-use Drupal\esn_membership_manager\Entity\GuestPass\GuestPassInterface;
 use Drupal\esn_membership_manager\Entity\GuestPass\GuestPassStorage;
 use Drupal\esn_membership_manager\Plugin\Action\ApproveGuestPass;
 use Exception;
@@ -27,8 +26,8 @@ class GuestPassService
 
     /**
      * @throws InvalidPluginDefinitionException
-     * @throws PluginNotFoundException
      * @throws PluginException
+     * @throws PluginNotFoundException
      */
     public function __construct(
         EntityTypeManagerInterface $entityTypeManager,
@@ -39,13 +38,11 @@ class GuestPassService
         /** @var GuestPassStorage $guestPassStorage */
         $guestPassStorage = $entityTypeManager->getStorage('membership_guest');
 
-        $membershipSettings = new MembershipSettings($configFactory);
-
         /** @var ApproveGuestPass $approveGuestPass */
         $approveGuestPass = $actionManager->createInstance('esn_membership_manager_approve_guest');
 
         $this->guestPassStorage = $guestPassStorage;
-        $this->membershipSettings = $membershipSettings;
+        $this->membershipSettings = new MembershipSettings($configFactory);
         $this->approveGuestPass = $approveGuestPass;
     }
 
@@ -55,7 +52,6 @@ class GuestPassService
      */
     public function requestGuestPass(Application $referrer, string $name, string $surname, string $email, string $reason): void
     {
-        /** @var GuestPassInterface $guestPass */
         $guestPass = $this->guestPassStorage->create();
         $guestPass->setValue(GuestPassField::RefererID, $referrer->id());
         $guestPass->setValue(GuestPassField::Name, $name);

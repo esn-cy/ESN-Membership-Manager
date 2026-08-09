@@ -3,15 +3,18 @@
 namespace Drupal\esn_membership_manager\Form;
 
 use Drupal\Component\Plugin\Exception\InvalidPluginDefinitionException;
+use Drupal\Component\Plugin\Exception\PluginException;
 use Drupal\Component\Plugin\Exception\PluginNotFoundException;
 use Drupal\Component\Render\MarkupInterface;
-use Drupal\Core\Action\ActionBase;
 use Drupal\Core\Action\ActionManager;
 use Drupal\Core\Ajax\AjaxResponse;
 use Drupal\Core\Ajax\RedirectCommand;
+use Drupal\Core\Config\ConfigFactoryInterface;
 use Drupal\Core\Database\Connection;
 use Drupal\Core\Datetime\DrupalDateTime;
+use Drupal\Core\Entity\EntityStorageInterface;
 use Drupal\Core\Entity\EntityTypeManagerInterface;
+use Drupal\Core\Extension\Extension;
 use Drupal\Core\Extension\ModuleHandlerInterface;
 use Drupal\Core\Form\FormStateInterface;
 use Drupal\Core\Logger\LoggerChannelFactoryInterface;
@@ -20,8 +23,8 @@ use Drupal\Core\Url;
 use Drupal\esn_accounts_api\Entity\Organisation;
 use Drupal\esn_membership_manager\Config\MembershipSettings;
 use Drupal\esn_membership_manager\Entity\Application\ApplicationField;
-use Drupal\esn_membership_manager\Entity\Application\ApplicationInterface;
 use Drupal\esn_membership_manager\Entity\Application\ApplicationStorage;
+use Drupal\esn_membership_manager\Plugin\Action\ApproveApplication;
 use Drupal\esn_membership_manager\Service\DiditService;
 use Drupal\esn_membership_manager\Service\EmailManager;
 use Drupal\esn_membership_manager\Service\FileService;
@@ -35,36 +38,64 @@ use Symfony\Component\DependencyInjection\ContainerInterface;
 
 class ApplicationForm extends AuthenticatedFormBase
 {
-    protected EmailManager $emailManager;
-    protected ModuleHandlerInterface $moduleHandler;
+    protected MembershipSettings $membershipSettings;
+    protected OmniaSettings $omniaSettings;
     protected FileService $fileService;
-    protected ActionManager $actionManager;
+    protected EmailManager $emailManager;
+    protected Extension $module;
+    protected ApplicationStorage $applicationStorage;
+    protected ApproveApplication $approveApplication;
+    protected EntityStorageInterface $organisationStorage;
     protected DiditService $diditService;
     protected Nationalities $nationalities;
 
+    /**
+     * @throws InvalidPluginDefinitionException
+     * @throws PluginException
+     * @throws PluginNotFoundException
+     */
     public function __construct(
+        ConfigFactoryInterface        $configFactory,
         Connection                    $database,
         EntityTypeManagerInterface    $entityTypeManager,
         ClientInterface               $httpClient,
-        LoggerChannelFactoryInterface $loggerFactory,
+        FileService                   $fileService,
         EmailManager                  $emailManager,
         ModuleHandlerInterface        $moduleHandler,
-        FileService                   $fileService,
         ActionManager                 $actionManager,
         DiditService                  $diditService,
+        LoggerChannelFactoryInterface $loggerFactory,
     )
     {
+        /** @var ApplicationStorage $applicationStorage */
+        $applicationStorage = $entityTypeManager->getStorage('membership_application');
+
+        /** @var ApproveApplication $approveApplication */
+        $approveApplication = $actionManager->createInstance('esn_membership_manager_approve');
+
         parent::__construct($database, $entityTypeManager, $httpClient, $loggerFactory);
-        $this->emailManager = $emailManager;
-        $this->moduleHandler = $moduleHandler;
+        $this->membershipSettings = new MembershipSettings($configFactory);
+        $this->omniaSettings = new OmniaSettings($configFactory);
         $this->fileService = $fileService;
-        $this->actionManager = $actionManager;
+        $this->emailManager = $emailManager;
+        $this->module = $moduleHandler->getModule('esn_membership_manager');
+        $this->applicationStorage = $applicationStorage;
+        $this->approveApplication = $approveApplication;
+        $this->organisationStorage = $entityTypeManager->getStorage('esn_organisation');
         $this->diditService = $diditService;
-        $this->nationalities = new Nationalities($this->moduleHandler);
+        $this->nationalities = new Nationalities($moduleHandler);
     }
 
+    /**
+     * @throws InvalidPluginDefinitionException
+     * @throws PluginException
+     * @throws PluginNotFoundException
+     */
     public static function create(ContainerInterface $container): self
     {
+        /** @var ConfigFactoryInterface $configFactory */
+        $configFactory = $container->get('config.factory');
+
         /** @var Connection $database */
         $database = $container->get('database');
 
@@ -74,8 +105,8 @@ class ApplicationForm extends AuthenticatedFormBase
         /** @var ClientInterface $httpClient */
         $httpClient = $container->get('http_client');
 
-        /** @var LoggerChannelFactoryInterface $loggerFactory */
-        $loggerFactory = $container->get('logger.factory');
+        /** @var FileService $fileService */
+        $fileService = $container->get('esn_membership_manager.file_service');
 
         /** @var EmailManager $emailManager */
         $emailManager = $container->get('esn_membership_manager.email_manager');
@@ -83,25 +114,26 @@ class ApplicationForm extends AuthenticatedFormBase
         /** @var ModuleHandlerInterface $moduleHandler */
         $moduleHandler = $container->get('module_handler');
 
-        /** @var FileService $fileService */
-        $fileService = $container->get('esn_membership_manager.file_service');
-
         /** @var ActionManager $actionManager */
         $actionManager = $container->get('plugin.manager.action');
 
         /** @var DiditService $diditService */
         $diditService = $container->get('esn_membership_manager.didit_service');
 
+        /** @var LoggerChannelFactoryInterface $loggerFactory */
+        $loggerFactory = $container->get('logger.factory');
+
         return new static(
+            $configFactory,
             $database,
             $entityTypeManager,
             $httpClient,
-            $loggerFactory,
+            $fileService,
             $emailManager,
             $moduleHandler,
-            $fileService,
             $actionManager,
-            $diditService
+            $diditService,
+            $loggerFactory,
         );
     }
 
@@ -131,8 +163,7 @@ class ApplicationForm extends AuthenticatedFormBase
      */
     protected function headerMarkup(): MarkupInterface|string
     {
-        $membershipSettings = new MembershipSettings($this->configFactory());
-        $passName = $membershipSettings->getPassName();
+        $passName = $this->membershipSettings->getPassName();
 
         return Markup::create('<h2>' . $this->t('Apply for an ESNcard / @scheme', ['@scheme' => $passName]) . '</h2>');
     }
@@ -142,9 +173,6 @@ class ApplicationForm extends AuthenticatedFormBase
      */
     public function buildForm(array $form, FormStateInterface $form_state): array
     {
-        $omniaSettings = new OmniaSettings($this->configFactory());
-        $membershipSettings = new MembershipSettings($this->configFactory());
-
         $session = $this->getRequest()->getSession();
         $savedData = $session->get('application_form_saved_data', []);
 
@@ -155,7 +183,7 @@ class ApplicationForm extends AuthenticatedFormBase
             return $form;
         }
 
-        $passName = $membershipSettings->getPassName();
+        $passName = $this->membershipSettings->getPassName();
 
         $form['header'] = [
             '#markup' => Markup::create(
@@ -198,7 +226,7 @@ class ApplicationForm extends AuthenticatedFormBase
         ];
 
         $personalFieldsDisabled = false;
-        if ($membershipSettings->getDiditSwitch() && !empty($application)) {
+        if ($this->membershipSettings->getDiditSwitch() && !empty($application)) {
             $verificationData = $session->get('application_form_verification_data', []);
             $verificationData['id_verification_token'] = $application['didit_session_token'];
             $session->set('application_form_verification_data', $verificationData);
@@ -333,47 +361,43 @@ class ApplicationForm extends AuthenticatedFormBase
             '#title' => $this->t('Mobility & Status'),
         ];
 
-        try {
-            $organisations = $this->entityTypeManager->getStorage('esn_organisation');
-            $sections = [];
+        $sections = [];
 
-            if (!$omniaSettings->getSectionMode()) {
-                $noID = $omniaSettings->getNationalOrganisationID();
-                /** @var Organisation $nationalOrganisation */
-                $nationalOrganisation = $organisations->load($noID);
-                if ($nationalOrganisation) {
-                    /** @var Organisation[] $sectionEntities */
-                    $sectionEntities = $organisations->loadByProperties(['type' => 'section', 'country_code' => $nationalOrganisation->getCountryCode()]);
-                    foreach ($sectionEntities as $section) {
-                        $title = $section->getTitle();
-                        $sections[$title] = $title;
-                    }
-                    ksort($sections);
+        if (!$this->omniaSettings->getSectionMode()) {
+            $noID = $this->omniaSettings->getNationalOrganisationID();
+            /** @var Organisation $nationalOrganisation */
+            $nationalOrganisation = $this->organisationStorage->load($noID);
+            if ($nationalOrganisation) {
+                /** @var Organisation[] $sectionEntities */
+                $sectionEntities = $this->organisationStorage->loadByProperties(['type' => 'section', 'country_code' => $nationalOrganisation->getCountryCode()]);
+                foreach ($sectionEntities as $section) {
+                    $title = $section->getTitle();
+                    $sections[$title] = $title;
                 }
-            } else {
-                $sectionName = $omniaSettings->getNationalOrganisationID();
-                if ($sectionName) {
-                    $sections[$sectionName] = $sectionName;
-                }
+                ksort($sections);
             }
+        } else {
+            $sectionName = $this->omniaSettings->getNationalOrganisationID();
+            if ($sectionName) {
+                $sections[$sectionName] = $sectionName;
+            }
+        }
 
-            if (count($sections) > 1) {
-                $form['mobility_details']['section'] = [
-                    '#type' => 'select',
-                    '#title' => $this->t('Local Section Name'),
-                    '#description' => $this->t('Select your local section.'),
-                    '#options' => $sections,
-                    '#empty_option' => $this->t('- Select -'),
-                    '#default_value' => $form_state->getValue('section') ?? $savedData['section'] ?? '',
-                    '#required' => TRUE,
-                ];
-            } elseif (count($sections) === 1) {
-                $form['mobility_details']['section'] = [
-                    '#type' => 'value',
-                    '#value' => reset($sections),
-                ];
-            }
-        } catch (InvalidPluginDefinitionException|PluginNotFoundException) {
+        if (count($sections) > 1) {
+            $form['mobility_details']['section'] = [
+                '#type' => 'select',
+                '#title' => $this->t('Local Section Name'),
+                '#description' => $this->t('Select your local section.'),
+                '#options' => $sections,
+                '#empty_option' => $this->t('- Select -'),
+                '#default_value' => $form_state->getValue('section') ?? $savedData['section'] ?? '',
+                '#required' => TRUE,
+            ];
+        } elseif (count($sections) === 1) {
+            $form['mobility_details']['section'] = [
+                '#type' => 'value',
+                '#value' => reset($sections),
+            ];
         }
 
         $statusFieldsDisabled = false;
@@ -393,7 +417,7 @@ class ApplicationForm extends AuthenticatedFormBase
                         break;
                     case 'Foreign Roles':
                         $form['mobility_details']['verified_status'] = [
-                            '#markup' => Markup::create('<p class="alert alert-warning">' . $this->t("You don't have any roles in {$omniaSettings->getOrganisationName()}. Please fill in the following fields manually.") . '</p>'),
+                            '#markup' => Markup::create('<p class="alert alert-warning">' . $this->t("You don't have any roles in {$this->omniaSettings->getOrganisationName()}. Please fill in the following fields manually.") . '</p>'),
                         ];
                         break;
                     case 'Success':
@@ -560,7 +584,7 @@ class ApplicationForm extends AuthenticatedFormBase
         ];
 
         $svg = '';
-        $path = $this->moduleHandler->getModule('esn_membership_manager')->getPath() . '/assets/images/logo.svg';
+        $path = $this->module->getPath() . '/assets/images/logo.svg';
         if (file_exists($path)) {
             $svg = file_get_contents($path);
         }
@@ -757,11 +781,7 @@ class ApplicationForm extends AuthenticatedFormBase
 
         $savedApplication = null;
         try {
-            /** @var ApplicationStorage $storage */
-            $storage = $this->entityTypeManager->getStorage('membership_application');
-
-            /** @var ApplicationInterface $savedApplication */
-            $savedApplication = $storage->create($fields);
+            $savedApplication = $this->applicationStorage->create($fields);
 
             $violations = $savedApplication->validate();
             if ($violations->count() > 0) {
@@ -800,12 +820,9 @@ class ApplicationForm extends AuthenticatedFormBase
         }
 
         if (!$hasESNcard && $isVerifiedStatus && $isVerifiedID) {
-            if ($this->actionManager->hasDefinition('esn_membership_manager_approve')) {
-                /** @var ActionBase $action */
-                /** @noinspection PhpUnhandledExceptionInspection */
-                $action = $this->actionManager->createInstance('esn_membership_manager_approve');
-
-                $action->execute($savedApplication);
+            try {
+                $this->approveApplication->execute($savedApplication);
+            } catch (Exception) {
             }
         } else {
             $emailParams = ['name' => trim($isVerifiedID ? $savedData['name'] : $values['name'])];

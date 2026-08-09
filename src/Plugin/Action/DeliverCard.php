@@ -42,7 +42,6 @@ class DeliverCard extends ActionBase implements ContainerFactoryPluginInterface
         array              $configuration, $plugin_id, $plugin_definition
     ): self
     {
-
         /** @var LoggerChannelFactoryInterface $loggerFactory */
         $loggerFactory = $container->get('logger.factory');
 
@@ -50,7 +49,7 @@ class DeliverCard extends ActionBase implements ContainerFactoryPluginInterface
             $configuration,
             $plugin_id,
             $plugin_definition,
-            $loggerFactory
+            $loggerFactory,
         );
     }
 

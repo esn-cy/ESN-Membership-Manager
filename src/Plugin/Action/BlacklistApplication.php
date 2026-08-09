@@ -66,7 +66,7 @@ class BlacklistApplication extends ActionBase implements ContainerFactoryPluginI
             $plugin_definition,
             $emailManager,
             $loggerFactory,
-            $stripeService
+            $stripeService,
         );
     }
 

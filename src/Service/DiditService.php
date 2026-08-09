@@ -14,7 +14,7 @@ use GuzzleHttp\Exception\GuzzleException;
 
 class DiditService
 {
-    protected ConfigFactoryInterface $configFactory;
+    protected MembershipSettings $membershipSettings;
     protected Connection $database;
     protected ClientInterface $httpClient;
     protected LoggerChannelInterface $logger;
@@ -26,7 +26,7 @@ class DiditService
         LoggerChannelFactoryInterface $loggerFactory
     )
     {
-        $this->configFactory = $configFactory;
+        $this->membershipSettings = new MembershipSettings($configFactory);
         $this->database = $database;
         $this->httpClient = $httpClient;
         $this->logger = $loggerFactory->get('esn_membership_manager');
@@ -34,10 +34,8 @@ class DiditService
 
     public function createVerificationSession(string $email): ?string
     {
-        $membershipSettings = new MembershipSettings($this->configFactory);
-
-        $apiKey = $membershipSettings->getDiditApiKey();
-        $workflowID = $membershipSettings->getDiditWorkflowID();
+        $apiKey = $this->membershipSettings->getDiditApiKey();
+        $workflowID = $this->membershipSettings->getDiditWorkflowID();
         if (empty($apiKey) || empty($workflowID)) {
             $this->logger->error('Didit was not configured.');
             return null;
@@ -86,12 +84,10 @@ class DiditService
 
     public function getSession(string $sessionID): ?array
     {
-        $membershipSettings = new MembershipSettings($this->configFactory);
-
         try {
             $response = $this->httpClient->request('GET', "https://verification.didit.me/v3/session/$sessionID/decision", [
                 'headers' => [
-                    'x-api-key' => $membershipSettings->getDiditApiKey(),
+                    'x-api-key' => $this->membershipSettings->getDiditApiKey(),
                 ],
             ]);
         } catch (GuzzleException $e) {
@@ -108,12 +104,10 @@ class DiditService
 
     public function deleteSession(string $sessionID): bool
     {
-        $membershipSettings = new MembershipSettings($this->configFactory);
-
         try {
             $response = $this->httpClient->request('DELETE', "https://verification.didit.me/v3/session/$sessionID/delete", [
                 'headers' => [
-                    'x-api-key' => $membershipSettings->getDiditApiKey(),
+                    'x-api-key' => $this->membershipSettings->getDiditApiKey(),
                 ],
             ]);
         } catch (GuzzleException $e) {
@@ -130,12 +124,10 @@ class DiditService
 
     public function getPDF(string $sessionID): ?string
     {
-        $membershipSettings = new MembershipSettings($this->configFactory);
-
         try {
             $response = $this->httpClient->request('GET', "https://verification.didit.me/v3/session/$sessionID/generate-pdf", [
                 'headers' => [
-                    'x-api-key' => $membershipSettings->getDiditApiKey(),
+                    'x-api-key' => $this->membershipSettings->getDiditApiKey(),
                 ],
             ]);
         } catch (GuzzleException $e) {

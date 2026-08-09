@@ -9,6 +9,13 @@ use Drupal\omnia\Entity\EnumBackedEntityStorage;
 
 class ApplicationStorage extends EnumBackedEntityStorage
 {
+    public function create(array $values = []): ?ApplicationInterface
+    {
+        $entity = parent::create($values);
+
+        return $entity instanceof ApplicationInterface ? $entity : null;
+    }
+
     public function load($id): ?ApplicationInterface
     {
         $entity = parent::load($id);
@@ -88,6 +95,9 @@ class ApplicationStorage extends EnumBackedEntityStorage
             ->execute();
     }
 
+    /**
+     * @return ApplicationInterface[]
+     */
     public function search(string $search, ?string $status, ?string $esncard, ?string $pass, ?string $sortOrder, ?string $sortBy): array
     {
         $query = $this->getQuery()
@@ -175,6 +185,9 @@ class ApplicationStorage extends EnumBackedEntityStorage
         return $applications;
     }
 
+    /**
+     * @return ApplicationInterface[]
+     */
     public function getUnproducedESNcards(): array
     {
         $applicationIDs = $this->getQuery()
@@ -198,6 +211,9 @@ class ApplicationStorage extends EnumBackedEntityStorage
         return $applications;
     }
 
+    /**
+     * @return ApplicationInterface[]
+     */
     public function getSelectedESNcards(array $ids): array
     {
         $applicationIDs = $this->getQuery()
@@ -221,6 +237,9 @@ class ApplicationStorage extends EnumBackedEntityStorage
         return $applications;
     }
 
+    /**
+     * @return ApplicationInterface[]
+     */
     public function getBacklogged(): array
     {
         $applicationIDs = $this->getQuery()
@@ -243,6 +262,9 @@ class ApplicationStorage extends EnumBackedEntityStorage
         return $applications;
     }
 
+    /**
+     * @return ApplicationInterface[]
+     */
     public function get2WeekDeletions(): array
     {
         $twoWeeksAgo = (new DrupalDateTime())->sub(new DateInterval('P14D'))->format('Y-m-d\TH:i:s');
@@ -278,6 +300,9 @@ class ApplicationStorage extends EnumBackedEntityStorage
         return $applications;
     }
 
+    /**
+     * @return ApplicationInterface[]
+     */
     public function get1YearDeletions(): array
     {
         $oneYearAgo = (new DrupalDateTime())->sub(new DateInterval('P1Y'))->format('Y-m-d\TH:i:s');

@@ -14,11 +14,11 @@ use Psr\Http\Message\ResponseInterface;
 
 class WeeztixService
 {
-    protected ConfigFactoryInterface $configFactory;
+    protected MembershipSettings $membershipSettings;
     protected ClientInterface $httpClient;
     protected StateInterface $state;
-    protected LoggerChannelInterface $logger;
     protected TimeInterface $time;
+    protected LoggerChannelInterface $logger;
 
     public function __construct(
         ConfigFactoryInterface        $configFactory,
@@ -28,7 +28,7 @@ class WeeztixService
         TimeInterface                 $time
     )
     {
-        $this->configFactory = $configFactory;
+        $this->membershipSettings = new MembershipSettings($configFactory);
         $this->httpClient = $httpClient;
         $this->state = $state;
         $this->logger = $loggerFactory->get('esn_membership_manager');
@@ -37,8 +37,7 @@ class WeeztixService
 
     public function getAuthorizationUrl(string $redirectURI, string $stateToken): ?string
     {
-        $membershipSettings = new MembershipSettings($this->configFactory);
-        $clientID = $membershipSettings->getWeeztixClientID();
+        $clientID = $this->membershipSettings->getWeeztixClientID();
 
         if (empty($clientID)) {
             return null;
@@ -56,11 +55,10 @@ class WeeztixService
 
     public function addCoupon(string $type, string $couponCode, array $additionalData = []): bool
     {
-        $membershipSettings = new MembershipSettings($this->configFactory);
         if ($type == 'pass') {
-            $listID = $membershipSettings->getWeeztixPassCouponListID();
+            $listID = $this->membershipSettings->getWeeztixPassCouponListID();
         } elseif ($type == 'card') {
-            $listID = $membershipSettings->getWeeztixCardCouponListID();
+            $listID = $this->membershipSettings->getWeeztixCardCouponListID();
         } else {
             $this->logger->error('Type parameter is invalid.');
             return false;
@@ -130,15 +128,14 @@ class WeeztixService
 
     protected function refreshAccessToken(): ?string
     {
-        $membershipSettings = new MembershipSettings($this->configFactory);
         $refreshToken = $this->state->get('esn_membership_manager.weeztix_refresh_token');
 
         try {
             $response = $this->httpClient->request('POST', 'https://auth.weeztix.com/tokens', [
                 'form_params' => [
                     'grant_type' => 'refresh_token',
-                    'client_id' => $membershipSettings->getWeeztixClientID(),
-                    'client_secret' => $membershipSettings->getWeeztixClientSecret(),
+                    'client_id' => $this->membershipSettings->getWeeztixClientID(),
+                    'client_secret' => $this->membershipSettings->getWeeztixClientSecret(),
                     'refresh_token' => $refreshToken
                 ],
             ]);
@@ -176,9 +173,8 @@ class WeeztixService
 
     public function authorizeWithCode(string $authCode, string $redirectURI): bool
     {
-        $membershipSettings = new MembershipSettings($this->configFactory);
-        $clientID = $membershipSettings->getWeeztixClientID();
-        $clientSecret = $membershipSettings->getWeeztixClientSecret();
+        $clientID = $this->membershipSettings->getWeeztixClientID();
+        $clientSecret = $this->membershipSettings->getWeeztixClientSecret();
 
         if (!$clientID || !$clientSecret) {
             $this->logger->error('Weeztix Authentication configuration is missing. Please check module settings.');

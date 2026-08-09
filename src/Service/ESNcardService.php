@@ -2,6 +2,8 @@
 
 namespace Drupal\esn_membership_manager\Service;
 
+use Drupal\Component\Plugin\Exception\InvalidPluginDefinitionException;
+use Drupal\Component\Plugin\Exception\PluginNotFoundException;
 use Drupal\Core\Config\ConfigFactoryInterface;
 use Drupal\Core\Database\Connection;
 use Drupal\Core\Entity\EntityTypeManagerInterface;
@@ -16,15 +18,19 @@ use Exception;
 
 class ESNcardService
 {
-    protected ConfigFactoryInterface $configFactory;
+    protected MembershipSettings $membershipSettings;
     protected Connection $database;
-    protected EntityTypeManagerInterface $entityTypeManager;
+    protected ApplicationStorage $applicationStorage;
     protected LoggerChannelInterface $logger;
     protected StripeService $stripeService;
     protected EmailManager $emailManager;
     protected WeeztixService $weeztixService;
     protected GoogleService $googleService;
 
+    /**
+     * @throws InvalidPluginDefinitionException
+     * @throws PluginNotFoundException
+     */
     public function __construct(
         ConfigFactoryInterface        $configFactory,
         Connection                    $database,
@@ -33,12 +39,15 @@ class ESNcardService
         StripeService                 $stripeService,
         EmailManager                  $emailManager,
         WeeztixService                $weeztixService,
-        GoogleService                 $googleService
+        GoogleService                 $googleService,
     )
     {
-        $this->configFactory = $configFactory;
+        /** @var ApplicationStorage $applicationStorage */
+        $applicationStorage = $entityTypeManager->getStorage('membership_application');
+
+        $this->membershipSettings = new MembershipSettings($configFactory);
         $this->database = $database;
-        $this->entityTypeManager = $entityTypeManager;
+        $this->applicationStorage = $applicationStorage;
         $this->logger = $loggerFactory->get('esn_membership_manager');
         $this->stripeService = $stripeService;
         $this->emailManager = $emailManager;
@@ -99,15 +108,7 @@ class ESNcardService
             }
         }
 
-        try {
-            /** @var ApplicationStorage $storage */
-            $storage = $this->entityTypeManager->getStorage('membership_application');
-
-            /** @var ApplicationInterface[] $applications */
-            $applications = $storage->getBacklogged();
-        } catch (Exception $e) {
-            $this->logger->warning('Unable to check backlogged ESNcards: @message', ['@message' => $e->getMessage()]);
-        }
+        $applications = $this->applicationStorage->getBacklogged();
 
         if (!empty($applications)) {
             $insertedCount = count($cardNumbers) - count($issues);
@@ -153,8 +154,6 @@ class ESNcardService
      */
     public function assignESNcardNumber(ApplicationInterface $application, bool $isManual): string
     {
-        $membershipSettings = new MembershipSettings($this->configFactory);
-
         try {
             $query = $this->database->select('esn_membership_manager_cards', 'e')
                 ->fields('e', ['number'])
@@ -171,13 +170,11 @@ class ESNcardService
         }
 
         if (empty($nextNumber)) {
-            /** @var ApplicationStorage $storage */
-            $storage = $this->entityTypeManager->getStorage('membership_application');
 
-            $alreadyBacklogged = $storage->countBacklogged() > 0;
+            $alreadyBacklogged = $this->applicationStorage->countBacklogged() > 0;
 
             if (!$alreadyBacklogged) {
-                $this->emailManager->sendEmail($membershipSettings->getAdminEmailAddress(), 'admin_backlogged', []);
+                $this->emailManager->sendEmail($this->membershipSettings->getAdminEmailAddress(), 'admin_backlogged', []);
             }
 
             $this->logger->warning('No available ESNcard numbers left to assign.');
@@ -215,13 +212,11 @@ class ESNcardService
             return;
         }
 
-        $membershipSettings = new MembershipSettings($this->configFactory);
-
-        if ($membershipSettings->getWeeztixSwitch() && !empty($membershipSettings->getWeeztixCardCouponListID())) {
+        if ($this->membershipSettings->getWeeztixSwitch() && !empty($this->membershipSettings->getWeeztixCardCouponListID())) {
             $this->weeztixService->addCoupon('card', $application->getValue(ApplicationField::ESNcardNumber), ['applies_to_count' => 1, 'usage_count' => 5]);
         }
 
-        if ($membershipSettings->getGoogleSheetsSwitch()) {
+        if ($this->membershipSettings->getGoogleSheetsSwitch()) {
             if (!$isManual) {
                 $paymentMethod = 'Stripe';
 
@@ -255,7 +250,7 @@ class ESNcardService
             );
         }
 
-        if ($membershipSettings->getGoogleWalletSwitch()) {
+        if ($this->membershipSettings->getGoogleWalletSwitch()) {
             $googleWalletLink = Url::fromRoute(
                 'esn_membership_manager.add_to_google_wallet',
                 ['identifier' => $application->getValue(ApplicationField::ESNcardNumber)],
@@ -263,7 +258,7 @@ class ESNcardService
             )->toString();
         }
 
-        if ($membershipSettings->getAppleWalletSwitch()) {
+        if ($this->membershipSettings->getAppleWalletSwitch()) {
             $appleWalletLink = Url::fromRoute(
                 'esn_membership_manager.download_apple_pass',
                 ['identifier' => $application->getValue(ApplicationField::ESNcardNumber)],

@@ -24,7 +24,7 @@ class WeeztixAuthController extends ControllerBase
         $weeztixService = $container->get('esn_membership_manager.weeztix_service');
 
         return new static(
-            $weeztixService
+            $weeztixService,
         );
     }
 

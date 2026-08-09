@@ -31,7 +31,7 @@ use Symfony\Component\DependencyInjection\ContainerInterface;
  */
 class ApproveGuestPass extends ActionBase implements ContainerFactoryPluginInterface
 {
-    protected ConfigFactoryInterface $configFactory;
+    protected MembershipSettings $membershipSettings;
     protected EmailManager $emailManager;
     protected LoggerChannelInterface $logger;
 
@@ -43,7 +43,7 @@ class ApproveGuestPass extends ActionBase implements ContainerFactoryPluginInter
     )
     {
         parent::__construct($configuration, $plugin_id, $plugin_definition);
-        $this->configFactory = $configFactory;
+        $this->membershipSettings = new MembershipSettings($configFactory);
         $this->emailManager = $emailManager;
         $this->logger = $loggerFactory->get('esn_membership_manager');
     }
@@ -68,7 +68,7 @@ class ApproveGuestPass extends ActionBase implements ContainerFactoryPluginInter
             $plugin_definition,
             $configFactory,
             $emailManager,
-            $loggerFactory
+            $loggerFactory,
         );
     }
 
@@ -82,8 +82,6 @@ class ApproveGuestPass extends ActionBase implements ContainerFactoryPluginInter
             return;
         }
 
-        $membershipSettings = new MembershipSettings($this->configFactory);
-
         $token = 'GUEST' . substr(strtoupper(md5(uniqid(rand(), true))), 0, 27);
 
         $guestPass
@@ -93,7 +91,7 @@ class ApproveGuestPass extends ActionBase implements ContainerFactoryPluginInter
         try {
             $guestPass->save();
 
-            if ($membershipSettings->getGoogleWalletSwitch()) {
+            if ($this->membershipSettings->getGoogleWalletSwitch()) {
                 $googleWalletLink = Url::fromRoute(
                     'esn_membership_manager.add_to_google_wallet',
                     ['identifier' => $token],
@@ -101,7 +99,7 @@ class ApproveGuestPass extends ActionBase implements ContainerFactoryPluginInter
                 )->toString();
             }
 
-            if ($membershipSettings->getAppleWalletSwitch()) {
+            if ($this->membershipSettings->getAppleWalletSwitch()) {
                 $appleWalletLink = Url::fromRoute(
                     'esn_membership_manager.download_apple_pass',
                     ['identifier' => $token],

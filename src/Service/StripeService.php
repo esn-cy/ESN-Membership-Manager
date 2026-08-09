@@ -13,12 +13,15 @@ use Symfony\Component\HttpFoundation\Request;
 
 class StripeService extends StripeServiceBase
 {
+    protected MembershipSettings $membershipSettings;
+
     public function __construct(
         ConfigFactoryInterface        $configFactory,
         LoggerChannelFactoryInterface $loggerFactory
     )
     {
         parent::__construct($configFactory, $loggerFactory);
+        $this->membershipSettings = new MembershipSettings($configFactory);
         $this->logger = $loggerFactory->get('esn_membership_manager');
     }
 
@@ -59,8 +62,7 @@ class StripeService extends StripeServiceBase
      */
     public function createApplicationWebhookEvent(Request $request): ?Event
     {
-        $membershipSettings = new MembershipSettings($this->configFactory);
-        $webhookSecret = $membershipSettings->getStripeWebhookSecret();
+        $webhookSecret = $this->membershipSettings->getStripeWebhookSecret();
         if (empty($webhookSecret)) {
             $this->logger->error('Stripe Webhook Key not set in the module configuration.');
             throw new Exception('Stripe Webhook Key not set in the module configuration.');
@@ -71,16 +73,14 @@ class StripeService extends StripeServiceBase
 
     protected function getPriceIDs(bool $isESNer): array
     {
-        $membershipSettings = new MembershipSettings($this->configFactory);
-
-        $esnCardPriceID = $membershipSettings->getESNcardPriceID($isESNer);
+        $esnCardPriceID = $this->membershipSettings->getESNcardPriceID($isESNer);
         if (empty($esnCardPriceID)) {
-            $esnCardPriceID = $membershipSettings->getESNcardPriceID(false);
+            $esnCardPriceID = $this->membershipSettings->getESNcardPriceID(false);
         }
 
-        $processingFeePriceID = $membershipSettings->getProcessingPriceID($isESNer);
+        $processingFeePriceID = $this->membershipSettings->getProcessingPriceID($isESNer);
         if (empty($processingFeePriceID)) {
-            $processingFeePriceID = $membershipSettings->getProcessingPriceID(false);
+            $processingFeePriceID = $this->membershipSettings->getProcessingPriceID(false);
         }
 
         return ['esncard' => $esnCardPriceID, 'processing' => $processingFeePriceID];

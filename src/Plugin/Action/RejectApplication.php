@@ -47,7 +47,6 @@ class RejectApplication extends ActionBase implements ContainerFactoryPluginInte
         array              $configuration, $plugin_id, $plugin_definition
     ): self
     {
-
         /** @var EmailManager $emailManager */
         $emailManager = $container->get('esn_membership_manager.email_manager');
 
@@ -59,7 +58,7 @@ class RejectApplication extends ActionBase implements ContainerFactoryPluginInte
             $plugin_id,
             $plugin_definition,
             $emailManager,
-            $loggerFactory
+            $loggerFactory,
         );
     }
 

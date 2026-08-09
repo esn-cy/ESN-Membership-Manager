@@ -2,6 +2,8 @@
 
 namespace Drupal\esn_membership_manager\Form;
 
+use Drupal\Component\Plugin\Exception\InvalidPluginDefinitionException;
+use Drupal\Component\Plugin\Exception\PluginNotFoundException;
 use Drupal\Component\Render\MarkupInterface;
 use Drupal\Core\Database\Connection;
 use Drupal\Core\Datetime\DrupalDateTime;
@@ -21,7 +23,7 @@ use Symfony\Component\DependencyInjection\ContainerInterface;
 abstract class AuthenticatedFormBase extends FormBase
 {
     protected Connection $database;
-    protected EntityTypeManagerInterface $entityTypeManager;
+    protected ApplicationStorage $applicationStorage;
     protected ClientInterface $httpClient;
     protected LoggerChannelInterface $logger;
 
@@ -29,6 +31,10 @@ abstract class AuthenticatedFormBase extends FormBase
     protected ?string $authenticatedEmail = null;
     protected bool $isDialogAdded = false;
 
+    /**
+     * @throws InvalidPluginDefinitionException
+     * @throws PluginNotFoundException
+     */
     public function __construct(
         Connection                    $database,
         EntityTypeManagerInterface    $entityTypeManager,
@@ -36,12 +42,19 @@ abstract class AuthenticatedFormBase extends FormBase
         LoggerChannelFactoryInterface $loggerFactory,
     )
     {
+        /** @var ApplicationStorage $applicationStorage */
+        $applicationStorage = $entityTypeManager->getStorage('membership_application');
+
         $this->database = $database;
-        $this->entityTypeManager = $entityTypeManager;
+        $this->applicationStorage = $applicationStorage;
         $this->httpClient = $httpClient;
         $this->logger = $loggerFactory->get('esn_membership_manager');
     }
 
+    /**
+     * @throws InvalidPluginDefinitionException
+     * @throws PluginNotFoundException
+     */
     public static function create(ContainerInterface $container): self
     {
         /** @var Connection $database */
@@ -139,18 +152,7 @@ abstract class AuthenticatedFormBase extends FormBase
     {
         $email = trim($form_state->getValue('email'));
 
-        try {
-            /** @var ApplicationStorage $storage */
-            $storage = $this->entityTypeManager->getStorage('membership_application');
-
-            $emailExists = $storage->countByEmail($email) > 0;
-        } catch (Exception $e) {
-            $this->logger->error('Unable to check for duplicate emails. @error', ['@error' => $e->getMessage()]);
-            $form_state->set('api_message', 'Unable to complete operation. Please try again later');
-            $form_state->set('api_message_type', 'error');
-            $form_state->setRebuild();
-            return;
-        }
+        $emailExists = $this->applicationStorage->countByEmail($email) > 0;
 
         if ($this->getAuthenticationType() == 'register' && $emailExists) {
             $form_state->set('api_message', $this->t('You have already made an application with this email address.'));
@@ -373,21 +375,28 @@ abstract class AuthenticatedFormBase extends FormBase
     }
 
     /**
+     * Helper method to load the current user's membership application.
+     * @return ApplicationInterface|null
+     * The application entity, or null if not found/error.
      * @throws Exception
      */
-    protected function getApplication(): ApplicationInterface
+    protected function getApplication(bool $throw = false): ?ApplicationInterface
     {
-        /** @var ApplicationStorage $storage */
-        try {
-            $storage = $this->entityTypeManager->getStorage('membership_application');
-        } catch (Exception $e) {
-            $this->logger->error('Unable to instantiate application storage. ' . $e->getMessage());
-            throw new Exception('Unable to instantiate application storage.', 500);
+        if (empty($this->authenticatedEmail)) {
+            $this->messenger()->addError($this->t('Could not verify your session. Please log in again.'));
+            if ($throw) {
+                throw new Exception('Not authenticated.', 401);
+            }
+            return null;
         }
 
-        $application = $storage->getByEmailAddress($this->authenticatedEmail);
+        $application = $this->applicationStorage->getByEmailAddress($this->authenticatedEmail);
         if (empty($application)) {
-            throw new Exception('Application not found.', 404);
+            $this->messenger()->addError($this->t('No active application found for this email.'));
+            if ($throw) {
+                throw new Exception('Application not found.', 404);
+            }
+            return null;
         }
 
         return $application;

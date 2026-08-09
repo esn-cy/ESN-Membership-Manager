@@ -36,7 +36,7 @@ use Symfony\Component\DependencyInjection\ContainerInterface;
  */
 class ApproveApplication extends ActionBase implements ContainerFactoryPluginInterface
 {
-    protected ConfigFactoryInterface $configFactory;
+    protected MembershipSettings $membershipSettings;
     protected Connection $database;
     protected StripeService $stripeService;
     protected EmailManager $emailManager;
@@ -49,12 +49,12 @@ class ApproveApplication extends ActionBase implements ContainerFactoryPluginInt
         Connection                    $database,
         StripeService                 $stripeService,
         EmailManager                  $emailManager,
-        WeeztixService $weeztixService,
+        WeeztixService                $weeztixService,
         LoggerChannelFactoryInterface $loggerFactory
     )
     {
         parent::__construct($configuration, $plugin_id, $plugin_definition);
-        $this->configFactory = $configFactory;
+        $this->membershipSettings = new MembershipSettings($configFactory);
         $this->database = $database;
         $this->stripeService = $stripeService;
         $this->emailManager = $emailManager;
@@ -94,7 +94,7 @@ class ApproveApplication extends ActionBase implements ContainerFactoryPluginInt
             $stripeService,
             $emailManager,
             $weeztixService,
-            $loggerFactory
+            $loggerFactory,
         );
     }
 
@@ -119,8 +119,6 @@ class ApproveApplication extends ActionBase implements ContainerFactoryPluginInt
             throw new Exception('This status cannot be applied.');
         }
         $application->clearPendingStatuses();
-
-        $membershipSettings = new MembershipSettings($this->configFactory);
 
         $token = strtoupper(md5(uniqid(rand(), true)));
 
@@ -177,7 +175,7 @@ class ApproveApplication extends ActionBase implements ContainerFactoryPluginInt
         try {
             $application->save();
 
-            if ($membershipSettings->getGoogleWalletSwitch()) {
+            if ($this->membershipSettings->getGoogleWalletSwitch()) {
                 $googleWalletLink = Url::fromRoute(
                     'esn_membership_manager.add_to_google_wallet',
                     ['identifier' => $token],
@@ -185,7 +183,7 @@ class ApproveApplication extends ActionBase implements ContainerFactoryPluginInt
                 )->toString();
             }
 
-            if ($membershipSettings->getAppleWalletSwitch()) {
+            if ($this->membershipSettings->getAppleWalletSwitch()) {
                 $appleWalletLink = Url::fromRoute(
                     'esn_membership_manager.download_apple_pass',
                     ['identifier' => $token],
@@ -193,7 +191,7 @@ class ApproveApplication extends ActionBase implements ContainerFactoryPluginInt
                 )->toString();
             }
 
-            if ($membershipSettings->getWeeztixSwitch() && !empty($membershipSettings->getWeeztixPassCouponListID())) {
+            if ($this->membershipSettings->getWeeztixSwitch() && !empty($this->membershipSettings->getWeeztixPassCouponListID())) {
                 $this->weeztixService->addCoupon('pass', $token, ['applies_to_count' => 1, 'usage_count' => 5]);
             }
 

@@ -2,9 +2,12 @@
 
 namespace Drupal\esn_membership_manager\Controller;
 
-use Drupal\Core\Action\ActionBase;
+use Drupal\Component\Plugin\Exception\InvalidPluginDefinitionException;
+use Drupal\Component\Plugin\Exception\PluginNotFoundException;
+use Drupal\Core\Action\ActionInterface;
 use Drupal\Core\Action\ActionManager;
 use Drupal\Core\Controller\ControllerBase;
+use Drupal\Core\Entity\EntityTypeManagerInterface;
 use Drupal\Core\Logger\LoggerChannelFactoryInterface;
 use Drupal\Core\Logger\LoggerChannelInterface;
 use Drupal\esn_membership_manager\Entity\Application\ApplicationField;
@@ -18,28 +21,46 @@ use Symfony\Component\HttpFoundation\Request;
 class StatusController extends ControllerBase
 {
     protected ActionManager $actionManager;
+    protected ApplicationStorage $applicationStorage;
     protected LoggerChannelInterface $logger;
 
+    /**
+     * @throws InvalidPluginDefinitionException
+     * @throws PluginNotFoundException
+     */
     public function __construct(
         ActionManager                 $actionManager,
+        EntityTypeManagerInterface    $entityTypeManager,
         LoggerChannelFactoryInterface $loggerFactory
     )
     {
+        /** @var ApplicationStorage $applicationStorage */
+        $applicationStorage = $entityTypeManager->getStorage('membership_application');
+
         $this->actionManager = $actionManager;
+        $this->applicationStorage = $applicationStorage;
         $this->logger = $loggerFactory->get('esn_membership_manager');
     }
 
+    /**
+     * @throws InvalidPluginDefinitionException
+     * @throws PluginNotFoundException
+     */
     public static function create(ContainerInterface $container): self
     {
         /** @var ActionManager $actionManager */
         $actionManager = $container->get('plugin.manager.action');
+
+        /** @var EntityTypeManagerInterface $entityTypeManager */
+        $entityTypeManager = $container->get('entity_type.manager');
 
         /** @var LoggerChannelFactoryInterface $loggerFactory */
         $loggerFactory = $container->get('logger.factory');
 
         return new static(
             $actionManager,
-            $loggerFactory
+            $entityTypeManager,
+            $loggerFactory,
         );
     }
 
@@ -119,31 +140,17 @@ class StatusController extends ControllerBase
                 return new JsonResponse(['status' => 'error', 'message' => 'Action not allowed with this kind of identifier.'], 400);
             }
 
-            try {
-                /** @var ApplicationStorage $storage */
-                $storage = $this->entityTypeManager()->getStorage('membership_application');
-
-                if ($isESNcard) {
-                    $application = $storage->getByESNcard($identifier);
-                } elseif ($isPass) {
-                    $application = $storage->getByPassToken($identifier);
-                }
-            } catch (Exception) {
-                return new JsonResponse(['status' => 'error', 'message' => 'There was a problem getting the card.'], 500);
+            if ($isESNcard) {
+                $application = $this->applicationStorage->getByESNcard($identifier);
+            } elseif ($isPass) {
+                $application = $this->applicationStorage->getByPassToken($identifier);
             }
         } else {
             if (!is_numeric($applicationID)) {
                 return new JsonResponse(['status' => 'error', 'message' => 'An invalid ID was provided.'], 400);
             }
 
-            try {
-                /** @var ApplicationStorage $storage */
-                $storage = $this->entityTypeManager()->getStorage('membership_application');
-
-                $application = $storage->load($applicationID);
-            } catch (Exception) {
-                return new JsonResponse(['status' => 'error', 'message' => 'There was a problem getting the card.'], 500);
-            }
+            $application = $this->applicationStorage->load($applicationID);
         }
 
         if (empty($application)) {
@@ -159,7 +166,7 @@ class StatusController extends ControllerBase
 
         try {
             if ($this->actionManager->hasDefinition($selectedAction['action'])) {
-                /** @var ActionBase $action */
+                /** @var ActionInterface $action */
                 $action = $this->actionManager->createInstance($selectedAction['action']);
 
                 $access = $action->access(NULL, $this->currentUser(), TRUE);

@@ -27,8 +27,8 @@ class ViewGuestPassesForm extends FormBase
 
     /**
      * @throws InvalidPluginDefinitionException
-     * @throws PluginNotFoundException
      * @throws PluginException
+     * @throws PluginNotFoundException
      */
     public function __construct(
         EntityTypeManagerInterface    $entityTypeManager,
@@ -48,8 +48,8 @@ class ViewGuestPassesForm extends FormBase
     }
 
     /**
-     * @throws PluginException
      * @throws InvalidPluginDefinitionException
+     * @throws PluginException
      * @throws PluginNotFoundException
      */
     public static function create(ContainerInterface $container): self
@@ -175,6 +175,7 @@ class ViewGuestPassesForm extends FormBase
 
         foreach ($guestPasses as $guestPass) {
             $referrer = $guestPass->getReferer();
+            /** @noinspection PhpUnhandledExceptionInspection */
             $status = $guestPass->getApprovalStatus();
 
             $form['table'][$guestPass->id()] = [

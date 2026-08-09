@@ -31,7 +31,7 @@ class FileAccessController extends FileAccessControllerBase
         $loggerFactory = $container->get('logger.factory');
 
         return new static(
-            $loggerFactory
+            $loggerFactory,
         );
     }
 

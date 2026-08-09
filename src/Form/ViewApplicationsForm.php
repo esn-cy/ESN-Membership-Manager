@@ -2,6 +2,8 @@
 
 namespace Drupal\esn_membership_manager\Form;
 
+use Drupal\Component\Plugin\Exception\InvalidPluginDefinitionException;
+use Drupal\Component\Plugin\Exception\PluginNotFoundException;
 use Drupal\Component\Serialization\Json;
 use Drupal\Core\Action\ActionBase;
 use Drupal\Core\Action\ActionManager;
@@ -22,11 +24,15 @@ use Symfony\Component\HttpFoundation\JsonResponse;
 
 class ViewApplicationsForm extends FormBase
 {
-    protected EntityTypeManagerInterface $entityTypeManager;
+    protected ApplicationStorage $applicationStorage;
     protected ActionManager $actionManager;
     protected FileService $fileService;
     protected LoggerChannelInterface $logger;
 
+    /**
+     * @throws InvalidPluginDefinitionException
+     * @throws PluginNotFoundException
+     */
     public function __construct(
         EntityTypeManagerInterface    $entityTypeManager,
         ActionManager                 $actionManager,
@@ -34,12 +40,19 @@ class ViewApplicationsForm extends FormBase
         LoggerChannelFactoryInterface $loggerFactory
     )
     {
-        $this->entityTypeManager = $entityTypeManager;
+        /** @var ApplicationStorage $applicationStorage */
+        $applicationStorage = $entityTypeManager->getStorage('membership_application');
+
+        $this->applicationStorage = $applicationStorage;
         $this->actionManager = $actionManager;
         $this->fileService = $fileService;
         $this->logger = $loggerFactory->get('esn_membership_manager');
     }
 
+    /**
+     * @throws InvalidPluginDefinitionException
+     * @throws PluginNotFoundException
+     */
     public static function create(ContainerInterface $container): self
     {
         /** @var EntityTypeManagerInterface $entityTypeManager */
@@ -229,15 +242,7 @@ class ViewApplicationsForm extends FormBase
             'operations' => $this->t('Operations'),
         ];
 
-        try {
-            /** @var ApplicationStorage $storage */
-            $storage = $this->entityTypeManager->getStorage('membership_application');
-
-            $applications = $storage->search($search, $status, $esncard, $pass, $sortOrder, $sortBy);
-        } catch (Exception $e) {
-            $this->messenger()->addError('Unable to search applications. ' . $e->getMessage());
-            return $form;
-        }
+        $applications = $this->applicationStorage->search($search, $status, $esncard, $pass, $sortOrder, $sortBy);
 
         $rows = [];
         foreach ($applications as $application) {
@@ -303,6 +308,7 @@ class ViewApplicationsForm extends FormBase
         ];
     }
 
+    /** @noinspection PhpUnusedParameterInspection */
     public function filterFormSubmit(array &$form, FormStateInterface $form_state): void
     {
         $values = $form_state->getValues();
@@ -316,6 +322,7 @@ class ViewApplicationsForm extends FormBase
         $form_state->setRedirect('esn_membership_manager.view_applications', [], ['query' => $queryParams]);
     }
 
+    /** @noinspection PhpUnusedParameterInspection */
     public function filterFormReset(array &$form, FormStateInterface $form_state): void
     {
         $form_state->setRedirect('esn_membership_manager.view_applications', [], ['query' => []]);
@@ -344,16 +351,13 @@ class ViewApplicationsForm extends FormBase
 
         $currentID = '';
         try {
-            /** @var ApplicationStorage $storage */
-            $storage = $this->entityTypeManager->getStorage('membership_application');
-
             if ($this->actionManager->hasDefinition($actionID)) {
                 /** @var ActionBase $action */
                 $action = $this->actionManager->createInstance($actionID);
 
                 foreach ($selectedIDs as $id => $value) {
                     $currentID = $id;
-                    $application = $storage->load($id);
+                    $application = $this->applicationStorage->load($id);
                     if ($action->access($id, $this->currentUser())) {
                         $action->execute($application);
                     }

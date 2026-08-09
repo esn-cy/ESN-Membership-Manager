@@ -47,7 +47,7 @@ class DiditController extends ControllerBase
         return new static(
             $database,
             $diditService,
-            $loggerFactory
+            $loggerFactory,
         );
     }
 

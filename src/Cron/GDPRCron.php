@@ -2,6 +2,8 @@
 
 namespace Drupal\esn_membership_manager\Cron;
 
+use Drupal\Component\Plugin\Exception\InvalidPluginDefinitionException;
+use Drupal\Component\Plugin\Exception\PluginNotFoundException;
 use Drupal\Core\Entity\EntityTypeManagerInterface;
 use Drupal\Core\Logger\LoggerChannelFactoryInterface;
 use Drupal\Core\Logger\LoggerChannelInterface;
@@ -14,21 +16,32 @@ use Symfony\Component\DependencyInjection\ContainerInterface;
 
 class GDPRCron
 {
-    protected EntityTypeManagerInterface $entityTypeManager;
+    protected ApplicationStorage $applicationStorage;
     protected FileService $fileService;
     protected LoggerChannelInterface $logger;
 
+    /**
+     * @throws InvalidPluginDefinitionException
+     * @throws PluginNotFoundException
+     */
     public function __construct(
         EntityTypeManagerInterface    $entityTypeManager,
         FileService                   $fileService,
         LoggerChannelFactoryInterface $loggerFactory
     )
     {
-        $this->entityTypeManager = $entityTypeManager;
+        /** @var ApplicationStorage $applicationStorage */
+        $applicationStorage = $entityTypeManager->getStorage('membership_application');
+
+        $this->applicationStorage = $applicationStorage;
         $this->fileService = $fileService;
         $this->logger = $loggerFactory->get('esn_membership_manager');
     }
 
+    /**
+     * @throws InvalidPluginDefinitionException
+     * @throws PluginNotFoundException
+     */
     public static function create(ContainerInterface $container): self
     {
         /** @var EntityTypeManagerInterface $entityTypeManager */
@@ -54,16 +67,8 @@ class GDPRCron
      */
     public function execute(): void
     {
-        try {
-            /** @var ApplicationStorage $storage */
-            $storage = $this->entityTypeManager->getStorage('membership_application');
-
-            $results2W = $storage->get2WeekDeletions();
-            $results1Y = $storage->get1YearDeletions();
-        } catch (Exception $e) {
-            $this->logger->error('Database Query Error: There was an issue fetching the applications. @message', ['@message' => $e->getMessage()]);
-            return;
-        }
+        $results2W = $this->applicationStorage->get2WeekDeletions();
+        $results1Y = $this->applicationStorage->get1YearDeletions();
 
         foreach ($results2W as $result) {
             $this->sensitiveFileDeletion($result);
@@ -101,7 +106,7 @@ class GDPRCron
     private function anonymization(ApplicationInterface $application): void
     {
         try {
-            $application::postDelete($this->entityTypeManager->getStorage('membership_application'), [$application]);
+            $application::postDelete($this->applicationStorage, [$application]);
 
             $application->setValue(ApplicationField::Name, 'Anonymized');
             $application->setValue(ApplicationField::Surname, 'Anonymized');

@@ -14,10 +14,11 @@ use Exception;
 
 class EmailManager
 {
-    protected ConfigFactoryInterface $configFactory;
-    protected LoggerChannelInterface $logger;
+    protected MembershipSettings $membershipSettings;
+    protected OmniaSettings $omniaSettings;
     protected MailManagerInterface $mailManager;
     protected RendererInterface $renderer;
+    protected LoggerChannelInterface $logger;
 
     public function __construct(
         ConfigFactoryInterface        $configFactory,
@@ -26,10 +27,11 @@ class EmailManager
         RendererInterface             $renderer
     )
     {
-        $this->configFactory = $configFactory;
-        $this->logger = $loggerFactory->get('esn_membership_manager');
+        $this->membershipSettings = new MembershipSettings($configFactory);
+        $this->omniaSettings = new OmniaSettings($configFactory);
         $this->mailManager = $mailManager;
         $this->renderer = $renderer;
+        $this->logger = $loggerFactory->get('esn_membership_manager');
     }
 
     /**
@@ -37,21 +39,18 @@ class EmailManager
      */
     public function sendEmail(string $to, string $key, array $data): void
     {
-        $omniaSettings = new OmniaSettings($this->configFactory);
-        $membershipSettings = new MembershipSettings($this->configFactory);
-
         if (str_starts_with($key, 'admin_')) {
-            $to = $membershipSettings->getAdminEmailAddress();
+            $to = $this->membershipSettings->getAdminEmailAddress();
         }
 
         $renderArray = [
             '#theme' => 'emm_' . $key,
 
             '#name' => $data['name'] ?? NULL,
-            '#scheme_name' => $membershipSettings->getPassName(),
-            '#guest_scheme_name' => $membershipSettings->getGuestPassName(),
-            '#logo_location' => $omniaSettings->getOrganisationLogoURL(),
-            '#custom_footer' => $membershipSettings->getEmailFooter(),
+            '#scheme_name' => $this->membershipSettings->getPassName(),
+            '#guest_scheme_name' => $this->membershipSettings->getGuestPassName(),
+            '#logo_location' => $this->omniaSettings->getOrganisationLogoURL(),
+            '#custom_footer' => $this->membershipSettings->getEmailFooter(),
 
             '#dashboard_url' => Url::fromRoute('esn_membership_manager.dashboard', [], ['absolute' => true]),
 
@@ -62,7 +61,7 @@ class EmailManager
             '#google_wallet_link' => $data['google_wallet_link'] ?? NULL,
             '#apple_wallet_link' => $data['apple_wallet_link'] ?? NULL,
 
-            '#organisation_name' => $omniaSettings->getOrganisationName(),
+            '#organisation_name' => $this->omniaSettings->getOrganisationName(),
             '#authentication_type' => $data['authentication_type'] ?? NULL,
             '#authentication_code' => $data['authentication_code'] ?? NULL,
 
@@ -85,8 +84,8 @@ class EmailManager
 
         $params = [
             'body' => $htmlBody,
-            'scheme_name' => $membershipSettings->getPassName(),
-            'organisation_name' => $omniaSettings->getOrganisationName()
+            'scheme_name' => $this->membershipSettings->getPassName(),
+            'organisation_name' => $this->omniaSettings->getOrganisationName()
         ];
 
         $this->mailManager->mail('esn_membership_manager', $key, $to, 'en', $params);

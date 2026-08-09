@@ -9,6 +9,13 @@ use Exception;
 
 class GuestPassStorage extends EnumBackedEntityStorage
 {
+    public function create(array $values = []): ?GuestPassInterface
+    {
+        $entity = parent::create($values);
+
+        return $entity instanceof GuestPassInterface ? $entity : null;
+    }
+
     public function load($id): ?GuestPassInterface
     {
         $entity = parent::load($id);
@@ -85,6 +92,7 @@ class GuestPassStorage extends EnumBackedEntityStorage
     public function getActiveByReferrerID(string|int $referrerID): array
     {
         return array_filter($this->getByReferrerID($referrerID), function (GuestPassInterface $guestPass) {
+            /** @noinspection PhpUnhandledExceptionInspection */
             $status = $guestPass->getApprovalStatus();
             return $status === 'Pending' || $status === 'Approved';
         });

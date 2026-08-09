@@ -3,16 +3,19 @@
 namespace Drupal\esn_membership_manager\Page;
 
 use Drupal\Core\Controller\ControllerBase;
+use Drupal\Core\Extension\Extension;
 use Drupal\Core\Extension\ModuleHandlerInterface;
 use Symfony\Component\DependencyInjection\ContainerInterface;
 
 class ScanPage extends ControllerBase
 {
-    protected $moduleHandler;
+    protected Extension $module;
 
-    public function __construct(ModuleHandlerInterface $moduleHandler)
+    public function __construct(
+        ModuleHandlerInterface $moduleHandler,
+    )
     {
-        $this->moduleHandler = $moduleHandler;
+        $this->module = $moduleHandler->getModule('esn_membership_manager');
     }
 
     public static function create(ContainerInterface $container): self
@@ -21,14 +24,13 @@ class ScanPage extends ControllerBase
         $moduleHandler = $container->get('module_handler');
 
         return new static(
-            $moduleHandler
+            $moduleHandler,
         );
     }
 
     public function scanPage(): array
     {
-        $modulePath = $this->moduleHandler->getModule('esn_membership_manager')->getPath();
-        $filePath = $modulePath . '/html/scanElement.html';
+        $filePath = $this->module->getPath() . '/html/scanElement.html';
 
         $htmlContent = file_exists($filePath)
             ? file_get_contents($filePath)

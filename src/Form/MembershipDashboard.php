@@ -3,7 +3,10 @@
 namespace Drupal\esn_membership_manager\Form;
 
 use DateInterval;
+use Drupal\Component\Plugin\Exception\InvalidPluginDefinitionException;
+use Drupal\Component\Plugin\Exception\PluginNotFoundException;
 use Drupal\Component\Render\MarkupInterface;
+use Drupal\Core\Config\ConfigFactoryInterface;
 use Drupal\Core\Database\Connection;
 use Drupal\Core\Datetime\DrupalDateTime;
 use Drupal\Core\Entity\EntityStorageException;
@@ -15,8 +18,6 @@ use Drupal\Core\Render\Markup;
 use Drupal\Core\Url;
 use Drupal\esn_membership_manager\Config\MembershipSettings;
 use Drupal\esn_membership_manager\Entity\Application\ApplicationField;
-use Drupal\esn_membership_manager\Entity\Application\ApplicationInterface;
-use Drupal\esn_membership_manager\Entity\Application\ApplicationStorage;
 use Drupal\esn_membership_manager\Entity\GuestPass\GuestPassField;
 use Drupal\esn_membership_manager\Entity\GuestPass\GuestPassStorage;
 use Drupal\esn_membership_manager\Object\Status;
@@ -30,27 +31,42 @@ use Symfony\Component\DependencyInjection\ContainerInterface;
 
 class MembershipDashboard extends AuthenticatedFormBase
 {
-    protected ModuleHandlerInterface $moduleHandler;
+    protected MembershipSettings $membershipSettings;
+    protected GuestPassStorage $guestPassStorage;
     protected FileService $fileService;
     protected GuestPassService $guestPassService;
-    protected ?Nationalities $nationalities = null;
+    protected Nationalities $nationalities;
 
+    /**
+     * @throws InvalidPluginDefinitionException
+     * @throws PluginNotFoundException
+     */
     public function __construct(
         Connection                    $database,
         EntityTypeManagerInterface    $entityTypeManager,
         ClientInterface               $httpClient,
         LoggerChannelFactoryInterface $loggerFactory,
-        ModuleHandlerInterface        $moduleHandler,
+        ConfigFactoryInterface        $configFactory,
         FileService                   $fileService,
-        GuestPassService $guestPassService,
+        ModuleHandlerInterface        $moduleHandler,
+        GuestPassService              $guestPassService,
     )
     {
+        /** @var GuestPassStorage $guestPassStorage */
+        $guestPassStorage = $entityTypeManager->getStorage('membership_guest');
+
         parent::__construct($database, $entityTypeManager, $httpClient, $loggerFactory);
-        $this->moduleHandler = $moduleHandler;
+        $this->membershipSettings = new MembershipSettings($configFactory);
+        $this->guestPassStorage = $guestPassStorage;
         $this->fileService = $fileService;
         $this->guestPassService = $guestPassService;
+        $this->nationalities = new Nationalities($moduleHandler);
     }
 
+    /**
+     * @throws InvalidPluginDefinitionException
+     * @throws PluginNotFoundException
+     */
     public static function create(ContainerInterface $container): self
     {
         /** @var Connection $database */
@@ -65,11 +81,14 @@ class MembershipDashboard extends AuthenticatedFormBase
         /** @var LoggerChannelFactoryInterface $loggerFactory */
         $loggerFactory = $container->get('logger.factory');
 
-        /** @var ModuleHandlerInterface $moduleHandler */
-        $moduleHandler = $container->get('module_handler');
+        /** @var ConfigFactoryInterface $configFactory */
+        $configFactory = $container->get('config.factory');
 
         /** @var FileService $fileService */
         $fileService = $container->get('esn_membership_manager.file_service');
+
+        /** @var ModuleHandlerInterface $moduleHandler */
+        $moduleHandler = $container->get('module_handler');
 
         /** @var GuestPassService $guestPassService */
         $guestPassService = $container->get('esn_membership_manager.guest_pass_service');
@@ -79,8 +98,9 @@ class MembershipDashboard extends AuthenticatedFormBase
             $entityTypeManager,
             $httpClient,
             $loggerFactory,
-            $moduleHandler,
+            $configFactory,
             $fileService,
+            $moduleHandler,
             $guestPassService,
         );
     }
@@ -123,8 +143,6 @@ class MembershipDashboard extends AuthenticatedFormBase
      */
     public function buildForm(array $form, FormStateInterface $form_state): array
     {
-        $membershipSettings = new MembershipSettings($this->configFactory());
-
         $form = parent::buildForm($form, $form_state);
         if ($this->isDialogAdded) {
             return $form;
@@ -134,7 +152,7 @@ class MembershipDashboard extends AuthenticatedFormBase
         $form['#attached']['library'][] = 'esn_membership_manager/membership_dashboard';
 
         try {
-            $application = $this->getApplication();
+            $application = $this->getApplication(true);
         } catch (Exception) {
             $this->messenger()->addError($this->t('Could not retrieve your application. Please try again later.'));
             return $form;
@@ -260,7 +278,7 @@ class MembershipDashboard extends AuthenticatedFormBase
 
         $isApproved = $application->isApproved();
 
-        if ($isApproved && ($membershipSettings->getGoogleWalletSwitch() || $membershipSettings->getAppleWalletSwitch())) {
+        if ($isApproved && ($this->membershipSettings->getGoogleWalletSwitch() || $this->membershipSettings->getAppleWalletSwitch())) {
             $buttonText = 'Add to Wallet';
             $buttonHref = '#wallet';
         } elseif ($isApproved && !$application->isPaid() && $application->getValue(ApplicationField::HasESNcard)) {
@@ -344,10 +362,6 @@ class MembershipDashboard extends AuthenticatedFormBase
                 'class' => ['panel']
             ],
         ];
-
-        if (empty($this->nationalities)) {
-            $this->nationalities = new Nationalities($this->moduleHandler);
-        }
 
         $isPendingID = in_array('Identity', $pendingDocuments) && $application->isPending();
         $isVerifiedID = $application->getValue(ApplicationField::HasVerifiedID) ?? false;
@@ -790,7 +804,7 @@ class MembershipDashboard extends AuthenticatedFormBase
             ];
         }
 
-        if ($isApproved && ($membershipSettings->getGoogleWalletSwitch() || $membershipSettings->getAppleWalletSwitch())) {
+        if ($isApproved && ($this->membershipSettings->getGoogleWalletSwitch() || $this->membershipSettings->getAppleWalletSwitch())) {
             $form['wallet_section'] = [
                 '#type' => 'container',
                 '#attributes' => [
@@ -810,7 +824,7 @@ class MembershipDashboard extends AuthenticatedFormBase
                 ],
             ];
 
-            if ($membershipSettings->getGoogleWalletSwitch()) {
+            if ($this->membershipSettings->getGoogleWalletSwitch()) {
                 $googleWalletPassLink = Url::fromRoute(
                     'esn_membership_manager.add_to_google_wallet',
                     ['identifier' => $application->getValue(ApplicationField::PassToken)],
@@ -818,7 +832,7 @@ class MembershipDashboard extends AuthenticatedFormBase
                 )->toString();
             }
 
-            if ($membershipSettings->getAppleWalletSwitch()) {
+            if ($this->membershipSettings->getAppleWalletSwitch()) {
                 $appleWalletPassLink = Url::fromRoute(
                     'esn_membership_manager.download_apple_pass',
                     ['identifier' => $application->getValue(ApplicationField::PassToken)],
@@ -827,7 +841,7 @@ class MembershipDashboard extends AuthenticatedFormBase
             }
 
             if ($application->isPaid()) {
-                if ($membershipSettings->getGoogleWalletSwitch()) {
+                if ($this->membershipSettings->getGoogleWalletSwitch()) {
                     $googleWalletCardLink = Url::fromRoute(
                         'esn_membership_manager.add_to_google_wallet',
                         ['identifier' => $application->getValue(ApplicationField::ESNcardNumber)],
@@ -835,7 +849,7 @@ class MembershipDashboard extends AuthenticatedFormBase
                     )->toString();
                 }
 
-                if ($membershipSettings->getAppleWalletSwitch()) {
+                if ($this->membershipSettings->getAppleWalletSwitch()) {
                     $appleWalletCardLink = Url::fromRoute(
                         'esn_membership_manager.download_apple_pass',
                         ['identifier' => $application->getValue(ApplicationField::ESNcardNumber)],
@@ -891,7 +905,7 @@ class MembershipDashboard extends AuthenticatedFormBase
                 </div>
             ',
                 '#context' => [
-                    'pass_name' => $membershipSettings->getPassName(),
+                    'pass_name' => $this->membershipSettings->getPassName(),
                     'google_pass' => $googleWalletPassLink ?? null,
                     'apple_pass' => $appleWalletPassLink ?? null,
                     'google_card' => $googleWalletCardLink ?? null,
@@ -901,7 +915,7 @@ class MembershipDashboard extends AuthenticatedFormBase
         }
 
 
-        if ($isApproved && $membershipSettings->getGuestPassSwitch()) {
+        if ($isApproved && $this->membershipSettings->getGuestPassSwitch()) {
             $form['guest_section'] = [
                 '#type' => 'container',
                 '#attributes' => [
@@ -922,11 +936,7 @@ class MembershipDashboard extends AuthenticatedFormBase
                 '),
             ];
 
-            /** @noinspection PhpUnhandledExceptionInspection */
-            /** @var GuestPassStorage $guestPassStorage */
-            $guestPassStorage = $this->entityTypeManager->getStorage('membership_guest');
-
-            $activePasses = $guestPassStorage->getActiveByReferrerID($application->id());
+            $activePasses = $this->guestPassStorage->getActiveByReferrerID($application->id());
             if (!empty($activePasses)) {
                 $form['guest_section']['active'] = [
                     '#type' => 'container',
@@ -942,6 +952,7 @@ class MembershipDashboard extends AuthenticatedFormBase
                 $rows = [];
                 $now = new DrupalDateTime();
                 foreach ($activePasses as $pass) {
+                    /** @noinspection PhpUnhandledExceptionInspection */
                     $status = $pass->getApprovalStatus();
                     if ($status === 'Approved') {
                         $status = 'Active';
@@ -1048,7 +1059,7 @@ class MembershipDashboard extends AuthenticatedFormBase
 
             $form['guest_section']['request']['checkbox_id'] = [
                 '#type' => 'checkbox',
-                '#title' => $this->t('I understand that my guest will need a valid ID to use their ' . $membershipSettings->getGuestPassName() . '.'),
+                '#title' => $this->t('I understand that my guest will need a valid ID to use their ' . $this->membershipSettings->getGuestPassName() . '.'),
                 '#prefix' => '<div class="panel-input">',
                 '#suffix' => '</div>',
             ];
@@ -1071,7 +1082,7 @@ class MembershipDashboard extends AuthenticatedFormBase
             ];
         }
 
-        if ($isApproved && $membershipSettings->getEstiaSwitch()) {
+        if ($isApproved && $this->membershipSettings->getEstiaSwitch()) {
             $form['estia_section'] = [
                 '#type' => 'container',
                 '#attributes' => [
@@ -1116,7 +1127,8 @@ class MembershipDashboard extends AuthenticatedFormBase
     {
         if (!$form_state->get('is_approved_identity')) return;
 
-        $application = $this->loadUserApplication();
+        /** @noinspection PhpUnhandledExceptionInspection */
+        $application = $this->getApplication();
         if (!$application) return;
 
         $changesMade = false;
@@ -1152,36 +1164,6 @@ class MembershipDashboard extends AuthenticatedFormBase
     }
 
     /**
-     * Helper method to load the current user's membership application.
-     * @return ApplicationInterface|null
-     * The application entity, or null if not found/error.
-     */
-    protected function loadUserApplication(): ?ApplicationInterface
-    {
-        if (empty($this->authenticatedEmail)) {
-            $this->messenger()->addError($this->t('Could not verify your session. Please log in again.'));
-            return null;
-        }
-
-        try {
-            /** @var ApplicationStorage $storage */
-            $storage = $this->entityTypeManager->getStorage('membership_application');
-            $application = $storage->getByEmailAddress($this->authenticatedEmail);
-
-            if (!$application) {
-                $this->messenger()->addError($this->t('No active application found for this email.'));
-                return null;
-            }
-
-            return $application;
-        } catch (Exception $e) {
-            $this->messenger()->addError($this->t('A system error occurred while loading your application.'));
-            $this->logger->error('Dashboard application retrieval failed: ' . $e->getMessage());
-            return null;
-        }
-    }
-
-    /**
      * @throws EntityStorageException
      * @noinspection PhpUnusedParameterInspection
      */
@@ -1189,7 +1171,8 @@ class MembershipDashboard extends AuthenticatedFormBase
     {
         if (!$form_state->get('is_approved_status')) return;
 
-        $application = $this->loadUserApplication();
+        /** @noinspection PhpUnhandledExceptionInspection */
+        $application = $this->getApplication();
         if (!$application) return;
 
         $changesMade = false;
@@ -1216,7 +1199,8 @@ class MembershipDashboard extends AuthenticatedFormBase
      */
     public function submitIdentityFile(array &$form, FormStateInterface $form_state): void
     {
-        $application = $this->loadUserApplication();
+        /** @noinspection PhpUnhandledExceptionInspection */
+        $application = $this->getApplication();
         if (!$application) return;
 
         $fids = $form_state->getValue('identity_upload');
@@ -1232,7 +1216,8 @@ class MembershipDashboard extends AuthenticatedFormBase
      */
     private function submitFile(string $fileType, string $fileID): void
     {
-        $application = $this->loadUserApplication();
+        /** @noinspection PhpUnhandledExceptionInspection */
+        $application = $this->getApplication();
         if (!$application) return;
 
         $fileContents = $this->fileService->readFile($fileID);
@@ -1329,7 +1314,8 @@ class MembershipDashboard extends AuthenticatedFormBase
      */
     public function submitStatusFile(array &$form, FormStateInterface $form_state): void
     {
-        $application = $this->loadUserApplication();
+        /** @noinspection PhpUnhandledExceptionInspection */
+        $application = $this->getApplication();
         if (!$application) return;
 
         $fids = $form_state->getValue('status_upload');
@@ -1345,7 +1331,8 @@ class MembershipDashboard extends AuthenticatedFormBase
      */
     public function submitPhotoFile(array &$form, FormStateInterface $form_state): void
     {
-        $application = $this->loadUserApplication();
+        /** @noinspection PhpUnhandledExceptionInspection */
+        $application = $this->getApplication();
         if (!$application) return;
 
         $fids = $form_state->getValue('photo_upload');

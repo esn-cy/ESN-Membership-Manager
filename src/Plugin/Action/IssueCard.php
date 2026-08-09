@@ -58,7 +58,7 @@ class IssueCard extends ActionBase implements ContainerFactoryPluginInterface
             $plugin_id,
             $plugin_definition,
             $emailManager,
-            $loggerFactory
+            $loggerFactory,
         );
     }
 

@@ -2,7 +2,10 @@
 
 namespace Drupal\esn_membership_manager\Controller;
 
+use Drupal\Component\Plugin\Exception\InvalidPluginDefinitionException;
+use Drupal\Component\Plugin\Exception\PluginNotFoundException;
 use Drupal\Core\Controller\ControllerBase;
+use Drupal\Core\Entity\EntityTypeManagerInterface;
 use Drupal\Core\Logger\LoggerChannelFactoryInterface;
 use Drupal\Core\Logger\LoggerChannelInterface;
 use Drupal\Core\Routing\TrustedRedirectResponse;
@@ -20,28 +23,51 @@ use Symfony\Component\HttpKernel\Exception\NotFoundHttpException;
 class GoogleWalletController extends ControllerBase
 {
     protected GoogleService $googleService;
+    protected ApplicationStorage $applicationStorage;
+    protected GuestPassStorage $guestPassStorage;
     protected LoggerChannelInterface $logger;
 
+    /**
+     * @throws InvalidPluginDefinitionException
+     * @throws PluginNotFoundException
+     */
     public function __construct(
         GoogleService                 $googleService,
+        EntityTypeManagerInterface    $entityTypeManager,
         LoggerChannelFactoryInterface $loggerFactory
     )
     {
+        /** @var ApplicationStorage $applicationStorage */
+        $applicationStorage = $entityTypeManager->getStorage('membership_application');
+
+        /** @var GuestPassStorage $guestPassStorage */
+        $guestPassStorage = $entityTypeManager->getStorage('membership_guest');
+
         $this->googleService = $googleService;
+        $this->applicationStorage = $applicationStorage;
+        $this->guestPassStorage = $guestPassStorage;
         $this->logger = $loggerFactory->get('esn_membership_manager');
     }
 
+    /**
+     * @throws InvalidPluginDefinitionException
+     * @throws PluginNotFoundException
+     */
     public static function create(ContainerInterface $container): self
     {
         /** @var GoogleService $googleService */
         $googleService = $container->get('esn_membership_manager.google_service');
+
+        /** @var EntityTypeManagerInterface $entityTypeManager */
+        $entityTypeManager = $container->get('entity_type.manager');
 
         /** @var LoggerChannelFactoryInterface $loggerFactory */
         $loggerFactory = $container->get('logger.factory');
 
         return new static(
             $googleService,
-            $loggerFactory
+            $entityTypeManager,
+            $loggerFactory,
         );
     }
 
@@ -63,18 +89,10 @@ class GoogleWalletController extends ControllerBase
             return $this->addGuest($identifier);
         }
 
-        try {
-            /** @var ApplicationStorage $storage */
-            $storage = $this->entityTypeManager()->getStorage('membership_application');
-
-            if ($isESNcard) {
-                $application = $storage->getByESNcard($identifier);
-            } elseif ($isPass) {
-                $application = $storage->getByPassToken($identifier);
-            }
-        } catch (Exception $e) {
-            $this->logger->error('Creation of Google Wallet Pass failed: @message', ['@message' => $e->getMessage()]);
-            throw new HttpException(500, 'There was a problem getting the card/pass.');
+        if ($isESNcard) {
+            $application = $this->applicationStorage->getByESNcard($identifier);
+        } elseif ($isPass) {
+            $application = $this->applicationStorage->getByPassToken($identifier);
         }
 
         if (empty($application)) {
@@ -100,16 +118,8 @@ class GoogleWalletController extends ControllerBase
 
     protected function addGuest(string $identifier): TrustedRedirectResponse
     {
-        try {
-            /** @var GuestPassStorage $storage */
-            $storage = $this->entityTypeManager()->getStorage('membership_guest');
-
-            $guestPass = $storage->getByPassToken($identifier);
-            $referrer = $guestPass?->getReferer();
-        } catch (Exception $e) {
-            $this->logger->error('Adding Guest Pass to Google Wallet failed: @message', ['@message' => $e->getMessage()]);
-            throw new HttpException(500, 'There was a problem getting the guest pass.');
-        }
+        $guestPass = $this->guestPassStorage->getByPassToken($identifier);
+        $referrer = $guestPass?->getReferer();
 
         if (empty($guestPass) || empty($referrer)) {
             throw new NotFoundHttpException('Guest Pass not found.', null, 404);

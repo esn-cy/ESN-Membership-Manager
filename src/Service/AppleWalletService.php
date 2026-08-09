@@ -4,6 +4,7 @@ namespace Drupal\esn_membership_manager\Service;
 
 use DateInterval;
 use Drupal\Core\Config\ConfigFactoryInterface;
+use Drupal\Core\Extension\Extension;
 use Drupal\Core\Extension\ModuleHandlerInterface;
 use Drupal\Core\Logger\LoggerChannelFactoryInterface;
 use Drupal\Core\Logger\LoggerChannelInterface;
@@ -22,24 +23,26 @@ use GuzzleHttp\ClientInterface;
 
 class AppleWalletService extends AppleServiceBase
 {
-    protected ConfigFactoryInterface $configFactory;
+    protected MembershipSettings $membershipSettings;
+    protected OmniaSettings $omniaSettings;
+    protected Extension $module;
     protected Settings $settings;
-    protected ModuleHandlerInterface $moduleHandler;
     protected LoggerChannelInterface $logger;
 
     public function __construct(
         ConfigFactoryInterface        $configFactory,
-        Settings                      $settings,
         ModuleHandlerInterface        $moduleHandler,
         FileServiceBase               $fileService,
         ClientInterface               $httpClient,
+        Settings                      $settings,
         LoggerChannelFactoryInterface $loggerFactory
     )
     {
         parent::__construct($fileService, $httpClient, $loggerFactory);
-        $this->configFactory = $configFactory;
+        $this->membershipSettings = new MembershipSettings($configFactory);
+        $this->omniaSettings = new OmniaSettings($configFactory);
+        $this->module = $moduleHandler->getModule('esn_membership_manager');
         $this->settings = $settings;
-        $this->moduleHandler = $moduleHandler;
         $this->logger = $loggerFactory->get('esn_membership_manager');
     }
 
@@ -48,10 +51,8 @@ class AppleWalletService extends AppleServiceBase
      */
     public function createESNcard(ApplicationInterface $application): ?string
     {
-        $membershipSettings = new MembershipSettings($this->configFactory);
-
-        $certificateP12 = $membershipSettings->getAppleCertificateP12();
-        $certificatePassword = $membershipSettings->getAppleCertificatePassword();
+        $certificateP12 = $this->membershipSettings->getAppleCertificateP12();
+        $certificatePassword = $this->membershipSettings->getAppleCertificatePassword();
 
         $serialNumber = 'esncard-' . $application->id();
 
@@ -119,7 +120,7 @@ class AppleWalletService extends AppleServiceBase
                 ],
             ];
 
-        $imagesPath = $this->moduleHandler->getModule('esn_membership_manager')->getPath() . '/assets/images/apple_wallet/color/';
+        $imagesPath = $this->module->getPath() . '/assets/images/apple_wallet/color/';
 
         $facePhotoFileID = $application->getFacePhoto()->id();
 
@@ -158,9 +159,6 @@ class AppleWalletService extends AppleServiceBase
 
     protected function getCommonAttributes(string $serialNumber): array
     {
-        $omniaSettings = new OmniaSettings($this->configFactory);
-        $membershipSettings = new MembershipSettings($this->configFactory);
-
         $siteSalt = $this->settings::getHashSalt();
         $authToken = hash('sha256', $serialNumber . $siteSalt);
 
@@ -168,9 +166,9 @@ class AppleWalletService extends AppleServiceBase
 
         return [
             'formatVersion' => 1,
-            'organizationName' => $omniaSettings->getOrganisationName(),
-            'teamIdentifier' => $omniaSettings->getAppleTeamID(),
-            'passTypeIdentifier' => $membershipSettings->getApplePassTypeID(),
+            'organizationName' => $this->omniaSettings->getOrganisationName(),
+            'teamIdentifier' => $this->omniaSettings->getAppleTeamID(),
+            'passTypeIdentifier' => $this->membershipSettings->getApplePassTypeID(),
             'foregroundColor' => 'rgb(255, 255, 255)',
             'labelColor' => 'rgb(255, 255, 255)',
             'webServiceURL' => $apiRoot,
@@ -183,10 +181,8 @@ class AppleWalletService extends AppleServiceBase
      */
     public function createFreePass(ApplicationInterface $application): ?string
     {
-        $membershipSettings = new MembershipSettings($this->configFactory);
-
-        $certificateP12 = $membershipSettings->getAppleCertificateP12();
-        $certificatePassword = $membershipSettings->getAppleCertificatePassword();
+        $certificateP12 = $this->membershipSettings->getAppleCertificateP12();
+        $certificatePassword = $this->membershipSettings->getAppleCertificatePassword();
 
         $serialNumber = 'free_pass-' . $application->id();
 
@@ -195,8 +191,8 @@ class AppleWalletService extends AppleServiceBase
 
         $passData = $this->getCommonAttributes($serialNumber) +
             [
-                'description' => $membershipSettings->getPassName(),
-                'logoText' => $membershipSettings->getPassName(),
+                'description' => $this->membershipSettings->getPassName(),
+                'logoText' => $this->membershipSettings->getPassName(),
                 'backgroundColor' => 'rgb(0, 174, 239)',
                 'serialNumber' => $serialNumber,
                 'generic' => [
@@ -254,7 +250,7 @@ class AppleWalletService extends AppleServiceBase
                 ],
             ];
 
-        $imagesPath = $this->moduleHandler->getModule('esn_membership_manager')->getPath() . '/assets/images/apple_wallet/white/';
+        $imagesPath = $this->module->getPath() . '/assets/images/apple_wallet/white/';
 
         $images = [
             'logo.png' => $imagesPath . 'logo.png',
@@ -273,10 +269,8 @@ class AppleWalletService extends AppleServiceBase
      */
     public function createGuestPass(GuestPassInterface $guestPass, ApplicationInterface $referer): ?string
     {
-        $membershipSettings = new MembershipSettings($this->configFactory);
-
-        $certificateP12 = $membershipSettings->getAppleCertificateP12();
-        $certificatePassword = $membershipSettings->getAppleCertificatePassword();
+        $certificateP12 = $this->membershipSettings->getAppleCertificateP12();
+        $certificatePassword = $this->membershipSettings->getAppleCertificatePassword();
 
         $serialNumber = 'guest-' . $guestPass->id();
 
@@ -290,8 +284,8 @@ class AppleWalletService extends AppleServiceBase
 
         $passData = $commonAttributes +
             [
-                'description' => $membershipSettings->getGuestPassName(),
-                'logoText' => $membershipSettings->getGuestPassName(),
+                'description' => $this->membershipSettings->getGuestPassName(),
+                'logoText' => $this->membershipSettings->getGuestPassName(),
                 'backgroundColor' => 'rgb(236, 0, 140)',
                 'serialNumber' => $serialNumber,
                 'generic' => [
@@ -344,7 +338,7 @@ class AppleWalletService extends AppleServiceBase
                 ],
             ];
 
-        $imagesPath = $this->moduleHandler->getModule('esn_membership_manager')->getPath() . '/assets/images/apple_wallet/white/';
+        $imagesPath = $this->module->getPath() . '/assets/images/apple_wallet/white/';
 
         $images = [
             'logo.png' => $imagesPath . 'logo.png',
@@ -360,13 +354,11 @@ class AppleWalletService extends AppleServiceBase
 
     public function sendApplicationUpdateNotification(string $pushToken): bool
     {
-        $membershipSettings = new MembershipSettings($this->configFactory);
-
         return $this->sendUpdateNotification(
             $pushToken,
-            $membershipSettings->getApplePassTypeID(),
-            $membershipSettings->getAppleCertificatePEM(),
-            $membershipSettings->getAppleCertificatePassword()
+            $this->membershipSettings->getApplePassTypeID(),
+            $this->membershipSettings->getAppleCertificatePEM(),
+            $this->membershipSettings->getAppleCertificatePassword()
         );
     }
 }

@@ -29,6 +29,8 @@ use GuzzleHttp\Exception\GuzzleException;
 
 class GoogleService extends GoogleServiceBase
 {
+    protected MembershipSettings $membershipSettings;
+    protected OmniaSettings $omniaSettings;
     protected string $cardClassID = '';
     protected string $passClassID = '';
     protected string $guestClassID = '';
@@ -40,6 +42,8 @@ class GoogleService extends GoogleServiceBase
     )
     {
         parent::__construct($configFactory, $fileService, $loggerFactory);
+        $this->membershipSettings = new MembershipSettings($configFactory);
+        $this->omniaSettings = new OmniaSettings($configFactory);
         $this->logger = $loggerFactory->get('esn_membership_manager');
     }
 
@@ -50,9 +54,8 @@ class GoogleService extends GoogleServiceBase
             return FALSE;
         }
 
-        $membershipSettings = new MembershipSettings($this->configFactory);
-        $spreadsheetId = $membershipSettings->getSpreadsheetID();
-        $range = $membershipSettings->getSheetName() . '!A:H';
+        $spreadsheetID = $this->membershipSettings->getSpreadsheetID();
+        $range = $this->membershipSettings->getSheetName() . '!A:H';
 
         $service = new Sheets($client);
 
@@ -79,7 +82,7 @@ class GoogleService extends GoogleServiceBase
         ];
 
         try {
-            $result = $service->spreadsheets_values->append($spreadsheetId, $range, $body, $params);
+            $result = $service->spreadsheets_values->append($spreadsheetID, $range, $body, $params);
 
             if ($result->getUpdates()->getUpdatedCells() > 0) {
                 return TRUE;
@@ -102,8 +105,7 @@ class GoogleService extends GoogleServiceBase
 
         $classID = $this->getClass('esn_membership_manager_card');
         if (empty($classID)) {
-            $omniaSettings = new OmniaSettings($this->configFactory);
-            $classID = "{$omniaSettings->getGoogleIssuerID()}.esn_membership_manager_card";
+            $classID = "{$this->omniaSettings->getGoogleIssuerID()}.esn_membership_manager_card";
             $class = new GenericClass([
                 'id' => $classID,
                 'classTemplateInfo' => [
@@ -167,8 +169,7 @@ class GoogleService extends GoogleServiceBase
 
         $classID = $this->getClass('esn_membership_manager_pass');
         if (empty($classID)) {
-            $omniaSettings = new OmniaSettings($this->configFactory);
-            $classID = "{$omniaSettings->getGoogleIssuerID()}.esn_membership_manager_pass";
+            $classID = "{$this->omniaSettings->getGoogleIssuerID()}.esn_membership_manager_pass";
             $class = new GenericClass([
                 'id' => $classID,
                 'classTemplateInfo' => [
@@ -226,8 +227,7 @@ class GoogleService extends GoogleServiceBase
 
         $classID = $this->getClass('esn_membership_manager_guest');
         if (empty($classID)) {
-            $omniaSettings = new OmniaSettings($this->configFactory);
-            $classID = "{$omniaSettings->getGoogleIssuerID()}.esn_membership_manager_guest";
+            $classID = "{$this->omniaSettings->getGoogleIssuerID()}.esn_membership_manager_guest";
             $class = new GenericClass([
                 'id' => $classID,
                 'classTemplateInfo' => [
@@ -330,9 +330,7 @@ class GoogleService extends GoogleServiceBase
      */
     private function createESNcardObject(ApplicationInterface $application): GenericObject
     {
-        $omniaSettings = new OmniaSettings($this->configFactory);
-
-        $objectID = "{$omniaSettings->getGoogleIssuerID()}.esncard-{$application->id()}";
+        $objectID = "{$this->omniaSettings->getGoogleIssuerID()}.esncard-{$application->id()}";
         $classID = $this->getESNcardClass();
         $paidDate = $application->getDatePaid();
         $paidDate->setTime(0, 0);
@@ -461,10 +459,7 @@ class GoogleService extends GoogleServiceBase
      */
     private function createFreePassObject(ApplicationInterface $application): GenericObject
     {
-        $membershipSettings = new MembershipSettings($this->configFactory);
-        $omniaSettings = new OmniaSettings($this->configFactory);
-
-        $objectID = "{$omniaSettings->getGoogleIssuerID()}.pass-{$application->id()}";
+        $objectID = "{$this->omniaSettings->getGoogleIssuerID()}.pass-{$application->id()}";
         $classID = $this->getPassClass();
         $approvedDate = $application->getDateApproved();
         $approvedDate->setTime(0, 0);
@@ -475,7 +470,7 @@ class GoogleService extends GoogleServiceBase
             'cardTitle' => new LocalizedString([
                 'defaultValue' => new TranslatedString([
                     'language' => 'en-US',
-                    'value' => $membershipSettings->getPassName()
+                    'value' => $this->membershipSettings->getPassName()
                 ])
             ]),
             'subheader' => new LocalizedString([
@@ -573,10 +568,7 @@ class GoogleService extends GoogleServiceBase
      */
     private function createGuestPassObject(GuestPassInterface $guestPass, ApplicationInterface $referrer): GenericObject
     {
-        $membershipSettings = new MembershipSettings($this->configFactory);
-        $omniaSettings = new OmniaSettings($this->configFactory);
-
-        $objectID = "{$omniaSettings->getGoogleIssuerID()}.guest-{$guestPass->id()}";
+        $objectID = "{$this->omniaSettings->getGoogleIssuerID()}.guest-{$guestPass->id()}";
         $classID = $this->getGuestPassClass();
         $approvedDate = $guestPass->getDateApproved();
         $expiryDate = (clone $approvedDate)->add(new DateInterval("P7D"));
@@ -586,7 +578,7 @@ class GoogleService extends GoogleServiceBase
             'cardTitle' => new LocalizedString([
                 'defaultValue' => new TranslatedString([
                     'language' => 'en-US',
-                    'value' => $membershipSettings->getGuestPassName()
+                    'value' => $this->membershipSettings->getGuestPassName()
                 ])
             ]),
             'subheader' => new LocalizedString([
@@ -677,12 +669,10 @@ class GoogleService extends GoogleServiceBase
      */
     public function deleteApplicationObject(string $applicationID, string $type): bool
     {
-        $omniaSettings = new OmniaSettings($this->configFactory);
-
         $objectID = match ($type) {
-            'card' => "{$omniaSettings->getGoogleIssuerID()}.esncard-$applicationID",
-            'pass' => "{$omniaSettings->getGoogleIssuerID()}.pass-$applicationID",
-            'guest' => "{$omniaSettings->getGoogleIssuerID()}.guest-$applicationID",
+            'card' => "{$this->omniaSettings->getGoogleIssuerID()}.esncard-$applicationID",
+            'pass' => "{$this->omniaSettings->getGoogleIssuerID()}.pass-$applicationID",
+            'guest' => "{$this->omniaSettings->getGoogleIssuerID()}.guest-$applicationID",
             default => throw new Exception('Unsupported application type.'),
         };
 

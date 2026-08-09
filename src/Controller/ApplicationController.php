@@ -2,13 +2,14 @@
 
 namespace Drupal\esn_membership_manager\Controller;
 
+use Drupal\Component\Plugin\Exception\InvalidPluginDefinitionException;
+use Drupal\Component\Plugin\Exception\PluginNotFoundException;
 use Drupal\Core\Controller\ControllerBase;
 use Drupal\Core\Datetime\DrupalDateTime;
-use Drupal\Core\DependencyInjection\ContainerInjectionInterface;
+use Drupal\Core\Entity\EntityTypeManagerInterface;
 use Drupal\Core\Link;
 use Drupal\Core\Url;
 use Drupal\esn_membership_manager\Entity\Application\ApplicationField;
-use Drupal\esn_membership_manager\Entity\Application\ApplicationInterface;
 use Drupal\esn_membership_manager\Entity\Application\ApplicationStorage;
 use Drupal\esn_membership_manager\Service\FileService;
 use Drupal\file\FileInterface;
@@ -22,32 +23,44 @@ use TCPDF;
 /**
  * Controller for viewing application details.
  */
-class ApplicationController extends ControllerBase implements ContainerInjectionInterface
+class ApplicationController extends ControllerBase
 {
+    protected ApplicationStorage $applicationStorage;
     protected FileService $fileService;
 
     /**
      * Constructs a ApplicationController object.
      *
+     * @throws InvalidPluginDefinitionException
+     * @throws PluginNotFoundException
      */
     public function __construct(
-        FileService $fileService
+        EntityTypeManagerInterface $entityTypeManager,
+        FileService                $fileService
     )
     {
+        /** @var ApplicationStorage $applicationStorage */
+        $applicationStorage = $entityTypeManager->getStorage('membership_application');
+
+        $this->applicationStorage = $applicationStorage;
         $this->fileService = $fileService;
     }
 
     /**
-     * {@inheritdoc}
+     * @throws InvalidPluginDefinitionException
+     * @throws PluginNotFoundException
      */
     public static function create(ContainerInterface $container): self
     {
+        /** @var EntityTypeManagerInterface $entityTypeManager */
+        $entityTypeManager = $container->get('entity_type.manager');
 
         /** @var FileService $fileService */
         $fileService = $container->get('esn_membership_manager.file_service');
 
         return new static(
-            $fileService
+            $entityTypeManager,
+            $fileService,
         );
     }
 
@@ -113,14 +126,10 @@ class ApplicationController extends ControllerBase implements ContainerInjection
      *
      * @return array
      *   A render array suitable for a modal.
-     * @throws Exception
      */
     public function viewApplication(int $id): array
     {
-        /** @var ApplicationStorage $storage */
-        $storage = $this->entityTypeManager()->getStorage('membership_application');
-
-        $application = $storage->load($id);
+        $application = $this->applicationStorage->load($id);
 
         if (empty($application)) {
             return [
@@ -237,14 +246,10 @@ class ApplicationController extends ControllerBase implements ContainerInjection
      *
      * @return array
      *   A render array.
-     * @throws Exception
      */
     public function viewESNcard(int $id): array
     {
-        /** @var ApplicationStorage $storage */
-        $storage = $this->entityTypeManager()->getStorage('membership_application');
-
-        $application = $storage->load($id);
+        $application = $this->applicationStorage->load($id);
 
         if (empty($application)) {
             return [
@@ -293,25 +298,21 @@ class ApplicationController extends ControllerBase implements ContainerInjection
             $applicationIDs = [$applicationIDs];
         }
 
-        /** @var ApplicationStorage $storage */
-        $storage = $this->entityTypeManager()->getStorage('membership_application');
-
         $applicationIDs = array_filter(array_map('intval', $applicationIDs));
 
-        /** @var ApplicationInterface $applications */
         if (empty($applicationIDs)) {
-            $applications = $storage->getUnproducedESNcards();
+            $applications = $this->applicationStorage->getUnproducedESNcards();
         } else {
-            $applications = $storage->getSelectedESNcards($applicationIDs);
+            $applications = $this->applicationStorage->getSelectedESNcards($applicationIDs);
         }
 
         $pdf = new TCPDF('P', 'mm', 'A4', true, 'UTF-8', false);
 
         $pdf->setPrintHeader(false);
         $pdf->setPrintFooter(false);
-        $pdf->SetAutoPageBreak(TRUE, 10);
-        $pdf->AddPage();
-        $pdf->SetMargins(10, 10, 10);
+        $pdf->setAutoPageBreak(true, 10);
+        $pdf->addPage();
+        $pdf->setMargins(10, 10, 10);
 
         $imageHeight = 35;
         $availableWidth = 190;
@@ -341,7 +342,7 @@ class ApplicationController extends ControllerBase implements ContainerInjection
                 $currentY += $imageHeight;
 
                 if (($currentY + $imageHeight) > (297 - 10)) {
-                    $pdf->AddPage();
+                    $pdf->addPage();
                 }
             }
 

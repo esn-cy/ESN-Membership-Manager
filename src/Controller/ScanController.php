@@ -2,8 +2,12 @@
 
 namespace Drupal\esn_membership_manager\Controller;
 
+use Drupal\Component\Plugin\Exception\InvalidPluginDefinitionException;
+use Drupal\Component\Plugin\Exception\PluginNotFoundException;
+use Drupal\Core\Config\ConfigFactoryInterface;
 use Drupal\Core\Controller\ControllerBase;
 use Drupal\Core\Datetime\DrupalDateTime;
+use Drupal\Core\Entity\EntityTypeManagerInterface;
 use Drupal\Core\Logger\LoggerChannelFactoryInterface;
 use Drupal\Core\Logger\LoggerChannelInterface;
 use Drupal\esn_membership_manager\Config\MembershipSettings;
@@ -21,23 +25,51 @@ use Symfony\Component\HttpKernel\Exception\NotFoundHttpException;
 
 class ScanController extends ControllerBase
 {
+    protected ApplicationStorage $applicationStorage;
+    protected GuestPassStorage $guestPassStorage;
+    protected MembershipSettings $membershipSettings;
     protected FileService $fileService;
     protected GoogleService $googleService;
     protected LoggerChannelInterface $logger;
 
+    /**
+     * @throws InvalidPluginDefinitionException
+     * @throws PluginNotFoundException
+     */
     public function __construct(
+        EntityTypeManagerInterface    $entityTypeManager,
+        ConfigFactoryInterface        $configFactory,
         FileService                   $fileService,
         GoogleService                 $googleService,
         LoggerChannelFactoryInterface $loggerFactory
     )
     {
+        /** @var ApplicationStorage $applicationStorage */
+        $applicationStorage = $entityTypeManager->getStorage('membership_application');
+
+        /** @var GuestPassStorage $guestPassStorage */
+        $guestPassStorage = $entityTypeManager->getStorage('membership_guest');
+
+        $this->applicationStorage = $applicationStorage;
+        $this->guestPassStorage = $guestPassStorage;
+        $this->membershipSettings = new MembershipSettings($configFactory);
         $this->fileService = $fileService;
         $this->googleService = $googleService;
         $this->logger = $loggerFactory->get('esn_membership_manager');
     }
 
+    /**
+     * @throws InvalidPluginDefinitionException
+     * @throws PluginNotFoundException
+     */
     public static function create(ContainerInterface $container): self
     {
+        /** @var EntityTypeManagerInterface $entityTypeManager */
+        $entityTypeManager = $container->get('entity_type.manager');
+
+        /** @var ConfigFactoryInterface $configFactory */
+        $configFactory = $container->get('config.factory');
+
         /** @var FileService $fileService */
         $fileService = $container->get('esn_membership_manager.file_service');
 
@@ -48,9 +80,11 @@ class ScanController extends ControllerBase
         $loggerFactory = $container->get('logger.factory');
 
         return new static(
+            $entityTypeManager,
+            $configFactory,
             $fileService,
             $googleService,
-            $loggerFactory
+            $loggerFactory,
         );
     }
 
@@ -75,18 +109,10 @@ class ScanController extends ControllerBase
             return $this->scanGuest($identifier);
         }
 
-        try {
-            /** @var ApplicationStorage $storage */
-            $storage = $this->entityTypeManager()->getStorage('membership_application');
-
-            if ($isESNcard) {
-                $application = $storage->getByESNcard($identifier);
-            } elseif ($isPass) {
-                $application = $storage->getByPassToken($identifier);
-            }
-        } catch (Exception $e) {
-            $this->logger->error('Scan query failed: @message', ['@message' => $e->getMessage()]);
-            return new JsonResponse(['status' => 'error', 'message' => 'There was a problem getting the card/pass.'], 500);
+        if ($isESNcard) {
+            $application = $this->applicationStorage->getByESNcard($identifier);
+        } elseif ($isPass) {
+            $application = $this->applicationStorage->getByPassToken($identifier);
         }
 
         if (empty($application)) {
@@ -131,19 +157,8 @@ class ScanController extends ControllerBase
 
     protected function scanGuest(string $identifier): JsonResponse
     {
-        $this->config('');
-        $membershipSettings = new MembershipSettings($this->configFactory);
-
-        try {
-            /** @var GuestPassStorage $storage */
-            $storage = $this->entityTypeManager()->getStorage('membership_guest');
-
-            $guestPass = $storage->getByPassToken($identifier);
-            $referrer = $guestPass?->getReferer();
-        } catch (Exception $e) {
-            $this->logger->error('Scan query failed: @message', ['@message' => $e->getMessage()]);
-            return new JsonResponse(['status' => 'error', 'message' => 'There was a problem getting the guest pass.'], 500);
-        }
+        $guestPass = $this->guestPassStorage->getByPassToken($identifier);
+        $referrer = $guestPass?->getReferer();
 
         if (empty($guestPass) || empty($referrer)) {
             throw new NotFoundHttpException('Guest Pass not found.', null, 404);
@@ -159,7 +174,7 @@ class ScanController extends ControllerBase
                 return new JsonResponse(['status' => 'error', 'message' => 'Unable to update redeemed date.'], 500);
             }
 
-            if ($membershipSettings->getGoogleWalletSwitch()) {
+            if ($this->membershipSettings->getGoogleWalletSwitch()) {
                 try {
                     $this->googleService->deleteApplicationObject($guestPass->id(), 'guest');
                 } catch (Exception) {
