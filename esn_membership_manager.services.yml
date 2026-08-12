@@ -11,7 +11,7 @@ services:
       - '@entity_type.manager'
       - '@logger.factory'
       - '@esn_membership_manager.stripe_service'
-      - '@esn_membership_manager.email_manager'
+      - '@omnia.email_service'
       - '@esn_membership_manager.weeztix_service'
       - '@esn_membership_manager.google_service'
 
@@ -69,14 +69,6 @@ services:
       - '@esn_membership_manager.file_service'
       - '@http_client'
       - '@settings'
-      - '@logger.factory'
-
-  esn_membership_manager.email_manager:
-    class: Drupal\esn_membership_manager\Service\EmailManager
-    arguments:
-      - '@config.factory'
-      - '@plugin.manager.mail'
-      - '@renderer'
       - '@logger.factory'
 
   esn_membership_manager.didit_service:

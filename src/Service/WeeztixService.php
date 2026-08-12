@@ -24,8 +24,8 @@ class WeeztixService
         ConfigFactoryInterface        $configFactory,
         ClientInterface               $httpClient,
         StateInterface                $state,
+        TimeInterface $time,
         LoggerChannelFactoryInterface $loggerFactory,
-        TimeInterface                 $time
     )
     {
         $this->membershipSettings = new MembershipSettings($configFactory);

@@ -1,205 +1,73 @@
 <?php /** @noinspection PhpUnused */
 
-use Drupal\Core\Render\Markup;
 use Drupal\Core\StreamWrapper\StreamWrapperManager;
-use Drupal\esn_membership_manager\Config\MembershipSettings;
+use Drupal\esn_membership_manager\Mail;
 use Drupal\esn_membership_manager\Service\CronService;
+use Drupal\omnia\Service\EmailService;
 use Drupal\user\Entity\User;
 
 /**
  * Implements hook_theme().
  * Registers the Twig email templates.
+ * @throws ReflectionException
+ * @noinspection PhpUnusedParameterInspection
  */
 function esn_membership_manager_theme($existing, $type, $theme, $path): array
 {
-    $commonVars = [
-        'name' => 'Student',
-        'logo_location' => 'https://esn.org/sites/default/files/ESN_full-logo-Satellite.png',
-        'custom_footer' => '',
-        'scheme_name' => 'ESN Pass',
-        'guest_scheme_name' => 'ESN Guest Pass',
+    $themes = EmailService::processHookTheme([
+        Mail\PassConfirmationEmail::class,
+        Mail\BothConfirmationEmail::class,
+        Mail\PassApprovalEmail::class,
+        Mail\BothApprovalEmail::class,
+        Mail\RejectionEmail::class,
+        Mail\CardAssignmentEmail::class,
+        Mail\CardIssuanceEmail::class,
+        Mail\BlacklistEmail::class,
+        Mail\GuestPassApprovalEmail::class,
+        Mail\BacklogEmail::class,
+        Mail\AuthenticationEmail::class,
+    ]);
+
+    $themes['emm_application_view'] = [
+        'variables' => [
+            'id' => NULL,
+            'fieldData' => [],
+            'urls' => [],
+            'permissions' => [],
+            'apiURLs' => [],
+            'is_paid' => FALSE,
+            'is_proof_verified' => FALSE,
+            'is_identity_verified' => FALSE,
+        ],
     ];
 
-    return [
-        'emm_pass_approval' => [
-            'variables' => array_merge($commonVars, [
-                'pass_token' => '',
-                'google_wallet_link' => '',
-                'apple_wallet_link' => ''
-            ])
+    $themes['emm_esncard'] = [
+        'variables' => [
+            'face_photo_link' => '',
+            'full_name' => '',
+            'nationality' => '',
+            'dob_day' => '',
+            'dob_month' => '',
+            'dob_year' => '',
+            'host_institution' => '',
+            'section' => '',
+            'valid_since_day' => '',
+            'valid_since_month' => '',
+            'valid_since_year' => '',
+            'esncard_number' => ''
         ],
-
-        'emm_both_approval' => [
-            'variables' => array_merge($commonVars, [
-                'pass_token' => '',
-                'payment_link' => '',
-                'google_wallet_link' => '',
-                'apple_wallet_link' => ''
-            ]),
-        ],
-
-        'emm_card_assignment' => [
-            'variables' => [
-                'esncard_number' => NULL,
-                'google_wallet_link' => '',
-                'apple_wallet_link' => ''
-            ],
-        ],
-
-        'emm_both_rejection' => [
-            'variables' => array_merge($commonVars, [
-                'reasons' => [],
-                'dashboard_url' => ''
-            ]),
-        ],
-
-        'emm_pass_confirmation' => [
-            'variables' => $commonVars,
-        ],
-
-        'emm_both_confirmation' => [
-            'variables' => $commonVars,
-        ],
-
-        'emm_pass_blacklist' => [
-            'variables' => $commonVars,
-        ],
-
-        'emm_card_issuance' => [
-            'variables' => $commonVars,
-        ],
-
-        'emm_guest_approval' => [
-            'variables' => array_merge($commonVars, [
-                'pass_token' => '',
-                'google_wallet_link' => '',
-                'apple_wallet_link' => ''
-            ]),
-        ],
-
-        'emm_admin_backlogged' => [
-            'variables' => [],
-        ],
-
-        'emm_authentication' => [
-            'variables' => array_merge($commonVars, [
-                'organisation_name' => 'ESN',
-                'authentication_type' => '',
-                'authentication_code' => NULL
-            ])
-        ],
-
-        'emm_application_view' => [
-            'variables' => [
-                'id' => NULL,
-                'fieldData' => [],
-                'urls' => [],
-                'permissions' => [],
-                'apiURLs' => [],
-                'is_paid' => FALSE,
-                'is_proof_verified' => FALSE,
-                'is_identity_verified' => FALSE,
-            ],
-        ],
-
-        'emm_esncard' => [
-            'variables' => [
-                'face_photo_link' => '',
-                'full_name' => '',
-                'nationality' => '',
-                'dob_day' => '',
-                'dob_month' => '',
-                'dob_year' => '',
-                'host_institution' => '',
-                'section' => '',
-                'valid_since_day' => '',
-                'valid_since_month' => '',
-                'valid_since_year' => '',
-                'esncard_number' => ''
-            ],
-        ]
     ];
+
+    return $themes;
 }
 
 /**
  * Implements hook_mail().
+ * @noinspection PhpUnusedParameterInspection
  */
 function esn_membership_manager_mail($key, &$message, $params): void
 {
-    $membershipSettings = new MembershipSettings(Drupal::configFactory());
-    $fromEmail = $membershipSettings->getEmailAddress();
-    $fromName = $membershipSettings->getEmailName();
-
-    if ($fromEmail) {
-        if ($fromName) {
-            $message['from'] = "$fromName <$fromEmail>";
-            $message['headers']['From'] = "$fromName <$fromEmail>";
-        } else {
-            $message['from'] = $fromEmail;
-            $message['headers']['From'] = $fromEmail;
-        }
-    }
-
-    $options = [
-        'langcode' => $message['langcode'],
-    ];
-
-    $message['headers']['Content-Type'] = 'text/html; charset=UTF-8';
-    $message['headers']['MIME-Version'] = '1.0';
-
-    $scheme = $params['scheme_name'] ?? 'ESN Pass';
-    $guestScheme = $params['guest_scheme_name'] ?? 'ESN Guest Pass';
-    $organization = $params['organisation_name'] ?? 'ESN';
-
-    switch ($key) {
-        case 'pass_approval':
-            $message['subject'] = t('@scheme Approval', ['@scheme' => $scheme], $options);
-            break;
-
-        case 'both_approval':
-            $message['subject'] = t('@scheme and ESNcard Approval', ['@scheme' => $scheme], $options);
-            break;
-
-        case 'card_assignment':
-            $message['subject'] = t('Your ESNcard Details', [], $options);
-            break;
-
-        case 'both_rejection':
-            $message['subject'] = t('Application Rejected', [], $options);
-            break;
-
-        case 'pass_confirmation':
-            $message['subject'] = t('@scheme Application Received', ['@scheme' => $scheme], $options);
-            break;
-
-        case 'both_confirmation':
-            $message['subject'] = t('@scheme and ESNcard Application Received', ['@scheme' => $scheme], $options);
-            break;
-
-        case 'pass_blacklist':
-            $message['subject'] = t('@scheme Blacklisted', ['@scheme' => $scheme], $options);
-            break;
-
-        case 'card_issuance':
-            $message['subject'] = t('ESNcard Issued', [], $options);
-            break;
-
-        case 'guest_approval':
-            $message['subject'] = t('@scheme Approved', ['@scheme' => $guestScheme], $options);
-            break;
-
-        case 'admin_backlogged':
-            $message['subject'] = t('ESNcard Backlogged', [], $options);
-            break;
-
-        case 'authentication':
-            $message['subject'] = t('@org Authentication Code', ['@org' => $organization], $options);
-            break;
-    }
-
-    if (isset($params['body'])) {
-        $message['body'][] = Markup::create($params['body']);
-    }
+    EmailService::processHookMail($message, $params);
 }
 
 /**

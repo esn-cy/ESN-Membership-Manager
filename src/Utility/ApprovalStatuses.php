@@ -151,6 +151,6 @@ class ApprovalStatuses
     public static function removeStatus(string $currentRawStatus, string $statusToRemove): string
     {
         $newStatus = str_replace($statusToRemove, '', $currentRawStatus);
-        return rtrim(str_replace('//', '/', $newStatus), "/");
+        return trim(str_replace('//', '/', $newStatus), "/");
     }
 }

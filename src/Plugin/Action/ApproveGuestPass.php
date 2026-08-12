@@ -15,7 +15,8 @@ use Drupal\Core\Url;
 use Drupal\esn_membership_manager\Config\MembershipSettings;
 use Drupal\esn_membership_manager\Entity\GuestPass\GuestPassField;
 use Drupal\esn_membership_manager\Entity\GuestPass\GuestPassInterface;
-use Drupal\esn_membership_manager\Service\EmailManager;
+use Drupal\esn_membership_manager\Mail\GuestPassApprovalEmail;
+use Drupal\omnia\Service\EmailService;
 use Exception;
 use Symfony\Component\DependencyInjection\ContainerInterface;
 
@@ -32,19 +33,19 @@ use Symfony\Component\DependencyInjection\ContainerInterface;
 class ApproveGuestPass extends ActionBase implements ContainerFactoryPluginInterface
 {
     protected MembershipSettings $membershipSettings;
-    protected EmailManager $emailManager;
+    protected EmailService $emailService;
     protected LoggerChannelInterface $logger;
 
     public function __construct(
         array                         $configuration, $plugin_id, $plugin_definition,
         ConfigFactoryInterface        $configFactory,
-        EmailManager                  $emailManager,
+        EmailService $emailService,
         LoggerChannelFactoryInterface $loggerFactory
     )
     {
         parent::__construct($configuration, $plugin_id, $plugin_definition);
         $this->membershipSettings = new MembershipSettings($configFactory);
-        $this->emailManager = $emailManager;
+        $this->emailService = $emailService;
         $this->logger = $loggerFactory->get('esn_membership_manager');
     }
 
@@ -56,8 +57,8 @@ class ApproveGuestPass extends ActionBase implements ContainerFactoryPluginInter
         /** @var ConfigFactoryInterface $configFactory */
         $configFactory = $container->get('config.factory');
 
-        /** @var EmailManager $emailManager */
-        $emailManager = $container->get('esn_membership_manager.email_manager');
+        /** @var EmailService $emailService */
+        $emailService = $container->get('omnia.email_service');
 
         /** @var LoggerChannelFactoryInterface $loggerFactory */
         $loggerFactory = $container->get('logger.factory');
@@ -67,7 +68,7 @@ class ApproveGuestPass extends ActionBase implements ContainerFactoryPluginInter
             $plugin_id,
             $plugin_definition,
             $configFactory,
-            $emailManager,
+            $emailService,
             $loggerFactory,
         );
     }
@@ -107,13 +108,14 @@ class ApproveGuestPass extends ActionBase implements ContainerFactoryPluginInter
                 )->toString();
             }
 
+            $email = new GuestPassApprovalEmail(
+                name: $guestPass->getValue(GuestPassField::Name),
+                passToken: $token,
+                googleWalletLink: $googleWalletLink ?? null,
+                appleWalletLink: $appleWalletLink ?? null,
+            );
 
-            $this->emailManager->sendEmail($guestPass->getValue(GuestPassField::Email), 'guest_approval', [
-                'name' => $guestPass->getValue(GuestPassField::Name),
-                'pass_token' => $token,
-                'google_wallet_link' => $googleWalletLink ?? '',
-                'apple_wallet_link' => $appleWalletLink ?? '',
-            ]);
+            $this->emailService->send($guestPass->getValue(GuestPassField::Email), $email);
 
             $this->logger->notice('Approved guest pass @id.', ['@id' => $guestPass->id()]);
             return;

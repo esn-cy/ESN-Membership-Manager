@@ -24,14 +24,16 @@ use Drupal\esn_accounts_api\Entity\Organisation;
 use Drupal\esn_membership_manager\Config\MembershipSettings;
 use Drupal\esn_membership_manager\Entity\Application\ApplicationField;
 use Drupal\esn_membership_manager\Entity\Application\ApplicationStorage;
+use Drupal\esn_membership_manager\Mail\BothConfirmationEmail;
+use Drupal\esn_membership_manager\Mail\PassConfirmationEmail;
 use Drupal\esn_membership_manager\Plugin\Action\ApproveApplication;
 use Drupal\esn_membership_manager\Service\DiditService;
-use Drupal\esn_membership_manager\Service\EmailManager;
 use Drupal\esn_membership_manager\Service\FileService;
 use Drupal\esn_membership_manager\Utility\ApprovalStatuses;
 use Drupal\esn_membership_manager\Utility\MobilityStatuses;
 use Drupal\esn_membership_manager\Utility\Nationalities;
 use Drupal\omnia\Config\OmniaSettings;
+use Drupal\omnia\Service\EmailService;
 use Exception;
 use GuzzleHttp\ClientInterface;
 use Symfony\Component\DependencyInjection\ContainerInterface;
@@ -41,7 +43,7 @@ class ApplicationForm extends AuthenticatedFormBase
     protected MembershipSettings $membershipSettings;
     protected OmniaSettings $omniaSettings;
     protected FileService $fileService;
-    protected EmailManager $emailManager;
+    protected EmailService $emailService;
     protected Extension $module;
     protected ApplicationStorage $applicationStorage;
     protected ApproveApplication $approveApplication;
@@ -60,7 +62,7 @@ class ApplicationForm extends AuthenticatedFormBase
         EntityTypeManagerInterface    $entityTypeManager,
         ClientInterface               $httpClient,
         FileService                   $fileService,
-        EmailManager                  $emailManager,
+        EmailService $emailService,
         ModuleHandlerInterface        $moduleHandler,
         ActionManager                 $actionManager,
         DiditService                  $diditService,
@@ -77,7 +79,7 @@ class ApplicationForm extends AuthenticatedFormBase
         $this->membershipSettings = new MembershipSettings($configFactory);
         $this->omniaSettings = new OmniaSettings($configFactory);
         $this->fileService = $fileService;
-        $this->emailManager = $emailManager;
+        $this->emailService = $emailService;
         $this->module = $moduleHandler->getModule('esn_membership_manager');
         $this->applicationStorage = $applicationStorage;
         $this->approveApplication = $approveApplication;
@@ -108,8 +110,8 @@ class ApplicationForm extends AuthenticatedFormBase
         /** @var FileService $fileService */
         $fileService = $container->get('esn_membership_manager.file_service');
 
-        /** @var EmailManager $emailManager */
-        $emailManager = $container->get('esn_membership_manager.email_manager');
+        /** @var EmailService $emailService */
+        $emailService = $container->get('omnia.email_service');
 
         /** @var ModuleHandlerInterface $moduleHandler */
         $moduleHandler = $container->get('module_handler');
@@ -129,7 +131,7 @@ class ApplicationForm extends AuthenticatedFormBase
             $entityTypeManager,
             $httpClient,
             $fileService,
-            $emailManager,
+            $emailService,
             $moduleHandler,
             $actionManager,
             $diditService,
@@ -825,12 +827,15 @@ class ApplicationForm extends AuthenticatedFormBase
             } catch (Exception) {
             }
         } else {
-            $emailParams = ['name' => trim($isVerifiedID ? $savedData['name'] : $values['name'])];
+            $name = trim($isVerifiedID ? $savedData['name'] : $values['name']);
 
-            if ($hasESNcard)
-                $this->emailManager->sendEmail($email, 'both_confirmation', $emailParams);
-            else
-                $this->emailManager->sendEmail($email, 'pass_confirmation', $emailParams);
+            if ($hasESNcard) {
+                $emailClass = new BothConfirmationEmail($name);
+            } else {
+                $emailClass = new PassConfirmationEmail($name);
+            }
+
+            $this->emailService->send($email, $emailClass);
         }
 
         if (!empty($application['didit_session_id'])) {

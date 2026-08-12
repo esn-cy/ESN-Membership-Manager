@@ -10,7 +10,8 @@ use Drupal\Core\Entity\EntityTypeManagerInterface;
 use Drupal\Core\Logger\LoggerChannelFactoryInterface;
 use Drupal\Core\Logger\LoggerChannelInterface;
 use Drupal\esn_membership_manager\Entity\Application\ApplicationStorage;
-use Drupal\esn_membership_manager\Service\EmailManager;
+use Drupal\esn_membership_manager\Mail\AuthenticationEmail;
+use Drupal\omnia\Service\EmailService;
 use Exception;
 use Symfony\Component\DependencyInjection\ContainerInterface;
 use Symfony\Component\HttpFoundation\JsonResponse;
@@ -20,7 +21,7 @@ class AuthenticationController extends ControllerBase
 {
     protected Connection $database;
     protected ApplicationStorage $applicationStorage;
-    protected EmailManager $emailManager;
+    protected EmailService $emailService;
     protected LoggerChannelInterface $logger;
     protected array $allowedTypes = ['login', 'register'];
 
@@ -31,7 +32,7 @@ class AuthenticationController extends ControllerBase
     public function __construct(
         Connection                    $database,
         EntityTypeManagerInterface    $entityTypeManager,
-        EmailManager                  $emailManager,
+        EmailService $emailService,
         LoggerChannelFactoryInterface $loggerFactory,
     )
     {
@@ -40,7 +41,7 @@ class AuthenticationController extends ControllerBase
 
         $this->database = $database;
         $this->applicationStorage = $applicationStorage;
-        $this->emailManager = $emailManager;
+        $this->emailService = $emailService;
         $this->logger = $loggerFactory->get('esn_membership_manager');
     }
 
@@ -56,8 +57,8 @@ class AuthenticationController extends ControllerBase
         /** @var EntityTypeManagerInterface $entityTypeManager */
         $entityTypeManager = $container->get('entity_type.manager');
 
-        /** @var EmailManager $emailManager */
-        $emailManager = $container->get('esn_membership_manager.email_manager');
+        /** @var EmailService $emailService */
+        $emailService = $container->get('omnia.email_service');
 
         /** @var LoggerChannelFactoryInterface $loggerFactory */
         $loggerFactory = $container->get('logger.factory');
@@ -65,7 +66,7 @@ class AuthenticationController extends ControllerBase
         return new static(
             $database,
             $entityTypeManager,
-            $emailManager,
+            $emailService,
             $loggerFactory,
         );
     }
@@ -86,13 +87,13 @@ class AuthenticationController extends ControllerBase
         switch ($type) {
             case 'login':
                 $successMessage = 'A code was sent to your email address.';
-                $emailHeader = 'Login';
+                $formattedType = 'Login';
 
                 $exists = $this->applicationStorage->countByEmail($email) > 0;
                 break;
             case 'register':
                 $successMessage = 'A code was sent to your email address. If you do not receive it within 5 minutes, please check your spam or try a different email.';
-                $emailHeader = 'Registration';
+                $formattedType = 'Registration';
                 $exists = TRUE;
                 break;
             default:
@@ -127,10 +128,12 @@ class AuthenticationController extends ControllerBase
             return new JsonResponse(['error' => 'There was an issue while processing your request. Please try again later.'], 500);
         }
 
-        $this->emailManager->sendEmail($email, 'authentication', [
-            'authentication_type' => $emailHeader,
-            'authentication_code' => $code,
-        ]);
+        $emailClass = new AuthenticationEmail(
+            type: $formattedType,
+            code: $code
+        );
+
+        $this->emailService->send($email, $emailClass);
 
         return new JsonResponse([
             'status' => 'success',

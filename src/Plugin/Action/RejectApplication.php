@@ -11,8 +11,9 @@ use Drupal\Core\Plugin\ContainerFactoryPluginInterface;
 use Drupal\Core\Session\AccountInterface;
 use Drupal\esn_membership_manager\Entity\Application\ApplicationField;
 use Drupal\esn_membership_manager\Entity\Application\ApplicationInterface;
-use Drupal\esn_membership_manager\Service\EmailManager;
+use Drupal\esn_membership_manager\Mail\RejectionEmail;
 use Drupal\esn_membership_manager\Utility\ApprovalStatuses;
+use Drupal\omnia\Service\EmailService;
 use Exception;
 use Symfony\Component\DependencyInjection\ContainerInterface;
 
@@ -28,17 +29,17 @@ use Symfony\Component\DependencyInjection\ContainerInterface;
  */
 class RejectApplication extends ActionBase implements ContainerFactoryPluginInterface
 {
-    protected EmailManager $emailManager;
+    protected EmailService $emailService;
     protected LoggerChannelInterface $logger;
 
     public function __construct(
         array                         $configuration, $plugin_id, $plugin_definition,
-        EmailManager                  $emailManager,
+        EmailService $emailService,
         LoggerChannelFactoryInterface $loggerFactory
     )
     {
         parent::__construct($configuration, $plugin_id, $plugin_definition);
-        $this->emailManager = $emailManager;
+        $this->emailService = $emailService;
         $this->logger = $loggerFactory->get('esn_membership_manager');
     }
 
@@ -47,8 +48,8 @@ class RejectApplication extends ActionBase implements ContainerFactoryPluginInte
         array              $configuration, $plugin_id, $plugin_definition
     ): self
     {
-        /** @var EmailManager $emailManager */
-        $emailManager = $container->get('esn_membership_manager.email_manager');
+        /** @var EmailService $emailService */
+        $emailService = $container->get('omnia.email_service');
 
         /** @var LoggerChannelFactoryInterface $loggerFactory */
         $loggerFactory = $container->get('logger.factory');
@@ -57,7 +58,7 @@ class RejectApplication extends ActionBase implements ContainerFactoryPluginInte
             $configuration,
             $plugin_id,
             $plugin_definition,
-            $emailManager,
+            $emailService,
             $loggerFactory,
         );
     }
@@ -110,10 +111,12 @@ class RejectApplication extends ActionBase implements ContainerFactoryPluginInte
                 }
             }
 
-            $this->emailManager->sendEmail($application->getValue(ApplicationField::Email), 'both_rejection', [
-                'name' => $application->getValue(ApplicationField::Name),
-                'reasons' => $emailReasons
-            ]);
+            $email = new RejectionEmail(
+                name: $application->getValue(ApplicationField::Name),
+                reasons: $emailReasons
+            );
+
+            $this->emailService->send($application->getValue(ApplicationField::Email), $email);
 
             $this->logger->notice('Rejected application @id', ['@id' => $application->id()]);
         } catch (Exception $e) {

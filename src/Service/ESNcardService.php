@@ -14,6 +14,9 @@ use Drupal\esn_membership_manager\Config\MembershipSettings;
 use Drupal\esn_membership_manager\Entity\Application\ApplicationField;
 use Drupal\esn_membership_manager\Entity\Application\ApplicationInterface;
 use Drupal\esn_membership_manager\Entity\Application\ApplicationStorage;
+use Drupal\esn_membership_manager\Mail\BacklogEmail;
+use Drupal\esn_membership_manager\Mail\CardAssignmentEmail;
+use Drupal\omnia\Service\EmailService;
 use Exception;
 
 class ESNcardService
@@ -23,7 +26,7 @@ class ESNcardService
     protected ApplicationStorage $applicationStorage;
     protected LoggerChannelInterface $logger;
     protected StripeService $stripeService;
-    protected EmailManager $emailManager;
+    protected EmailService $emailService;
     protected WeeztixService $weeztixService;
     protected GoogleService $googleService;
 
@@ -37,7 +40,7 @@ class ESNcardService
         EntityTypeManagerInterface    $entityTypeManager,
         LoggerChannelFactoryInterface $loggerFactory,
         StripeService                 $stripeService,
-        EmailManager                  $emailManager,
+        EmailService $emailService,
         WeeztixService                $weeztixService,
         GoogleService                 $googleService,
     )
@@ -50,7 +53,7 @@ class ESNcardService
         $this->applicationStorage = $applicationStorage;
         $this->logger = $loggerFactory->get('esn_membership_manager');
         $this->stripeService = $stripeService;
-        $this->emailManager = $emailManager;
+        $this->emailService = $emailService;
         $this->weeztixService = $weeztixService;
         $this->googleService = $googleService;
     }
@@ -170,11 +173,12 @@ class ESNcardService
         }
 
         if (empty($nextNumber)) {
-
             $alreadyBacklogged = $this->applicationStorage->countBacklogged() > 0;
 
             if (!$alreadyBacklogged) {
-                $this->emailManager->sendEmail($this->membershipSettings->getAdminEmailAddress(), 'admin_backlogged', []);
+                $email = new BacklogEmail();
+
+                $this->emailService->send($this->membershipSettings->getAdminEmailAddress(), $email);
             }
 
             $this->logger->warning('No available ESNcard numbers left to assign.');
@@ -266,12 +270,12 @@ class ESNcardService
             )->toString();
         }
 
-        $emailParams = [
-            'name' => $application->getValue(ApplicationField::Name),
-            'esncard_number' => $application->getValue(ApplicationField::ESNcardNumber),
-            'google_wallet_link' => $googleWalletLink ?? '',
-            'apple_wallet_link' => $appleWalletLink ?? '',
-        ];
-        $this->emailManager->sendEmail($application->getValue(ApplicationField::Email), 'card_assignment', $emailParams);
+        $email = new CardAssignmentEmail(
+            name: $application->getValue(ApplicationField::Name),
+            cardNumber: $application->getValue(ApplicationField::ESNcardNumber),
+            googleWalletLink: $googleWalletLink ?? null,
+            appleWalletLink: $appleWalletLink ?? null,
+        );
+        $this->emailService->send($application->getValue(ApplicationField::Email), $email);
     }
 }

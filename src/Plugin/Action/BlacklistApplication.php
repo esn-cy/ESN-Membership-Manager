@@ -11,9 +11,10 @@ use Drupal\Core\Plugin\ContainerFactoryPluginInterface;
 use Drupal\Core\Session\AccountInterface;
 use Drupal\esn_membership_manager\Entity\Application\ApplicationField;
 use Drupal\esn_membership_manager\Entity\Application\ApplicationInterface;
-use Drupal\esn_membership_manager\Service\EmailManager;
+use Drupal\esn_membership_manager\Mail\BlacklistEmail;
 use Drupal\esn_membership_manager\Service\StripeService;
 use Drupal\esn_membership_manager\Utility\ApprovalStatuses;
+use Drupal\omnia\Service\EmailService;
 use Exception;
 use Symfony\Component\DependencyInjection\ContainerInterface;
 
@@ -29,19 +30,19 @@ use Symfony\Component\DependencyInjection\ContainerInterface;
  */
 class BlacklistApplication extends ActionBase implements ContainerFactoryPluginInterface
 {
-    protected EmailManager $emailManager;
+    protected EmailService $emailService;
     protected LoggerChannelInterface $logger;
     protected StripeService $stripeService;
 
     public function __construct(
         array                         $configuration, $plugin_id, $plugin_definition,
-        EmailManager                  $emailManager,
+        EmailService $emailService,
         LoggerChannelFactoryInterface $loggerFactory,
         StripeService                 $stripeService
     )
     {
         parent::__construct($configuration, $plugin_id, $plugin_definition);
-        $this->emailManager = $emailManager;
+        $this->emailService = $emailService;
         $this->logger = $loggerFactory->get('esn_membership_manager');
         $this->stripeService = $stripeService;
     }
@@ -51,8 +52,8 @@ class BlacklistApplication extends ActionBase implements ContainerFactoryPluginI
         array              $configuration, $plugin_id, $plugin_definition
     ): self
     {
-        /** @var EmailManager $emailManager */
-        $emailManager = $container->get('esn_membership_manager.email_manager');
+        /** @var EmailService $emailService */
+        $emailService = $container->get('omnia.email_service');
 
         /** @var LoggerChannelFactoryInterface $loggerFactory */
         $loggerFactory = $container->get('logger.factory');
@@ -64,7 +65,7 @@ class BlacklistApplication extends ActionBase implements ContainerFactoryPluginI
             $configuration,
             $plugin_id,
             $plugin_definition,
-            $emailManager,
+            $emailService,
             $loggerFactory,
             $stripeService,
         );
@@ -98,7 +99,11 @@ class BlacklistApplication extends ActionBase implements ContainerFactoryPluginI
         try {
             $application->save();
 
-            $this->emailManager->sendEmail($application->getValue(ApplicationField::Email), 'pass_blacklist', ['name' => $application->getValue(ApplicationField::Name)]);
+            $email = new BlacklistEmail(
+                name: $application->getValue(ApplicationField::Name)
+            );
+
+            $this->emailService->send($application->getValue(ApplicationField::Email), $email);
 
             $this->logger->notice('Blacklisted application @id', ['@id' => $application->id()]);
         } catch (Exception $e) {

@@ -16,10 +16,12 @@ use Drupal\Core\Url;
 use Drupal\esn_membership_manager\Config\MembershipSettings;
 use Drupal\esn_membership_manager\Entity\Application\ApplicationField;
 use Drupal\esn_membership_manager\Entity\Application\ApplicationInterface;
-use Drupal\esn_membership_manager\Service\EmailManager;
+use Drupal\esn_membership_manager\Mail\BothApprovalEmail;
+use Drupal\esn_membership_manager\Mail\PassApprovalEmail;
 use Drupal\esn_membership_manager\Service\StripeService;
 use Drupal\esn_membership_manager\Service\WeeztixService;
 use Drupal\esn_membership_manager\Utility\ApprovalStatuses;
+use Drupal\omnia\Service\EmailService;
 use Exception;
 use Stripe\Exception\ApiErrorException;
 use Symfony\Component\DependencyInjection\ContainerInterface;
@@ -39,7 +41,7 @@ class ApproveApplication extends ActionBase implements ContainerFactoryPluginInt
     protected MembershipSettings $membershipSettings;
     protected Connection $database;
     protected StripeService $stripeService;
-    protected EmailManager $emailManager;
+    protected EmailService $emailService;
     protected WeeztixService $weeztixService;
     protected LoggerChannelInterface $logger;
 
@@ -48,7 +50,7 @@ class ApproveApplication extends ActionBase implements ContainerFactoryPluginInt
         ConfigFactoryInterface        $configFactory,
         Connection                    $database,
         StripeService                 $stripeService,
-        EmailManager                  $emailManager,
+        EmailService $emailService,
         WeeztixService                $weeztixService,
         LoggerChannelFactoryInterface $loggerFactory
     )
@@ -57,7 +59,7 @@ class ApproveApplication extends ActionBase implements ContainerFactoryPluginInt
         $this->membershipSettings = new MembershipSettings($configFactory);
         $this->database = $database;
         $this->stripeService = $stripeService;
-        $this->emailManager = $emailManager;
+        $this->emailService = $emailService;
         $this->weeztixService = $weeztixService;
         $this->logger = $loggerFactory->get('esn_membership_manager');
     }
@@ -76,8 +78,8 @@ class ApproveApplication extends ActionBase implements ContainerFactoryPluginInt
         /** @var StripeService $stripeService */
         $stripeService = $container->get('esn_membership_manager.stripe_service');
 
-        /** @var EmailManager $emailManager */
-        $emailManager = $container->get('esn_membership_manager.email_manager');
+        /** @var EmailService $emailService */
+        $emailService = $container->get('omnia.email_service');
 
         /** @var WeeztixService $weeztixService */
         $weeztixService = $container->get('esn_membership_manager.weeztix_service');
@@ -92,7 +94,7 @@ class ApproveApplication extends ActionBase implements ContainerFactoryPluginInt
             $configFactory,
             $database,
             $stripeService,
-            $emailManager,
+            $emailService,
             $weeztixService,
             $loggerFactory,
         );
@@ -125,11 +127,6 @@ class ApproveApplication extends ActionBase implements ContainerFactoryPluginInt
         $application
             ->setValue(ApplicationField::PassToken, $token)
             ->setValue(ApplicationField::DateApproved, (new DrupalDateTime())->format('Y-m-d\TH:i:s'));
-
-        $emailFields = [
-            'name' => $application->getValue(ApplicationField::Name),
-            'pass_token' => $token,
-        ];
 
         if ($application->getValue(ApplicationField::HasESNcard)) {
             try {
@@ -168,8 +165,6 @@ class ApproveApplication extends ActionBase implements ContainerFactoryPluginInt
             $application
                 ->setValue(ApplicationField::PaymentLink, $paymentLink->url)
                 ->setValue(ApplicationField::PaymentLinkID, $paymentLink->id);
-
-            $emailFields += ['payment_link' => $paymentLink->url];
         }
 
         try {
@@ -195,16 +190,23 @@ class ApproveApplication extends ActionBase implements ContainerFactoryPluginInt
                 $this->weeztixService->addCoupon('pass', $token, ['applies_to_count' => 1, 'usage_count' => 5]);
             }
 
-            $emailFields += [
-                'google_wallet_link' => $googleWalletLink ?? '',
-                'apple_wallet_link' => $appleWalletLink ?? '',
-            ];
-
             if ($application->getValue(ApplicationField::HasESNcard)) {
-                $this->emailManager->sendEmail($application->getValue(ApplicationField::Email), 'both_approval', $emailFields);
+                $email = new BothApprovalEmail(
+                    name: $application->getValue(ApplicationField::Name),
+                    passToken: $token,
+                    paymentLink: $application->getValue(ApplicationField::PaymentLink),
+                    googleWalletLink: $googleWalletLink ?? null,
+                    appleWalletLink: $appleWalletLink ?? null,
+                );
             } else {
-                $this->emailManager->sendEmail($application->getValue(ApplicationField::Email), 'pass_approval', $emailFields);
+                $email = new PassApprovalEmail(
+                    name: $application->getValue(ApplicationField::Name),
+                    passToken: $token,
+                    googleWalletLink: $googleWalletLink ?? null,
+                    appleWalletLink: $appleWalletLink ?? null,
+                );
             }
+            $this->emailService->send($application->getValue(ApplicationField::Email), $email);
 
             $this->logger->notice('Approved application @id.', ['@id' => $application->id()]);
             return;
