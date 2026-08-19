@@ -134,8 +134,6 @@ class EditController extends ControllerBase
             }
         }
 
-        $application->setValue(ApplicationField::DateLastModified, (new DrupalDateTime())->format('Y-m-d\TH:i:s'));
-
         try {
             $application->save();
         } catch (Exception $e) {

@@ -131,4 +131,13 @@ class GuestPass extends EnumBackedEntityBase implements GuestPassInterface
     {
         return $this->getDateTimeValue(GuestPassField::DateLastModified);
     }
+
+    /**
+     * {@inheritdoc}
+     */
+    public function save(): void
+    {
+        $this->setValue(GuestPassField::DateLastModified, (new DrupalDateTime())->format('Y-m-d\TH:i:s'));
+        parent::save();
+    }
 }

@@ -191,7 +191,6 @@ class SettingsForm extends ConfigFormBase
 
         $guestPassEnabled = $form_state->getValue('switch_guest_pass') ?? $membershipSettings->getGuestPassSwitch();
 
-
         $form['guest_pass'] = [
             '#type' => 'details',
             '#title' => $this->t('Guest Pass Settings'),

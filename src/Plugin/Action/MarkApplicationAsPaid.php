@@ -124,8 +124,6 @@ class MarkApplicationAsPaid extends ActionBase implements ContainerFactoryPlugin
             return 'This status cannot be applied.';
         }
 
-        $isManual = empty($linkID);
-
         $transaction = $this->database->startTransaction();
 
         try {

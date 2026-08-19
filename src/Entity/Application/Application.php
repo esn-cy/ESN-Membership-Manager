@@ -293,4 +293,13 @@ class Application extends EnumBackedEntityBase implements ApplicationInterface
     {
         return $this->getDateTimeValue(ApplicationField::DateLastModified);
     }
+
+    /**
+     * {@inheritdoc}
+     */
+    public function save(): void
+    {
+        $this->setValue(ApplicationField::DateLastModified, (new DrupalDateTime())->format('Y-m-d\TH:i:s'));
+        parent::save();
+    }
 }
