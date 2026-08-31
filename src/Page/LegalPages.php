@@ -54,7 +54,7 @@ class LegalPages extends ControllerBase
       <h3>4. Payments and Refunds</h3>
       <p>All online payments are processed securely through Stripe. We do not store your credit card information. Refund policies are subject to {$this->omniaSettings->getOrganisationName()}'s specific bylaws.</p>
       <h3>5. Third-Party Integrations</h3>
-      <p>Our service relies on third-party platforms to deliver full functionality, including Stripe (payments), Didit (identity verification), Weeztix (ticketing integration), and Google Sheets (administrative logging). Furthermore, we issue passes compatible with Apple Wallet and Google Wallet. Your use of these specific features is also subject to the respective terms of service and privacy policies of those external providers.</p>
+      <p>Our service relies on third-party platforms to deliver full functionality, including Stripe (payments), Didit (identity verification), ESN Accounts managed by ESN AISBL (status verification), Weeztix (ticketing integration), and Google Sheets (administrative logging). Furthermore, we issue passes compatible with Apple Wallet and Google Wallet. Your use of these specific features is also subject to the respective terms of service and privacy policies of those external providers.</p>
       <h3>6. Termination or Revocation</h3>
       <p>We reserve the right to deny, suspend, or revoke your membership, digital passes, or ESNcard at our sole discretion, including in cases of fraudulent application data or violation of ESN guidelines. Revoked passes will be disabled and invalidated across all connected platforms.</p>
       <h3>7. Limitation of Liability</h3>
@@ -102,13 +102,14 @@ class LegalPages extends ControllerBase
       <h3>4. Third-Party Integrations and Data Sharing</h3>
       <p>To operate ESN Membership Manager effectively, we integrate with trusted third-party services. We only share the minimum data required for these services to function:</p>
       <ul>
+        <li><b>ESN Accounts: </b>To verify your membership status automatically, your data is checked against the centralized ESN Accounts system managed by ESN AISBL in Belgium.</li>
         <li><b>Stripe (Payments): </b>If your application includes and ESNcard, a Stripe payment link is added to your account. We share your application ID with Stripe to link your payment to your application. After one year, your active payment links are disabled.</li>
         <li><b>Weeztix (Ticketing): </b>When you are assigned an ESNcard, your card number is securely transmitted to Weeztix to act as an active coupon code for event discounts.</li>
         <li><b>Google Services:</b>
             <li><b>Google Sheets: </b>We maintain financial and issuance logs via Google Sheets. We log the date, your full name, card number, host institution, nationality, payment method, and amount paid.</li>
             <li><b>Google Wallet: </b>If you add your pass to Google Wallet, we transmit your name, photo, date of birth, nationality, and mobility details to Google to generate the secure digital object.</li>
         </li>
-        <li><b>Apple Wallet: </b>f you add your pass to an iOS device, similar pass data (name, nationality, DOB, photo) is formatted for Apple Wallet. We use the Apple Push Notification service (APNs) to send background updates to your passes if your membership details change.</li>
+        <li><b>Apple Wallet: </b>If you add your pass to an iOS device, similar pass data (name, nationality, DOB, photo) is formatted for Apple Wallet. We use the Apple Push Notification service (APNs) to send background updates to your passes if your membership details change.</li>
       </ul>
       <h3>5. Your Data Protection Rights</h3>
       <p>Under the General Data Protection Regulation (GDPR), you have the right to:</p>

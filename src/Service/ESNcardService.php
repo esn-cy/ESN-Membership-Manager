@@ -122,7 +122,7 @@ class ESNcardService
                 $transaction = $this->database->startTransaction();
                 try {
                     $isManual = $application->getValue(ApplicationField::ESNcardNumber) === 'BACKLOGGED-MANUAL';
-                    $cardNumber = $this->assignESNcardNumber($application->id(), $isManual);
+                    $cardNumber = $this->assignESNcardNumber($application, $isManual);
 
                     $application->setValue(ApplicationField::ESNcardNumber, $cardNumber);
 
