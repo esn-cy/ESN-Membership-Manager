@@ -2,83 +2,99 @@
 
 namespace Drupal\esn_membership_manager\Service;
 
-use DateTime;
+use DateInterval;
 use Drupal\Core\Config\ConfigFactoryInterface;
+use Drupal\Core\Extension\Extension;
 use Drupal\Core\Extension\ModuleHandlerInterface;
 use Drupal\Core\Logger\LoggerChannelFactoryInterface;
 use Drupal\Core\Logger\LoggerChannelInterface;
+use Drupal\Core\Site\Settings;
+use Drupal\Core\Url;
+use Drupal\esn_membership_manager\Config\MembershipSettings;
+use Drupal\esn_membership_manager\Entity\Application\ApplicationField;
+use Drupal\esn_membership_manager\Entity\Application\ApplicationInterface;
+use Drupal\esn_membership_manager\Entity\GuestPass\GuestPassField;
+use Drupal\esn_membership_manager\Entity\GuestPass\GuestPassInterface;
+use Drupal\omnia\Config\OmniaSettings;
+use Drupal\omnia\Service\AppleServiceBase;
+use Drupal\omnia\Service\FileServiceBase;
 use Exception;
-use PKPass\PKPass;
-use PKPass\PKPassException;
+use GuzzleHttp\ClientInterface;
 
-class AppleWalletService
+class AppleWalletService extends AppleServiceBase
 {
-    protected ConfigFactoryInterface $configFactory;
-    protected ModuleHandlerInterface $moduleHandler;
+    protected MembershipSettings $membershipSettings;
+    protected OmniaSettings $omniaSettings;
+    protected Extension $module;
+    protected Settings $settings;
     protected LoggerChannelInterface $logger;
 
     public function __construct(
-        ConfigFactoryInterface        $config_factory,
+        ConfigFactoryInterface        $configFactory,
         ModuleHandlerInterface        $moduleHandler,
-        LoggerChannelFactoryInterface $logger_factory
+        FileServiceBase               $fileService,
+        ClientInterface               $httpClient,
+        Settings                      $settings,
+        LoggerChannelFactoryInterface $loggerFactory
     )
     {
-        $this->configFactory = $config_factory;
-        $this->moduleHandler = $moduleHandler;
-        $this->logger = $logger_factory->get('esn_membership_manager');
+        parent::__construct($fileService, $httpClient, $loggerFactory);
+        $this->membershipSettings = new MembershipSettings($configFactory);
+        $this->omniaSettings = new OmniaSettings($configFactory);
+        $this->module = $moduleHandler->getModule('esn_membership_manager');
+        $this->settings = $settings;
+        $this->logger = $loggerFactory->get('esn_membership_manager');
     }
 
     /**
      * @throws Exception
      */
-    public function createESNcard(array $data): ?string
+    public function createESNcard(ApplicationInterface $application): ?string
     {
-        $moduleConfig = $this->configFactory->get('esn_membership_manager.settings');
+        $certificateP12 = $this->membershipSettings->getAppleCertificateP12();
+        $certificatePassword = $this->membershipSettings->getAppleCertificatePassword();
 
-        $pass = new PKPass();
+        $serialNumber = 'esncard-' . $application->id();
 
-        $pass->setCertificateString($moduleConfig->get('apple_certificate_string'));
-        $pass->setCertificatePassword($moduleConfig->get('apple_certificate_password'));
-
-        $paidDate = new DateTime($data['date_paid']);
+        $paidDate = $application->getDatePaid();
         $paidDate->setTime(0, 0);
 
-        $passData = $this->getCommonAttributes() +
+        $passData = $this->getCommonAttributes($serialNumber) +
             [
                 'description' => 'ESNcard',
                 'logoText' => 'ESNcard',
                 'backgroundColor' => 'rgb(46, 49, 146)',
-                'serialNumber' => $data['esncard_number'],
+                'serialNumber' => $serialNumber,
                 'generic' => [
                     'primaryFields' => [
                         [
                             'key' => 'name',
                             'label' => 'Name & Surname',
-                            'value' => "{$data['name']} {$data['surname']}",
+                            'value' => $application->getFullName(),
                         ]
                     ],
                     'secondaryFields' => [
                         [
                             'key' => 'nationality',
                             'label' => 'Nationality',
-                            'value' => $data['nationality'],
-                        ],
-                        [
-                            'key' => 'mobility_status',
-                            'label' => 'Mobility Status',
-                            'value' => $data['mobility_status']
+                            'value' => $application->getValue(ApplicationField::Nationality),
                         ],
                         [
                             'key' => 'dob',
                             'label' => 'Date of Birth',
-                            'value' => (new DateTime($data['dob']))->format('d/m/Y')
+                            'value' => $application->getDateOfBirth()->format('d/m/Y')
                         ]
                     ],
                     'auxiliaryFields' => [
                         [
-                            'key' => 'host_institution',
-                            'label' => 'Host Institution',
-                            'value' => $data['host_institution']
+                            'key' => 'studies_at',
+                            'label' => 'Studies at',
+                            'value' => $application->getValue(ApplicationField::HostInstitution)
+                        ],
+                        [
+                            'key' => 'esn_section',
+                            'label' => 'ESN Section',
+                            'value' => $application->getValue(ApplicationField::Section)
                         ],
                         [
                             'key' => 'valid_since',
@@ -98,97 +114,117 @@ class AppleWalletService
                     [
                         'format' => 'PKBarcodeFormatCode128',
                         'messageEncoding' => 'iso-8859-1',
-                        'message' => $data['esncard_number'],
-                        'altText' => $data['esncard_number'],
+                        'message' => $application->getValue(ApplicationField::ESNcardNumber),
+                        'altText' => $application->getValue(ApplicationField::ESNcardNumber),
                     ]
                 ],
             ];
 
-        $pass->setData($passData);
+        $imagesPath = $this->module->getPath() . '/assets/images/apple_wallet/color/';
 
-        $imagesPath = $this->moduleHandler->getModule('esn_membership_manager')->getPath() . '/assets/images/apple_wallet/color/';
+        $facePhotoFileID = $application->getFacePhoto()->id();
 
-        $pass->addFile($imagesPath . 'logo.png', 'logo.png');
-        $pass->addFile($imagesPath . 'logo@2x.png', 'logo@2x.png');
-        $pass->addFile($imagesPath . 'logo@3x.png', 'logo@3x.png');
+        $type = $this->fileService->getFileMimeType($facePhotoFileID);
+        if (!empty($type)) {
+            if ($type == 'image/png') {
+                $images[] = [$this->fileService->getFilePath($facePhotoFileID) => 'thumbnail.png'];
+            } else {
+                $imageContents = $this->fileService->readFile($facePhotoFileID);
 
-        $pass->addFile($imagesPath . 'icon.png', 'icon.png');
-        $pass->addFile($imagesPath . 'icon@2x.png', 'icon@2x.png');
-        $pass->addFile($imagesPath . 'icon@3x.png', 'icon@3x.png');
+                if ($imageResource = imagecreatefromstring($imageContents)) {
+                    ob_start();
+                    imagepng($imageResource);
+                    $pngData = ob_get_clean();
 
-        try {
-            return $pass->create();
-        } catch (PKPassException $e) {
-            $this->logger->error('Apple Wallet Pass creation failed: ' . $e->getMessage());
-            return NULL;
+                    imagedestroy($imageResource);
+
+                    if ($this->fileService->replaceFileData($facePhotoFileID, $pngData)) {
+                        $images[] = [$this->fileService->getFilePath($facePhotoFileID) => 'thumbnail.png'];
+                    }
+                }
+            }
         }
+
+        $images = [
+            'logo.png' => $imagesPath . 'logo.png',
+            'logo@2x.png' => $imagesPath . 'logo@2x.png',
+            'logo@3x.png' => $imagesPath . 'logo@3x.png',
+            'icon.png' => $imagesPath . 'icon.png',
+            'icon@2x.png' => $imagesPath . 'icon@2x.png',
+            'icon@3x.png' => $imagesPath . 'icon@3x.png'
+        ];
+
+        return $this->createPass($passData, $images, $certificateP12, $certificatePassword);
     }
 
-    protected function getCommonAttributes(): array
+    protected function getCommonAttributes(string $serialNumber): array
     {
-        $moduleConfig = $this->configFactory->get('esn_membership_manager.settings');
+        $siteSalt = $this->settings::getHashSalt();
+        $authToken = hash('sha256', $serialNumber . $siteSalt);
+
+        $apiRoot = preg_replace('/\/v1\/log\/?$/', '', Url::fromRoute('esn_membership_manager.apple_wallet_log', [], ['absolute' => TRUE])->toString());
 
         return [
             'formatVersion' => 1,
-            'organizationName' => $moduleConfig->get('organization_name') ?? 'Erasmus Student Network',
-            'teamIdentifier' => $moduleConfig->get('apple_team_id'),
-            'passTypeIdentifier' => $moduleConfig->get('apple_pass_type_id'),
+            'organizationName' => $this->omniaSettings->getOrganisationName(),
+            'teamIdentifier' => $this->omniaSettings->getAppleTeamID(),
+            'passTypeIdentifier' => $this->membershipSettings->getApplePassTypeID(),
             'foregroundColor' => 'rgb(255, 255, 255)',
             'labelColor' => 'rgb(255, 255, 255)',
+            'webServiceURL' => $apiRoot,
+            'authenticationToken' => $authToken,
         ];
     }
 
     /**
      * @throws Exception
      */
-    public function createFreePass(array $data): ?string
+    public function createFreePass(ApplicationInterface $application): ?string
     {
-        $moduleConfig = $this->configFactory->get('esn_membership_manager.settings');
+        $certificateP12 = $this->membershipSettings->getAppleCertificateP12();
+        $certificatePassword = $this->membershipSettings->getAppleCertificatePassword();
 
-        $pass = new PKPass();
+        $serialNumber = 'free_pass-' . $application->id();
 
-        $pass->setCertificateString($moduleConfig->get('apple_certificate_string'));
-        $pass->setCertificatePassword($moduleConfig->get('apple_certificate_password'));
-
-        $approvedDate = new DateTime($data['date_approved']);
+        $approvedDate = $application->getDateApproved();
         $approvedDate->setTime(0, 0);
 
-        $passData = $this->getCommonAttributes() +
+        $passData = $this->getCommonAttributes($serialNumber) +
             [
-                'description' => $moduleConfig->get('scheme_name'),
-                'logoText' => $moduleConfig->get('scheme_name'),
+                'description' => $this->membershipSettings->getPassName(),
+                'logoText' => $this->membershipSettings->getPassName(),
                 'backgroundColor' => 'rgb(0, 174, 239)',
-                'serialNumber' => $data['pass_token'],
+                'serialNumber' => $serialNumber,
                 'generic' => [
                     'primaryFields' => [
                         [
                             'key' => 'name',
                             'label' => 'Name & Surname',
-                            'value' => "{$data['name']} {$data['surname']}",
+                            'value' => $application->getFullName(),
                         ]
                     ],
                     'secondaryFields' => [
                         [
                             'key' => 'nationality',
                             'label' => 'Nationality',
-                            'value' => $data['nationality'],
+                            'value' => $application->getValue(ApplicationField::Nationality)
                         ],
                         [
                             'key' => 'mobility_status',
                             'label' => 'Mobility Status',
-                            'value' => $data['mobility_status']
+                            'value' => $application->getValue(ApplicationField::MobilityStatus)
                         ],
                         [
                             'key' => 'dob',
                             'label' => 'Date of Birth',
-                            'value' => (new DateTime($data['dob']))->format('d/m/Y')
+                            'value' => $application->getDateOfBirth()->format('d/m/Y')
                         ]
                     ],
                     'auxiliaryFields' => [
                         [
                             'key' => 'host_institution',
                             'label' => 'Host Institution',
-                            'value' => $data['host_institution']
+                            'value' => $application->getValue(ApplicationField::HostInstitution)
                         ],
                         [
                             'key' => 'valid_since',
@@ -208,29 +244,121 @@ class AppleWalletService
                     [
                         'format' => 'PKBarcodeFormatQR',
                         'messageEncoding' => 'iso-8859-1',
-                        'message' => $data['pass_token'],
-                        'altText' => $data['pass_token'],
+                        'message' => $application->getValue(ApplicationField::PassToken),
+                        'altText' => $application->getValue(ApplicationField::PassToken),
                     ]
                 ],
             ];
 
-        $pass->setData($passData);
+        $imagesPath = $this->module->getPath() . '/assets/images/apple_wallet/white/';
 
-        $imagesPath = $this->moduleHandler->getModule('esn_membership_manager')->getPath() . '/assets/images/apple_wallet/white/';
+        $images = [
+            'logo.png' => $imagesPath . 'logo.png',
+            'logo@2x.png' => $imagesPath . 'logo@2x.png',
+            'logo@3x.png' => $imagesPath . 'logo@3x.png',
+            'icon.png' => $imagesPath . 'icon.png',
+            'icon@2x.png' => $imagesPath . 'icon@2x.png',
+            'icon@3x.png' => $imagesPath . 'icon@3x.png'
+        ];
 
-        $pass->addFile($imagesPath . 'logo.png', 'logo.png');
-        $pass->addFile($imagesPath . 'logo@2x.png', 'logo@2x.png');
-        $pass->addFile($imagesPath . 'logo@3x.png', 'logo@3x.png');
+        return $this->createPass($passData, $images, $certificateP12, $certificatePassword);
+    }
 
-        $pass->addFile($imagesPath . 'icon.png', 'icon.png');
-        $pass->addFile($imagesPath . 'icon@2x.png', 'icon@2x.png');
-        $pass->addFile($imagesPath . 'icon@3x.png', 'icon@3x.png');
+    /**
+     * @throws Exception
+     */
+    public function createGuestPass(GuestPassInterface $guestPass, ApplicationInterface $referer): ?string
+    {
+        $certificateP12 = $this->membershipSettings->getAppleCertificateP12();
+        $certificatePassword = $this->membershipSettings->getAppleCertificatePassword();
 
-        try {
-            return $pass->create();
-        } catch (PKPassException $e) {
-            $this->logger->error('Apple Wallet Pass creation failed: ' . $e->getMessage());
-            return NULL;
-        }
+        $serialNumber = 'guest-' . $guestPass->id();
+
+        $approvedDate = $guestPass->getDateApproved();
+        $approvedDate->setTime(0, 0);
+        $expiryDate = (clone $approvedDate)->add(new DateInterval("P7D"));
+
+        $commonAttributes = $this->getCommonAttributes($serialNumber);
+        unset($commonAttributes['webServiceURL']);
+        unset($commonAttributes['authenticationToken']);
+
+        $passData = $commonAttributes +
+            [
+                'description' => $this->membershipSettings->getGuestPassName(),
+                'logoText' => $this->membershipSettings->getGuestPassName(),
+                'backgroundColor' => 'rgb(236, 0, 140)',
+                'serialNumber' => $serialNumber,
+                'generic' => [
+                    'primaryFields' => [
+                        [
+                            'key' => 'name',
+                            'label' => 'Name & Surname',
+                            'value' => $guestPass->getFullName()
+                        ]
+                    ],
+                    'secondaryFields' => [
+                        [
+                            'key' => 'referer_name',
+                            'label' => 'Referer Name',
+                            'value' => $referer->getFullName()
+                        ]
+                    ],
+                    'auxiliaryFields' => [
+                        [
+                            'key' => 'referer_mobility_status',
+                            'label' => 'Referer Mobility Status',
+                            'value' => $referer->getValue(ApplicationField::MobilityStatus)
+                        ],
+                        [
+                            'key' => 'valid_until',
+                            'label' => 'Valid Until',
+                            'value' => $expiryDate->format('d/m/Y')
+                        ]
+                    ],
+                    'backFields' => [
+                        [
+                            'key' => 'local_disclaimer',
+                            'label' => 'Local Disclaimer',
+                            'value' => 'This pass can only be used in local events.'
+                        ],
+                        [
+                            'key' => 'guest_disclaimer',
+                            'label' => 'Guest Disclaimer',
+                            'value' => 'To redeem this pass you will need to present valid ID at the door as well as arrive at the venue with the person that invited you.'
+                        ]
+                    ]
+                ],
+                'barcodes' => [
+                    [
+                        'format' => 'PKBarcodeFormatAztec',
+                        'messageEncoding' => 'iso-8859-1',
+                        'message' => $guestPass->getValue(GuestPassField::PassToken),
+                        'altText' => $guestPass->getValue(GuestPassField::PassToken),
+                    ]
+                ],
+            ];
+
+        $imagesPath = $this->module->getPath() . '/assets/images/apple_wallet/white/';
+
+        $images = [
+            'logo.png' => $imagesPath . 'logo.png',
+            'logo@2x.png' => $imagesPath . 'logo@2x.png',
+            'logo@3x.png' => $imagesPath . 'logo@3x.png',
+            'icon.png' => $imagesPath . 'icon.png',
+            'icon@2x.png' => $imagesPath . 'icon@2x.png',
+            'icon@3x.png' => $imagesPath . 'icon@3x.png'
+        ];
+
+        return $this->createPass($passData, $images, $certificateP12, $certificatePassword);
+    }
+
+    public function sendApplicationUpdateNotification(string $pushToken): bool
+    {
+        return $this->sendUpdateNotification(
+            $pushToken,
+            $this->membershipSettings->getApplePassTypeID(),
+            $this->membershipSettings->getAppleCertificatePEM(),
+            $this->membershipSettings->getAppleCertificatePassword()
+        );
     }
 }

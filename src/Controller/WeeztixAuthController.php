@@ -4,27 +4,27 @@ namespace Drupal\esn_membership_manager\Controller;
 
 use Drupal\Core\Controller\ControllerBase;
 use Drupal\Core\Url;
-use Drupal\esn_membership_manager\Service\WeeztixApiService;
+use Drupal\esn_membership_manager\Service\WeeztixService;
 use Symfony\Component\DependencyInjection\ContainerInterface;
 use Symfony\Component\HttpFoundation\RedirectResponse;
 use Symfony\Component\HttpFoundation\Request;
 
 class WeeztixAuthController extends ControllerBase
 {
-    protected WeeztixApiService $apiService;
+    protected WeeztixService $weeztixService;
 
-    public function __construct(WeeztixApiService $api_service)
+    public function __construct(WeeztixService $weeztixService)
     {
-        $this->apiService = $api_service;
+        $this->weeztixService = $weeztixService;
     }
 
     public static function create(ContainerInterface $container): self
     {
-        /** @var WeeztixApiService $api_service */
-        $api_service = $container->get('esn_membership_manager.weeztix_api_service');
+        /** @var WeeztixService $weeztixService */
+        $weeztixService = $container->get('esn_membership_manager.weeztix_service');
 
         return new static(
-            $api_service
+            $weeztixService,
         );
     }
 
@@ -32,7 +32,7 @@ class WeeztixAuthController extends ControllerBase
     {
         $code = $request->query->get('code');
         $state = $request->query->get('state');
-        $session_state = $request->getSession()->get('weeztix_oauth_state');
+        $sessionState = $request->getSession()->get('weeztix_oauth_state');
 
         // Validation
         if (!$code) {
@@ -40,14 +40,14 @@ class WeeztixAuthController extends ControllerBase
             return $this->redirect('esn_membership_manager.settings');
         }
 
-        if ($state !== $session_state) {
+        if ($state !== $sessionState) {
             $this->messenger()->addError($this->t('Invalid state parameter. Possible CSRF attempt.'));
             return $this->redirect('esn_membership_manager.settings');
         }
 
-        $redirect_uri = Url::fromRoute('esn_membership_manager.weeztix_oauth_callback', [], ['absolute' => TRUE])->toString();
+        $redirectURI = Url::fromRoute('esn_membership_manager.weeztix_oauth_callback', [], ['absolute' => TRUE])->toString();
 
-        $success = $this->apiService->authorizeWithCode($code, $redirect_uri);
+        $success = $this->weeztixService->authorizeWithCode($code, $redirectURI);
 
         if ($success) {
             $this->messenger()->addStatus($this->t('Successfully connected to Weeztix!'));

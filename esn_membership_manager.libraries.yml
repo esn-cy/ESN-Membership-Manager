@@ -3,3 +3,25 @@ application_form:
   css:
     theme:
       assets/css/esn_membership_manager.css: { }
+  js:
+    assets/js/applicationForm.js: { }
+  dependencies:
+    - core/drupal
+    - core/once
+
+login_form:
+  version: 1.x
+  css:
+    theme:
+      assets/css/esn_membership_manager_login.css: { }
+
+membership_dashboard:
+  version: 1.x
+  css:
+    theme:
+      assets/css/esn_membership_manager_dashboard.css: { }
+  js:
+    assets/js/dashboardEdit.js: { }
+  dependencies:
+    - core/drupal
+    - core/once

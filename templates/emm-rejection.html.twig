@@ -1,0 +1,122 @@
+<!--suppress HtmlDeprecatedAttribute, HtmlUnknownTarget -->
+<table border="0" cellpadding="0" cellspacing="0" role="presentation"
+       style="background-color: #ffffff; width: 100%; border-collapse: collapse; border-spacing: 0; font-family: Arial, sans-serif;"
+       width="100%">
+    <tbody>
+    <tr>
+        <td>
+            <table align="center" border="0" cellpadding="0" cellspacing="0"
+                   role="presentation"
+                   style="margin:auto; border-collapse:collapse; border-spacing:0; max-width: 800px; min-width: 320px;">
+                <tbody>
+                <tr>
+                    <td align="center" width="100%">
+                        <table border="0" cellpadding="0" cellspacing="0" role="presentation"
+                               style="background-color: #ffffff;"
+                               width="100%">
+                            <tbody>
+                            <tr>
+                                <td align="center" style="padding: 10px 0;" width="100%">
+                                    <img alt="ESN Logo" height="62"
+                                         src="{{ logo_location }}" style="display: block; border: 0;" width="111">
+                                </td>
+                            </tr>
+                            </tbody>
+                        </table>
+
+                        <table border="0" cellpadding="0" cellspacing="0" role="presentation" width="100%">
+                            <tbody>
+                            <tr>
+                                <td style="padding: 9px 20px;" width="100%">
+                                    <h1 style="font-family: Arial, sans-serif; font-weight: 700; text-align: center; margin: 0; line-height: 1.2; color: #2e3192; font-size: 34pt;">
+                                        {{ scheme_name }} / ESNcard Application
+                                    </h1>
+                                </td>
+                            </tr>
+                            </tbody>
+                        </table>
+
+                        <table border="0" cellpadding="0" cellspacing="0" role="presentation" width="100%">
+                            <tbody>
+                            <tr>
+                                <td style="padding: 9px 20px;" width="100%">
+                                    <p style="font-family: Arial, sans-serif; font-weight: 400; text-align: center; font-size: 12pt; color: #1c1c1c; margin: 0; line-height: 1.38;">
+                                        Hello {{ name }},
+                                    </p>
+                                    <p style="font-family: Arial, sans-serif; font-weight: 400; text-align: center; font-size: 12pt; color: #1c1c1c; margin: 15px 0 0 0; line-height: 1.38;">
+                                        Your application for an {{ scheme_name }} / ESNcard has been
+                                        rejected{% if reasons is not empty %} for the following reason(s):{% else %}.{% endif %}
+                                    </p>
+
+                                    {% if reasons is not empty %}
+                                        <p style="font-family: Arial, sans-serif; font-weight: 700; text-align: center; font-size: 12pt; color: #e74c3c; margin: 15px 0 5px 0; line-height: 1.38;">
+                                            Reason(s) for rejection:
+                                        </p>
+                                        <table border="0" cellpadding="0" cellspacing="0" role="presentation"
+                                               width="100%">
+                                            <tr>
+                                                <td align="center">
+                                                    <ul style="font-family: Arial, sans-serif; font-weight: 400; font-size: 12pt; color: #1c1c1c; line-height: 1.38; text-align: left; display: inline-block; margin: 0; padding-left: 20px;">
+                                                        {% for reason in reasons %}
+                                                            <li style="margin-bottom: 5px;">{{ reason }}</li>
+                                                        {% endfor %}
+                                                    </ul>
+                                                </td>
+                                            </tr>
+                                        </table>
+                                    {% endif %}
+                                </td>
+                            </tr>
+                            </tbody>
+                        </table>
+
+                        <table border="0" cellpadding="0" cellspacing="0" role="presentation" width="100%">
+                            <tbody>
+                            <tr>
+                                <td style="padding: 9px 20px;" width="100%">
+                                    <p style="font-family: Arial, sans-serif; font-weight: 400; text-align: center; font-size: 12pt; color: #1c1c1c; margin: 0; line-height: 1.38;">
+                                        {% if reasons is not empty %}
+                                            Please correct the issues listed above and submit a new application, or contact us if you think this was a mistake.
+                                        {% else %}
+                                            Please contact us for more information or if you think it was a mistake.
+                                        {% endif %}
+                                    </p>
+                                </td>
+                            </tr>
+                            </tbody>
+                        </table>
+
+                        {% if reasons is not empty %}
+                            <table border="0" cellpadding="0" cellspacing="0" role="presentation" width="100%">
+                                <tbody>
+                                <tr>
+                                    <td align="center" style="padding: 20px 0;" width="100%">
+                                        <table border="0" cellpadding="0" cellspacing="0" role="button">
+                                            <tbody>
+                                            <tr>
+                                                <td align="center"
+                                                    style="background-color: #2e3192; border-radius: 4px; padding: 12px 24px;">
+                                                    <a href="{{ dashboard_url }}"
+                                                       style="font-family: Arial, sans-serif; font-size: 14pt; color: #f9f9f9; text-decoration: none; font-weight: 400; display: inline-block;"
+                                                       target="_blank">
+                                                        Fix Issues Now
+                                                    </a>
+                                                </td>
+                                            </tr>
+                                            </tbody>
+                                        </table>
+                                    </td>
+                                </tr>
+                                </tbody>
+                            </table>
+                        {% endif %}
+
+                        {{ footer|raw }}
+                    </td>
+                </tr>
+                </tbody>
+            </table>
+        </td>
+    </tr>
+    </tbody>
+</table>

@@ -4,7 +4,7 @@ dependencies:
   module:
     - esn_membership_manager
 id: esn_membership_manager_mark_paid
-label: "Mark Submissions as Paid"
+label: "Mark Application as Paid"
 type: system
 plugin: esn_membership_manager_mark_paid
 configuration: { }

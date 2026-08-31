@@ -2,9 +2,12 @@
 
 use Drupal\Component\Plugin\Exception\InvalidPluginDefinitionException;
 use Drupal\Component\Plugin\Exception\PluginNotFoundException;
+use Drupal\Core\Datetime\DrupalDateTime;
 use Drupal\Core\Entity\EntityStorageException;
 use Drupal\Core\File\FileSystemInterface;
-use Drupal\user\Entity\Role;
+use Drupal\Core\StringTranslation\TranslatableMarkup;
+use Drupal\esn_membership_manager\Entity\Application\ApplicationField;
+use Drupal\esn_membership_manager\Entity\Application\ApplicationStorage;
 
 /**
  * Implements hook_install().
@@ -15,62 +18,34 @@ use Drupal\user\Entity\Role;
  */
 function esn_membership_manager_install(): void
 {
-    /** @var FileSystemInterface $file_system */
-    $file_system = Drupal::service('file_system');
+    /** @var FileSystemInterface $fileSystem */
+    $fileSystem = Drupal::service('file_system');
 
     $directory = DRUPAL_ROOT . '/../../private/esn_membership_manager_storage';
 
-    if (!$file_system->prepareDirectory($directory, FileSystemInterface::CREATE_DIRECTORY | FileSystemInterface::MODIFY_PERMISSIONS)) {
+    if (!$fileSystem->prepareDirectory($directory, FileSystemInterface::CREATE_DIRECTORY | FileSystemInterface::MODIFY_PERMISSIONS)) {
         Drupal::logger('esn_membership_manager')->error('Failed to create or prepare directory: @dir', ['@dir' => $directory]);
         return;
     }
 
-    $htaccess_path = $directory . '/.htaccess';
-    if (!file_exists($htaccess_path)) {
+    $htaccessPath = $directory . '/.htaccess';
+    if (!file_exists($htaccessPath)) {
         $content = "Order deny,allow\nDeny from all\n";
         $content .= "<IfModule mod_authz_core.c>\n  Require all denied\n</IfModule>\n";
-        file_put_contents($htaccess_path, $content);
+        file_put_contents($htaccessPath, $content);
     }
 
-    $role_id = 'esn_membership_manager_admin';
-    $role = Role::load($role_id);
-
-    if (!$role) {
-        $role = Role::create([
-            'id' => $role_id,
-            'label' => 'ESN Membership Manager Administrator',
-        ]);
-        $role->save();
-    }
-
-    if (empty($role->id())) {
-        throw new Exception('Failed to create Role, aborting install to prevent corruption.');
-    }
-
-    $permissions = Drupal::service('user.permissions')->getPermissions();
-    $module_permissions = [];
-
-    foreach ($permissions as $perm_name => $perm_def) {
-        if (isset($perm_def['provider']) && $perm_def['provider'] === 'esn_membership_manager') {
-            $module_permissions[] = $perm_name;
-        }
-    }
-
-    if (!empty($module_permissions)) {
-        user_role_grant_permissions($role_id, $module_permissions);
-    }
-
-    $scope_storage = Drupal::entityTypeManager()->getStorage('oauth2_scope');
-    $scope_name = 'esn_scanner';
-    $scope = $scope_storage->load($scope_name);
+    $scopeStorage = Drupal::entityTypeManager()->getStorage('oauth2_scope');
+    $scopeName = 'esn_scanner';
+    $scope = $scopeStorage->load($scopeName);
 
     if (!$scope) {
-        $scope_storage->create([
-            'name' => $scope_name,
+        $scopeStorage->create([
+            'name' => $scopeName,
             'description' => 'Grants permissions for the ESN Membership Scanner App',
             'granularity_id' => 'role',
             'granularity_configuration' => [
-                'role' => $role_id
+                'role' => 'esn_membership_manager_admin'
             ],
             'grant_types' => [
                 'authorization_code' => ['status' => TRUE, 'description' => ''],
@@ -79,17 +54,17 @@ function esn_membership_manager_install(): void
         ])->save();
     }
 
-    $consumer_storage = Drupal::entityTypeManager()->getStorage('consumer');
-    $client_uuid = '45534e20-5363-616e-6572-204f41757468';
+    $consumerStorage = Drupal::entityTypeManager()->getStorage('consumer');
+    $clientUUID = '45534e20-5363-616e-6572-204f41757468';
 
-    $exists = $consumer_storage->loadByProperties(['uuid' => $client_uuid]);
+    $exists = $consumerStorage->loadByProperties(['uuid' => $clientUUID]);
     if (empty($exists)) {
-        $consumer = $consumer_storage->create([
-            'uuid' => $client_uuid,
+        $consumer = $consumerStorage->create([
+            'uuid' => $clientUUID,
             'label' => 'ESN Scanner App',
             'machine_name' => 'esn_scanner_app',
             'description' => 'Authentication client for the ESN Scanner app.',
-            'client_id' => $client_uuid,
+            'client_id' => $clientUUID,
             'secret' => '',
             'confidential' => FALSE,
             'third_party' => FALSE,
@@ -138,145 +113,289 @@ function esn_membership_manager_schema(): array
         ],
     ];
 
-    $schema['esn_membership_manager_applications'] = [
-        'description' => 'Stores ESN Pass and ESNcard applications.',
+    $schema['esn_membership_manager_in_progress_applications'] = [
+        'description' => 'Stores in progress applications.',
         'fields' => [
             'id' => [
-                'description' => 'Primary Key: Unique submission ID.',
+                'description' => 'Primary Key: Unique in progress application ID.',
                 'type' => 'serial',
-                'unsigned' => TRUE,
-                'not null' => TRUE,
-            ],
-            'name' => [
-                'description' => 'First Name.',
-                'type' => 'varchar',
-                'length' => 255,
-                'not null' => TRUE,
-            ],
-            'surname' => [
-                'description' => 'Surname.',
-                'type' => 'varchar',
-                'length' => 255,
                 'not null' => TRUE,
             ],
             'email' => [
-                'description' => 'User Email.',
+                'description' => 'The verified email used in this application.',
                 'type' => 'varchar',
                 'length' => 255,
                 'not null' => TRUE,
             ],
-            'nationality' => [
-                'description' => 'Nationality.',
+            'id_name' => [
+                'description' => 'The name as verified from the ID verification provider.',
+                'type' => 'varchar',
+                'length' => 255,
+            ],
+            'id_surname' => [
+                'description' => 'The surname as verified from the ID verification provider.',
+                'type' => 'varchar',
+                'length' => 255,
+            ],
+            'id_nationality' => [
+                'description' => 'The nationality as verified from the ID verification provider.',
                 'type' => 'varchar',
                 'length' => 128,
-                'not null' => TRUE,
             ],
-            'dob' => [
-                'description' => 'Date of Birth.',
+            'id_dob' => [
+                'description' => 'The date of birth as verified from the ID verification provider.',
                 'type' => 'varchar',
                 'length' => 20,
-                'not null' => TRUE,
             ],
-            'mobility_status' => [
-                'description' => 'The selected mobility status.',
+            'didit_session_id' => [
+                'description' => 'The session ID provided by Didit.',
+                'type' => 'varchar',
+                'length' => 255,
+            ],
+            'didit_session_token' => [
+                'description' => 'The session token that is used in the Didit verification URL.',
+                'type' => 'varchar',
+                'length' => 255,
+            ],
+            'didit_status' => [
+                'description' => 'The verification status of the Didit session.',
                 'type' => 'varchar',
                 'length' => 128,
-                'not null' => TRUE,
             ],
-            'host_institution' => [
-                'description' => 'Host University or Organization.',
+            'status_name' => [
+                'description' => 'The name as returned from the status verification provider.',
                 'type' => 'varchar',
                 'length' => 255,
-                'not null' => TRUE,
             ],
-            'proof_fid' => [
-                'description' => 'File ID for Proof of Status.',
-                'type' => 'int',
-                'unsigned' => TRUE,
+            'status_surname' => [
+                'description' => 'The surname as returned from the status verification provider.',
+                'type' => 'varchar',
+                'length' => 255,
             ],
-            'id_document_fid' => [
-                'description' => 'File ID for ID Document Scan.',
-                'type' => 'int',
-                'unsigned' => TRUE,
-            ],
-            'face_photo_fid' => [
-                'description' => 'File ID for Passport Style Photo.',
-                'type' => 'int',
-                'unsigned' => TRUE,
-            ],
-            'pass' => [
-                'description' => 'Was ESN Pass selected.',
-                'type' => 'int',
-                'size' => 'tiny',
-                'not null' => TRUE,
-                'default' => 0,
-            ],
-            'esncard' => [
-                'description' => 'Was ESNcard selected.',
-                'type' => 'int',
-                'size' => 'tiny',
-                'not null' => TRUE,
-                'default' => 0,
-            ],
-            'pass_token' => [
-                'description' => 'Unique user token for QR code.',
+            'status_mobility' => [
+                'description' => 'The mobility status as verified on the status verification provider.',
                 'type' => 'varchar',
                 'length' => 64,
             ],
-            'esncard_number' => [
-                'description' => 'ESNcard number.',
-                'type' => 'varchar',
-                'length' => 64,
-            ],
-            'payment_link' => [
-                'description' => 'Stripe Payment link.',
+            'status_host_institution' => [
+                'description' => 'The host institution as verified on the status verification provider.',
                 'type' => 'varchar',
                 'length' => 255,
             ],
-            'payment_link_id' => [
-                'description' => 'Stripe Payment link ID.',
+            'esn_token' => [
+                'description' => 'The token used for verification for the ESN Accounts session.',
                 'type' => 'varchar',
-                'length' => 255,
+                'length' => 128,
             ],
-            'approval_status' => [
-                'description' => 'Current status (Pending, Paid, etc).',
+            'esn_status' => [
+                'description' => 'The verification status of the ESN Accounts session.',
                 'type' => 'varchar',
-                'length' => 32,
-                'default' => 'Pending',
-                'not null' => TRUE,
+                'length' => 128,
             ],
             'date_created' => [
-                'description' => 'Timestamp when the submission was created.',
+                'description' => 'Timestamp when the session creation occurred.',
                 'type' => 'varchar',
                 'length' => 64,
                 'not null' => TRUE,
-            ],
-            'date_approved' => [
-                'description' => 'Timestamp when the submission was approved.',
-                'type' => 'varchar',
-                'length' => 64,
-            ],
-            'date_paid' => [
-                'description' => 'Timestamp when payment was submitted.',
-                'type' => 'varchar',
-                'length' => 64,
-            ],
-            'date_last_scanned' => [
-                'description' => 'Timestamp when the last scan was performed.',
-                'type' => 'varchar',
-                'length' => 64,
             ],
         ],
         'primary key' => ['id'],
         'unique keys' => [
-            'pass_token' => ['pass_token'],
-            'esncard_number' => ['esncard_number'],
+            'email' => ['email'],
+            'didit_session_id' => ['didit_session_id'],
+            'didit_session_token' => ['didit_session_token'],
+            'esn_token' => ['esn_token'],
+        ],
+    ];
+
+    $schema['esn_membership_manager_authentication'] = [
+        'description' => 'Stores authentication tokens for application emails.',
+        'fields' => [
+            'id' => [
+                'description' => 'Primary Key: Unique authentication code ID.',
+                'type' => 'serial',
+                'unsigned' => TRUE,
+                'not null' => TRUE,
+            ],
+            'email' => [
+                'description' => 'The email address requesting access.',
+                'type' => 'varchar',
+                'length' => 255,
+                'not null' => TRUE,
+            ],
+            'code' => [
+                'description' => 'The 8 digit verification code.',
+                'type' => 'varchar',
+                'length' => 8,
+                'not null' => TRUE,
+            ],
+            'type' => [
+                'description' => 'The type of authentication requested.',
+                'type' => 'varchar',
+                'length' => 24,
+                'not null' => TRUE,
+            ],
+            'expires_at' => [
+                'description' => 'Unix timestamp when the token expires.',
+                'type' => 'int',
+                'not null' => TRUE,
+            ],
+        ],
+        'primary key' => ['id'],
+        'unique keys' => [
+            'unique_code' => ['code'],
+            'email_type' => ['email', 'type']
+        ],
+    ];
+
+    $schema['esn_membership_manager_apple_wallet_registrations'] = [
+        'description' => 'Stores Apple Wallet device registrations for push updates.',
+        'fields' => [
+            'id' => [
+                'description' => 'Primary Key: Unique registration ID.',
+                'type' => 'serial',
+                'not null' => TRUE,
+            ],
+            'application_id' => [
+                'description' => 'Referrer Application ID.',
+                'type' => 'int',
+                'unsigned' => TRUE,
+                'not null' => TRUE,
+            ],
+            'device_library_identifier' => [
+                'description' => 'The unique identifier for the user device.',
+                'type' => 'varchar',
+                'length' => 255,
+                'not null' => TRUE,
+            ],
+            'pass_type_identifier' => [
+                'description' => 'The pass type identifier.',
+                'type' => 'varchar',
+                'length' => 255,
+                'not null' => TRUE,
+            ],
+            'serial_number' => [
+                'description' => 'The unique serial number of the specific pass.',
+                'type' => 'varchar',
+                'length' => 255,
+                'not null' => TRUE,
+            ],
+            'push_token' => [
+                'description' => 'The APNs push token used to notify the device of updates.',
+                'type' => 'varchar',
+                'length' => 255,
+                'not null' => TRUE,
+            ],
+            'date_created' => [
+                'description' => 'Timestamp when the registration occurred.',
+                'type' => 'varchar',
+                'length' => 64,
+                'not null' => TRUE,
+            ],
+        ],
+        'primary key' => ['id'],
+        'unique keys' => [
+            'device_serial' => ['device_library_identifier', 'serial_number'],
         ],
         'indexes' => [
-            'email' => ['email'],
-            'approval_status' => ['approval_status']
+            'serial_number' => ['serial_number'],
         ],
     ];
 
     return $schema;
+}
+
+/**
+ * @throws InvalidPluginDefinitionException
+ * @throws PluginNotFoundException
+ * @throws Exception
+ */
+function esn_membership_manager_update_3001(&$sandbox): ?TranslatableMarkup
+{
+    $database = Drupal::database();
+    $entityTypeManager = Drupal::entityTypeManager();
+    $updateManager = Drupal::entityDefinitionUpdateManager();
+
+    if (!isset($sandbox['total'])) {
+        $sandbox['total'] = (int)$database->query('SELECT COUNT(id) FROM {esn_membership_manager_applications}')->fetchField();
+        $sandbox['current'] = 0;
+
+        if (!$updateManager->getEntityType('membership_application')) {
+            $updateManager->installEntityType($entityTypeManager->getDefinition('membership_application'));
+        }
+
+        if ($sandbox['total'] === 0) {
+            $sandbox['#finished'] = 1;
+            return t('No records to migrate.');
+        }
+    }
+
+    /** @var ApplicationStorage $storage */
+    $storage = $entityTypeManager->getStorage('membership_application');
+
+    $query = $database->select('esn_membership_manager_applications', 'a')
+        ->fields('a')
+        ->range($sandbox['current'], 50)
+        ->orderBy('id');
+
+    $results = $query->execute()->fetchAll();
+
+    foreach ($results as $row) {
+        $storage->create()
+            ->set('id', $row->id)
+            ->setValue(ApplicationField::Name, $row->name)
+            ->setValue(ApplicationField::Surname, $row->surname)
+            ->setValue(ApplicationField::Email, $row->email)
+            ->setValue(ApplicationField::Nationality, $row->nationality)
+            ->setValue(ApplicationField::DateOfBirth, $row->dob)
+            ->setValue(ApplicationField::MobilityStatus, $row->mobility_status)
+            ->setValue(ApplicationField::Section, $row->section)
+            ->setValue(ApplicationField::HostInstitution, $row->host_institution)
+            ->setValue(ApplicationField::StatusProofFileID, $row->proof_fid)
+            ->setValue(ApplicationField::IdentityDocumentFileID, $row->id_document_fid)
+            ->setValue(ApplicationField::FacePhotoFileID, $row->face_photo_fid)
+            ->setValue(ApplicationField::HasVerifiedEmail, $row->verified_email)
+            ->setValue(ApplicationField::HasVerifiedID, $row->verified_id)
+            ->setValue(ApplicationField::HasVerifiedStatus, $row->verified_status)
+            ->setValue(ApplicationField::HasESNcard, $row->esncard)
+            ->setValue(ApplicationField::PassToken, $row->pass_token)
+            ->setValue(ApplicationField::ESNcardNumber, $row->esncard_number)
+            ->setValue(ApplicationField::PaymentLink, $row->payment_link)
+            ->setValue(ApplicationField::PaymentLinkID, $row->payment_link_id)
+            ->setValue(ApplicationField::ApprovalStatus, $row->approval_status)
+            ->setValue(ApplicationField::DateCreated, $row->date_created ? (new DrupalDateTime($row->date_created))->format('Y-m-d\TH:i:s') : null)
+            ->setValue(ApplicationField::DateApproved, $row->date_approved ? (new DrupalDateTime($row->date_approved))->format('Y-m-d\TH:i:s') : null)
+            ->setValue(ApplicationField::DatePaid, $row->date_paid ? (new DrupalDateTime($row->date_paid))->format('Y-m-d\TH:i:s') : null)
+            ->setValue(ApplicationField::DateLastScanned, $row->date_last_scanned ? (new DrupalDateTime($row->date_last_scanned))->format('Y-m-d\TH:i:s') : null)
+            ->setValue(ApplicationField::DateLastModified, $row->date_last_modified ? (new DrupalDateTime($row->date_last_modified))->format('Y-m-d\TH:i:s') : null)
+            ->enforceIsNew()
+            ->save();
+
+        $sandbox['current']++;
+    }
+
+    if ($sandbox['total'] > 0) {
+        $sandbox['#finished'] = $sandbox['current'] / $sandbox['total'];
+    } else {
+        $sandbox['#finished'] = 1;
+    }
+
+    if ($sandbox['#finished'] >= 1) {
+        return t("Successfully migrated all {$sandbox['total']} applications to the new entity format.");
+    }
+
+    return null;
+}
+
+/**
+ * @throws PluginNotFoundException
+ */
+function esn_membership_manager_update_3002(): void
+{
+    $entityTypeManager = Drupal::entityTypeManager();
+    $updateManager = Drupal::entityDefinitionUpdateManager();
+
+    if (!$updateManager->getEntityType('membership_guest')) {
+        $updateManager->installEntityType($entityTypeManager->getDefinition('membership_guest'));
+    }
 }

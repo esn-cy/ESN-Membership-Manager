@@ -37,7 +37,7 @@ esn_membership_manager.edit:
     _controller: '\Drupal\esn_membership_manager\Controller\EditController::editApplication'
     _title: 'Edit Application'
   requirements:
-    _permission: 'edit submission'
+    _permission: 'edit applications'
   methods: [ POST ]
   options:
     _auth: [ 'oauth2', 'cookie' ]
@@ -48,7 +48,7 @@ esn_membership_manager.crop:
     _controller: '\Drupal\esn_membership_manager\Controller\EditController::cropPhoto'
     _title: 'Crop Photo'
   requirements:
-    _permission: 'edit submission'
+    _permission: 'edit applications'
   methods: [ POST ]
   options:
     _auth: [ 'oauth2', 'cookie' ]
@@ -60,6 +60,82 @@ esn_membership_manager.online:
   requirements:
     _access: 'TRUE'
   methods: [ GET ]
+
+esn_membership_manager.authentication_code:
+  path: '/api/memberships/auth/{type}/code'
+  defaults:
+    _controller: '\Drupal\esn_membership_manager\Controller\AuthenticationController::request'
+    _title: 'Request Authentication Code'
+  requirements:
+    _access: 'TRUE'
+  methods: [ POST ]
+  options:
+    parameters:
+      type:
+        type: string
+
+esn_membership_manager.authentication_verify:
+  path: '/api/memberships/auth/{type}/verify'
+  defaults:
+    _controller: '\Drupal\esn_membership_manager\Controller\AuthenticationController::verify'
+    _title: 'Verify Authentication Code'
+  requirements:
+    _access: 'TRUE'
+  methods: [ POST ]
+  options:
+    parameters:
+      type:
+        type: string
+
+esn_membership_manager.apple_wallet_device:
+  path: '/api/apple-wallet/v1/devices/{deviceLibraryIdentifier}/registrations/{passTypeIdentifier}/{serialNumber}'
+  defaults:
+    _controller: '\Drupal\esn_membership_manager\Controller\AppleWalletController::handleDeviceRegistration'
+  methods: [ POST, DELETE ]
+  requirements:
+    _access: 'TRUE'
+  options:
+    parameters:
+      deviceLibraryIdentifier:
+        type: string
+      passTypeIdentifier:
+        type: string
+      serialNumber:
+        type: string
+
+esn_membership_manager.apple_wallet_updatable_passes:
+  path: '/api/apple-wallet/v1/devices/{deviceLibraryIdentifier}/registrations/{passTypeIdentifier}'
+  defaults:
+    _controller: '\Drupal\esn_membership_manager\Controller\AppleWalletController::getUpdatablePasses'
+  methods: [ GET ]
+  requirements:
+    _access: 'TRUE'
+  options:
+    parameters:
+      passTypeIdentifier:
+        type: string
+
+esn_membership_manager.apple_wallet_latest_pass:
+  path: '/api/apple-wallet/v1/passes/{passTypeIdentifier}/{serialNumber}'
+  defaults:
+    _controller: '\Drupal\esn_membership_manager\Controller\AppleWalletController::getLatestPass'
+  methods: [ GET ]
+  requirements:
+    _access: 'TRUE'
+  options:
+    parameters:
+      passTypeIdentifier:
+        type: string
+      serialNumber:
+        type: string
+
+esn_membership_manager.apple_wallet_log:
+  path: '/api/apple-wallet/v1/log'
+  defaults:
+    _controller: '\Drupal\esn_membership_manager\Controller\AppleWalletController::logMessage'
+  methods: [ POST ]
+  requirements:
+    _access: 'TRUE'
 
 esn_membership_manager.stripe_webhook:
   path: '/stripe/webhook'
@@ -77,21 +153,69 @@ esn_membership_manager.apply:
   requirements:
     _access: 'TRUE'
 
+esn_membership_manager.apply_verify_id:
+  path: '/memberships/apply/verify/id'
+  defaults:
+    _controller: '\Drupal\esn_membership_manager\Controller\DiditController::callback'
+    _title: 'Didit ID Verification'
+  requirements:
+    _access: 'TRUE'
+
+esn_membership_manager.apply_verify_esn:
+  path: '/memberships/apply/verify/esn-accounts'
+  defaults:
+    _controller: '\Drupal\esn_membership_manager\Controller\ESNAccountsController::callback'
+    _title: 'ESN Accounts Verification'
+  requirements:
+    _access: 'TRUE'
+
 esn_membership_manager.apply_success:
   path: '/memberships/apply/success'
   defaults:
-    _controller: '\Drupal\esn_membership_manager\Controller\SubmissionController::successPage'
+    _controller: '\Drupal\esn_membership_manager\Controller\ApplicationController::successPage'
     _title: 'Application Received'
   requirements:
     _access: 'TRUE'
 
-esn_membership_manager.submissions:
-  path: '/memberships/submissions'
+esn_membership_manager.dashboard:
+  path: '/memberships/dashboard'
   defaults:
-    _form: '\Drupal\esn_membership_manager\Form\SubmissionsForm'
-    _title: 'Application Submissions'
+    _form: '\Drupal\esn_membership_manager\Form\MembershipDashboard'
+    _title: 'Membership Dashboard'
   requirements:
-    _permission: 'view submissions'
+    _access: 'TRUE'
+
+esn_membership_manager.terms_of_service:
+  path: '/memberships/terms-of-service'
+  defaults:
+    _controller: '\Drupal\esn_membership_manager\Page\LegalPages::tosPage'
+    _title: 'Terms of Service'
+  requirements:
+    _access: 'TRUE'
+
+esn_membership_manager.privacy_policy:
+  path: '/memberships/privacy-policy'
+  defaults:
+    _controller: '\Drupal\esn_membership_manager\Page\LegalPages::privacyPage'
+    _title: 'Privacy Policy'
+  requirements:
+    _access: 'TRUE'
+
+esn_membership_manager.view_applications:
+  path: '/memberships/applications'
+  defaults:
+    _form: '\Drupal\esn_membership_manager\Form\ViewApplicationsForm'
+    _title: 'View Applications'
+  requirements:
+    _permission: 'view applications'
+
+esn_membership_manager.view_guest_passes:
+  path: '/memberships/guest-passes'
+  defaults:
+    _form: '\Drupal\esn_membership_manager\Form\ViewGuestPassesForm'
+    _title: 'View Guest Passes'
+  requirements:
+    _permission: 'view guest passes'
 
 esn_membership_manager.scan_page:
   path: '/memberships/scan'
@@ -128,17 +252,17 @@ esn_membership_manager.weeztix_oauth_callback:
     _permission: 'manage module settings'
 
 esn_membership_manager.file_download:
-  path: '/memberships/files/{application_id}/{filename}'
+  path: '/memberships/files/{applicationID}/{filename}'
   defaults:
-    _controller: '\Drupal\esn_membership_manager\Controller\FileAccessController::download'
+    _controller: '\Drupal\esn_membership_manager\Controller\FileAccessController::downloadMembershipFile'
     _title: 'Download File'
   requirements:
     _access: 'TRUE'
-    application_id: \d+|temp_uploads
+    applicationID: \d+|temp_uploads
     filename: .+
   options:
     parameters:
-      application_id:
+      applicationID:
         type: string
       filename:
         type: string
@@ -146,40 +270,40 @@ esn_membership_manager.file_download:
 esn_membership_manager.file_preview:
   path: '/memberships/files/{file}/preview'
   defaults:
-    _controller: '\Drupal\esn_membership_manager\Controller\SubmissionController::preview'
+    _controller: '\Drupal\esn_membership_manager\Controller\ApplicationController::preview'
     _title: 'File Preview'
   requirements:
-    _permission: 'view submissions'
+    _permission: 'view applications'
   options:
     parameters:
       file:
         type: entity:file
 
-esn_membership_manager.submission_view:
-  path: '/memberships/submissions/{id}/view'
+esn_membership_manager.application_view:
+  path: '/memberships/application/{id}/view'
   defaults:
-    _controller: '\Drupal\esn_membership_manager\Controller\SubmissionController::viewSubmission'
-    _title: 'View Submission'
+    _controller: '\Drupal\esn_membership_manager\Controller\ApplicationController::viewApplication'
+    _title: 'View Application'
   requirements:
-    _permission: 'view submissions'
+    _permission: 'view applications'
   methods: [ GET, POST ]
 
 esn_membership_manager.esncard_view:
-  path: '/memberships/submissions/{id}/esncard'
+  path: '/memberships/applications/{id}/esncard'
   defaults:
-    _controller: '\Drupal\esn_membership_manager\Controller\SubmissionController::viewESNcard'
+    _controller: '\Drupal\esn_membership_manager\Controller\ApplicationController::viewESNcard'
     _title: 'View ESNcard'
   requirements:
-    _permission: 'view submissions'
+    _permission: 'view applications'
   methods: [ GET ]
 
 esn_membership_manager.face_pdf:
-  path: '/memberships/submissions/face-pdf'
+  path: '/memberships/applications/face-pdf'
   defaults:
-    _controller: '\Drupal\esn_membership_manager\Controller\SubmissionController::generateFacePDF'
+    _controller: '\Drupal\esn_membership_manager\Controller\ApplicationController::generateFacePDF'
     _title: 'Generate ESNcard Pictures PDF'
   requirements:
-    _permission: 'view submissions'
+    _permission: 'view applications'
 
 esn_membership_manager.add_to_google_wallet:
   path: '/memberships/google-wallet/{identifier}'

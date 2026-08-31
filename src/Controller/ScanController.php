@@ -4,90 +4,122 @@ namespace Drupal\esn_membership_manager\Controller;
 
 use Drupal\Component\Plugin\Exception\InvalidPluginDefinitionException;
 use Drupal\Component\Plugin\Exception\PluginNotFoundException;
+use Drupal\Core\Config\ConfigFactoryInterface;
 use Drupal\Core\Controller\ControllerBase;
-use Drupal\Core\Database\Connection;
 use Drupal\Core\Datetime\DrupalDateTime;
 use Drupal\Core\Entity\EntityTypeManagerInterface;
 use Drupal\Core\Logger\LoggerChannelFactoryInterface;
 use Drupal\Core\Logger\LoggerChannelInterface;
-use Drupal\file\FileInterface;
+use Drupal\esn_membership_manager\Config\MembershipSettings;
+use Drupal\esn_membership_manager\Entity\Application\ApplicationField;
+use Drupal\esn_membership_manager\Entity\Application\ApplicationStorage;
+use Drupal\esn_membership_manager\Entity\GuestPass\GuestPassField;
+use Drupal\esn_membership_manager\Entity\GuestPass\GuestPassStorage;
+use Drupal\esn_membership_manager\Service\FileService;
+use Drupal\esn_membership_manager\Service\GoogleService;
 use Exception;
 use Symfony\Component\DependencyInjection\ContainerInterface;
 use Symfony\Component\HttpFoundation\JsonResponse;
 use Symfony\Component\HttpFoundation\Request;
+use Symfony\Component\HttpKernel\Exception\NotFoundHttpException;
 
 class ScanController extends ControllerBase
 {
-    protected $entityTypeManager;
-    protected Connection $database;
+    protected ApplicationStorage $applicationStorage;
+    protected GuestPassStorage $guestPassStorage;
+    protected MembershipSettings $membershipSettings;
+    protected FileService $fileService;
+    protected GoogleService $googleService;
     protected LoggerChannelInterface $logger;
 
+    /**
+     * @throws InvalidPluginDefinitionException
+     * @throws PluginNotFoundException
+     */
     public function __construct(
         EntityTypeManagerInterface    $entityTypeManager,
-        Connection                    $database,
-        LoggerChannelFactoryInterface $loggerFactory)
+        ConfigFactoryInterface        $configFactory,
+        FileService                   $fileService,
+        GoogleService                 $googleService,
+        LoggerChannelFactoryInterface $loggerFactory
+    )
     {
-        $this->entityTypeManager = $entityTypeManager;
-        $this->database = $database;
+        /** @var ApplicationStorage $applicationStorage */
+        $applicationStorage = $entityTypeManager->getStorage('membership_application');
+
+        /** @var GuestPassStorage $guestPassStorage */
+        $guestPassStorage = $entityTypeManager->getStorage('membership_guest');
+
+        $this->applicationStorage = $applicationStorage;
+        $this->guestPassStorage = $guestPassStorage;
+        $this->membershipSettings = new MembershipSettings($configFactory);
+        $this->fileService = $fileService;
+        $this->googleService = $googleService;
         $this->logger = $loggerFactory->get('esn_membership_manager');
     }
 
+    /**
+     * @throws InvalidPluginDefinitionException
+     * @throws PluginNotFoundException
+     */
     public static function create(ContainerInterface $container): self
     {
         /** @var EntityTypeManagerInterface $entityTypeManager */
         $entityTypeManager = $container->get('entity_type.manager');
 
-        /** @var Connection $database */
-        $database = $container->get('database');
+        /** @var ConfigFactoryInterface $configFactory */
+        $configFactory = $container->get('config.factory');
+
+        /** @var FileService $fileService */
+        $fileService = $container->get('esn_membership_manager.file_service');
+
+        /** @var GoogleService $googleService */
+        $googleService = $container->get('esn_membership_manager.google_service');
 
         /** @var LoggerChannelFactoryInterface $loggerFactory */
         $loggerFactory = $container->get('logger.factory');
 
         return new static(
             $entityTypeManager,
-            $database,
-            $loggerFactory
+            $configFactory,
+            $fileService,
+            $googleService,
+            $loggerFactory,
         );
     }
 
     public function scanCard(Request $request): JsonResponse
     {
         $body = json_decode($request->getContent(), TRUE) ?? [];
-        $cardNumber = $body['card'] ?? NULL;
+        $identifier = $body['card'] ?? NULL;
 
-        if (empty($cardNumber)) {
+        if (empty($identifier)) {
             return new JsonResponse(['status' => 'error', 'message' => 'No card number was provided.'], 400);
         }
 
-        $isESNcard = preg_match("/^\d\d\d\d\d\d\d[A-Z][A-Z][A-Z][A-Z0-9]$/", $cardNumber) == 1;
-        $isPass = preg_match("/^[A-F0-9]{32}$/", $cardNumber) == 1;
+        $isESNcard = preg_match("/^\d\d\d\d\d\d\d[A-Z][A-Z][A-Z][A-Z0-9]$/", $identifier) == 1;
+        $isPass = preg_match("/^[A-F0-9]{32}$/", $identifier) == 1;
+        $isGuest = preg_match("/^GUEST[A-F0-9]{27}$/", $identifier) == 1;
 
-        if (!$isESNcard && !$isPass) {
+        if (!$isESNcard && !$isPass && !$isGuest) {
             return new JsonResponse(['status' => 'error', 'message' => 'An invalid card number was provided.'], 400);
         }
 
-        try {
-            $query = $this->database->select('esn_membership_manager_applications', 'a');
-            $query->fields('a');
-
-            if ($isESNcard) {
-                $query->condition('esncard_number', $cardNumber);
-            } elseif ($isPass) {
-                $query->condition('pass_token', $cardNumber);
-            }
-
-            $application = $query->execute()->fetchAssoc();
-
-        } catch (Exception $e) {
-            $this->logger->error('Scan query failed: @message', ['@message' => $e->getMessage()]);
-            return new JsonResponse(['status' => 'error', 'message' => 'There was a problem getting the card/pass.'], 500);
+        if ($isGuest) {
+            return $this->scanGuest($identifier);
         }
 
-        if (!$application) {
+        if ($isESNcard) {
+            $application = $this->applicationStorage->getByESNcard($identifier);
+        } elseif ($isPass) {
+            $application = $this->applicationStorage->getByPassToken($identifier);
+        }
+
+        if (empty($application)) {
             return new JsonResponse(['status' => 'error', 'message' => 'Card/Pass not found.'], 404);
         }
 
-        if ($application['approval_status'] == 'Blacklisted')
+        if ($application->isBlacklisted())
             return new JsonResponse([
                 'name' => 'BLACKLISTED',
                 'surname' => 'BLACKLISTED',
@@ -99,44 +131,65 @@ class ScanController extends ControllerBase
                 'profileImageURL' => '',
             ], 200);
 
-        $last_scan_date = $application['date_last_scanned'] ?? NULL;
+        $profileImageURL = $this->fileService->getFileURL(!empty($application->getFacePhoto()) ? $application->getFacePhoto()->id() : null);
 
-        $profileImageURL = NULL;
-        $file_id = $application['face_photo_fid'] ?? NULL;
-
-        if (!empty($file_id)) {
-            try {
-                /** @var FileInterface $file */
-                $file = $this->entityTypeManager->getStorage('file')->load($file_id);
-                $profileImageURL = $file?->createFileUrl(FALSE);
-            } catch (InvalidPluginDefinitionException|PluginNotFoundException) {
-                $this->logger->warning('File ID @id was unable to be retrieved.', ['@id' => $file_id]);
-            }
-        }
+        $lastScanDate = !empty($application->getDateLastScanned()) ? $application->getDateLastScanned()->format('Y-m-d') : null;
+        $application->updateLastScanned();
 
         try {
-            $updateFields = [];
-            $updateFields['date_last_scanned'] = (new DrupalDateTime())->format('Y-m-d H:i:s');
-
-            $this->database->update('esn_membership_manager_applications')
-                ->fields($updateFields)
-                ->condition('id', $application['id'])
-                ->execute();
-
+            $application->save();
         } catch (Exception $e) {
             $this->logger->error('Scan update failed: @message', ['@message' => $e->getMessage()]);
             return new JsonResponse(['status' => 'error', 'message' => 'Unable to update last scan date.'], 500);
         }
 
         return new JsonResponse([
-            'name' => $application['name'],
-            'surname' => $application['surname'],
-            'nationality' => $application['nationality'],
-            'mobilityStatus' => $application['mobility_status'],
-            'datePaid' => !empty($application['date_paid']) ? (new DrupalDateTime($application['date_paid']))->format('Y-m-d') : null,
-            'dateApproved' => !empty($application['date_approved']) ? (new DrupalDateTime($application['date_approved']))->format('Y-m-d') : null,
-            'lastScanDate' => !empty($last_scan_date) ? (new DrupalDateTime($last_scan_date))->format('Y-m-d') : null,
+            'name' => $application->getValue(ApplicationField::Name),
+            'surname' => $application->getValue(ApplicationField::Surname),
+            'nationality' => $application->getValue(ApplicationField::Nationality),
+            'mobilityStatus' => $application->getValue(ApplicationField::MobilityStatus),
+            'datePaid' => !empty($application->getDatePaid()) ? $application->getDatePaid()->format('Y-m-d') : null,
+            'dateApproved' => !empty($application->getDateApproved()) ? $application->getDateApproved()->format('Y-m-d') : null,
+            'lastScanDate' => $lastScanDate,
             'profileImageURL' => $profileImageURL,
+        ], 200);
+    }
+
+    protected function scanGuest(string $identifier): JsonResponse
+    {
+        $guestPass = $this->guestPassStorage->getByPassToken($identifier);
+        $referrer = $guestPass?->getReferer();
+
+        if (empty($guestPass) || empty($referrer)) {
+            throw new NotFoundHttpException('Guest Pass not found.', null, 404);
+        }
+
+        $redeemDate = !empty($guestPass->getDateRedeemed()) ? $guestPass->getDateRedeemed()->format('Y-m-d') : null;
+        if (empty($redeemDate)) {
+            try {
+                $guestPass->setValue(GuestPassField::DateRedeemed, (new DrupalDateTime())->format('Y-m-d\TH:i:s'));
+                $guestPass->save();
+            } catch (Exception $e) {
+                $this->logger->error('Scan update failed: @message', ['@message' => $e->getMessage()]);
+                return new JsonResponse(['status' => 'error', 'message' => 'Unable to update redeemed date.'], 500);
+            }
+
+            if ($this->membershipSettings->getGoogleWalletSwitch()) {
+                try {
+                    $this->googleService->deleteApplicationObject($guestPass->id(), 'guest');
+                } catch (Exception) {
+                }
+            }
+        }
+
+        return new JsonResponse([
+            'name' => $guestPass->getValue(GuestPassField::Name),
+            'surname' => $guestPass->getValue(GuestPassField::Surname),
+            'refererName' => $referrer->getValue(ApplicationField::Name),
+            'refererSurname' => $referrer->getValue(ApplicationField::Surname),
+            'refererMobilityStatus' => $referrer->getValue(ApplicationField::MobilityStatus),
+            'dateApproved' => !empty($guestPass->getDateApproved()) ? $guestPass->getDateApproved()->format('Y-m-d') : null,
+            'dateRedeemed' => $redeemDate,
         ], 200);
     }
 }

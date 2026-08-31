@@ -1,0 +1,21 @@
+langcode: en
+status: true
+dependencies:
+  module:
+    - esn_membership_manager
+id: esn_membership_manager_admin
+label: ESN Membership Manager Administrator
+is_Admin: true
+permissions:
+  - 'view applications'
+  - 'edit applications'
+  - 'approve applications'
+  - 'reject applications'
+  - 'delete applications'
+  - 'mark applications as paid'
+  - 'blacklist applications'
+  - 'issue cards'
+  - 'deliver cards'
+  - 'scan cards'
+  - 'manage esncard numbers'
+  - 'manage module settings'

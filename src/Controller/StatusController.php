@@ -2,13 +2,17 @@
 
 namespace Drupal\esn_membership_manager\Controller;
 
-use Drupal\Core\Action\ActionBase;
+use Drupal\Component\Plugin\Exception\InvalidPluginDefinitionException;
+use Drupal\Component\Plugin\Exception\PluginNotFoundException;
+use Drupal\Core\Action\ActionInterface;
 use Drupal\Core\Action\ActionManager;
 use Drupal\Core\Controller\ControllerBase;
-use Drupal\Core\Database\Connection;
+use Drupal\Core\Entity\EntityTypeManagerInterface;
 use Drupal\Core\Logger\LoggerChannelFactoryInterface;
 use Drupal\Core\Logger\LoggerChannelInterface;
-use Drupal\Core\Session\AccountProxyInterface;
+use Drupal\esn_membership_manager\Entity\Application\ApplicationField;
+use Drupal\esn_membership_manager\Entity\Application\ApplicationStorage;
+use Drupal\esn_membership_manager\Utility\ApprovalStatuses;
 use Exception;
 use Symfony\Component\DependencyInjection\ContainerInterface;
 use Symfony\Component\HttpFoundation\JsonResponse;
@@ -16,104 +20,106 @@ use Symfony\Component\HttpFoundation\Request;
 
 class StatusController extends ControllerBase
 {
-    protected Connection $database;
     protected ActionManager $actionManager;
-    protected $currentUser;
+    protected ApplicationStorage $applicationStorage;
     protected LoggerChannelInterface $logger;
 
+    /**
+     * @throws InvalidPluginDefinitionException
+     * @throws PluginNotFoundException
+     */
     public function __construct(
-        Connection                    $database,
         ActionManager                 $actionManager,
-        AccountProxyInterface $currentUser,
+        EntityTypeManagerInterface    $entityTypeManager,
         LoggerChannelFactoryInterface $loggerFactory
     )
     {
-        $this->database = $database;
+        /** @var ApplicationStorage $applicationStorage */
+        $applicationStorage = $entityTypeManager->getStorage('membership_application');
+
         $this->actionManager = $actionManager;
-        $this->currentUser = $currentUser;
+        $this->applicationStorage = $applicationStorage;
         $this->logger = $loggerFactory->get('esn_membership_manager');
     }
 
+    /**
+     * @throws InvalidPluginDefinitionException
+     * @throws PluginNotFoundException
+     */
     public static function create(ContainerInterface $container): self
     {
-        /** @var Connection $database */
-        $database = $container->get('database');
-
         /** @var ActionManager $actionManager */
         $actionManager = $container->get('plugin.manager.action');
 
-        /** @var AccountProxyInterface $currentUser */
-        $currentUser = $container->get('current_user');
+        /** @var EntityTypeManagerInterface $entityTypeManager */
+        $entityTypeManager = $container->get('entity_type.manager');
 
         /** @var LoggerChannelFactoryInterface $loggerFactory */
         $loggerFactory = $container->get('logger.factory');
 
         return new static(
-            $database,
             $actionManager,
-            $currentUser,
-            $loggerFactory
+            $entityTypeManager,
+            $loggerFactory,
         );
     }
 
     protected array $statuses = [
         [
             'name' => 'Approved',
-            'action' => 'esn_membership_manager_approve',
-            'passAllowed' => TRUE,
-            'cardAllowed' => TRUE,
-            'bothAllowed' => TRUE
+            'action' => 'esn_membership_manager_approve'
         ],
         [
-            'name' => 'Declined',
-            'action' => 'esn_membership_manager_decline',
-            'passAllowed' => TRUE,
-            'cardAllowed' => TRUE,
-            'bothAllowed' => TRUE
+            'name' => 'Rejected',
+            'action' => 'esn_membership_manager_reject'
         ],
         [
             'name' => 'Paid',
-            'action' => 'esn_membership_manager_mark_paid',
-            'passAllowed' => TRUE,
-            'cardAllowed' => FALSE,
-            'bothAllowed' => TRUE
+            'action' => 'esn_membership_manager_mark_paid'
         ],
         [
             'name' => 'Issued',
-            'action' => 'esn_membership_manager_issue',
-            'passAllowed' => FALSE,
-            'cardAllowed' => TRUE,
-            'bothAllowed' => TRUE
+            'action' => 'esn_membership_manager_issue'
         ],
         [
             'name' => 'Delivered',
-            'action' => 'esn_membership_manager_deliver',
-            'passAllowed' => FALSE,
-            'cardAllowed' => TRUE,
-            'bothAllowed' => TRUE
+            'action' => 'esn_membership_manager_deliver'
         ],
         [
             'name' => 'Blacklisted',
-            'action' => 'esn_membership_manager_blacklist',
-            'passAllowed' => TRUE,
-            'cardAllowed' => FALSE,
-            'bothAllowed' => FALSE
+            'action' => 'esn_membership_manager_blacklist'
         ]
     ];
 
     public function changeStatus(Request $request): JsonResponse
     {
         $body = json_decode($request->getContent(), TRUE) ?? [];
-        $cardNumber = trim($body['card'] ?? '');
+        $identifier = trim($body['card'] ?? '');
         $applicationID = trim($body['id'] ?? '');
         $status = trim($body['status'] ?? '');
 
-        if ((empty($cardNumber) && empty($applicationID)) || (empty($status))) {
+        if ((empty($identifier) && empty($applicationID)) || (empty($status))) {
             return new JsonResponse(['status' => 'error', 'message' => 'The request was missing required parameters.'], 400);
         }
 
-        $selectedAction = array_filter($this->statuses, function ($search) use ($status) {
-            return $search['name'] == $status;
+        preg_match('/^([a-zA-Z]+)/', $status, $matches);
+        $baseStatus = $matches[1] ?? '';
+
+        if ($baseStatus == 'Rejected') {
+            $rejectedRegex = '/^Rejected(?:-[a-zA-Z]+-[a-zA-Z]+(?:\/Rejected-[a-zA-Z]+-[a-zA-Z]+)*)?$/';
+
+            if (!preg_match($rejectedRegex, $status)) {
+                $this->logger->warning('Rejected malformed rejection status string: @status', ['@status' => $status]);
+                return new JsonResponse(['status' => 'error', 'message' => 'Invalid rejection reason format.'], 400);
+            }
+        } else {
+            if ($status != $baseStatus) {
+                return new JsonResponse(['status' => 'error', 'message' => 'Invalid status format provided.'], 400);
+            }
+        }
+
+        $selectedAction = array_filter($this->statuses, function ($search) use ($baseStatus) {
+            return $search['name'] == $baseStatus;
         });
 
         $selectedAction = reset($selectedAction);
@@ -123,58 +129,47 @@ class StatusController extends ControllerBase
         }
 
         if (empty($applicationID)) {
-            $isESNcard = preg_match("/^\d\d\d\d\d\d\d[A-Z][A-Z][A-Z][A-Z0-9]$/", $cardNumber) == 1;
-            $isPass = preg_match("/^[A-F0-9]{32}$/", $cardNumber) == 1;
+            $isESNcard = preg_match("/^\d\d\d\d\d\d\d[A-Z][A-Z][A-Z][A-Z0-9]$/", $identifier) == 1;
+            $isPass = preg_match("/^[A-F0-9]{32}$/", $identifier) == 1;
 
             if (!$isESNcard && !$isPass) {
                 return new JsonResponse(['status' => 'error', 'message' => 'An invalid card number was provided.'], 400);
             }
 
-            if (($isESNcard && !$selectedAction['cardAllowed']) || ($isPass && !$selectedAction['passAllowed'])) {
+            if ($isESNcard && in_array($baseStatus, ApprovalStatuses::PaidStatuses)) {
                 return new JsonResponse(['status' => 'error', 'message' => 'Action not allowed with this kind of identifier.'], 400);
             }
 
-            try {
-                $query = $this->database->select('esn_membership_manager_applications', 'a')
-                    ->fields('a', ['id', 'pass', 'esncard']);
-                if ($isESNcard)
-                    $query->condition('esncard_number', $cardNumber);
-                else
-                    $query->condition('pass_token', $cardNumber);
-                $application = $query->execute()->fetchAssoc();
-            } catch (Exception) {
-                return new JsonResponse(['status' => 'error', 'message' => 'There was a problem getting the card.'], 500);
+            if ($isESNcard) {
+                $application = $this->applicationStorage->getByESNcard($identifier);
+            } elseif ($isPass) {
+                $application = $this->applicationStorage->getByPassToken($identifier);
             }
         } else {
             if (!is_numeric($applicationID)) {
                 return new JsonResponse(['status' => 'error', 'message' => 'An invalid ID was provided.'], 400);
             }
 
-            try {
-                $application = $this->database->select('esn_membership_manager_applications', 'a')
-                    ->fields('a', ['id', 'pass', 'esncard'])
-                    ->condition('id', $applicationID)
-                    ->execute()
-                    ->fetchAssoc();
-            } catch (Exception) {
-                return new JsonResponse(['status' => 'error', 'message' => 'There was a problem getting the card.'], 500);
-            }
+            $application = $this->applicationStorage->load($applicationID);
         }
 
         if (empty($application)) {
+            $this->logger->warning('Application @id was not found', ['@id' => $applicationID]);
             return new JsonResponse(['status' => 'error', 'message' => 'Application not found.'], 404);
         }
 
-        if (($application['esncard'] && $application['pass']) && !$selectedAction['bothAllowed']) {
+        $hasESNcard = $application->getValue(ApplicationField::HasESNcard);
+
+        if ($hasESNcard && in_array($baseStatus, ApprovalStatuses::PaidStatuses)) {
             return new JsonResponse(['status' => 'error', 'message' => 'Action not allowed for this application.'], 400);
         }
 
         try {
             if ($this->actionManager->hasDefinition($selectedAction['action'])) {
-                /** @var ActionBase $action */
+                /** @var ActionInterface $action */
                 $action = $this->actionManager->createInstance($selectedAction['action']);
 
-                $access = $action->access(NULL, $this->currentUser, TRUE);
+                $access = $action->access(NULL, $this->currentUser(), TRUE);
                 if (!$access || !$access->isAllowed()) {
                     return new JsonResponse([
                         'status' => 'error',
@@ -182,10 +177,14 @@ class StatusController extends ControllerBase
                     ], 403);
                 }
 
-                $action->execute($application['id']);
+                if ($baseStatus == 'Rejected') {
+                    $action->execute($application, $status);
+                } else {
+                    $action->execute($application);
+                }
 
                 $this->logger->info('Successfully changed the status of Application @id to @action.', [
-                    '@id' => $application['id'],
+                    '@id' => $application->id(),
                     '@action' => $selectedAction['name'],
                 ]);
             } else {
@@ -193,7 +192,7 @@ class StatusController extends ControllerBase
             }
         } catch (Exception $e) {
             $this->logger->error('Failed to change status of Application @id to @action: @message', [
-                '@id' => $application['id'],
+                '@id' => $application->id(),
                 '@action' => $selectedAction['name'],
                 '@message' => $e->getMessage()
             ]);

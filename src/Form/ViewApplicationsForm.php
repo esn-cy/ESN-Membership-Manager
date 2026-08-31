@@ -1,0 +1,378 @@
+<?php /** @noinspection PhpUnused */
+
+namespace Drupal\esn_membership_manager\Form;
+
+use Drupal\Component\Plugin\Exception\InvalidPluginDefinitionException;
+use Drupal\Component\Plugin\Exception\PluginNotFoundException;
+use Drupal\Component\Serialization\Json;
+use Drupal\Core\Action\ActionBase;
+use Drupal\Core\Action\ActionManager;
+use Drupal\Core\Entity\EntityTypeManagerInterface;
+use Drupal\Core\Form\FormBase;
+use Drupal\Core\Form\FormStateInterface;
+use Drupal\Core\Logger\LoggerChannelFactoryInterface;
+use Drupal\Core\Logger\LoggerChannelInterface;
+use Drupal\Core\Render\Markup;
+use Drupal\Core\Url;
+use Drupal\esn_membership_manager\Entity\Application\ApplicationField;
+use Drupal\esn_membership_manager\Entity\Application\ApplicationStorage;
+use Drupal\esn_membership_manager\Service\FileService;
+use Drupal\file\FileInterface;
+use Exception;
+use Symfony\Component\DependencyInjection\ContainerInterface;
+use Symfony\Component\HttpFoundation\JsonResponse;
+
+class ViewApplicationsForm extends FormBase
+{
+    protected ApplicationStorage $applicationStorage;
+    protected ActionManager $actionManager;
+    protected FileService $fileService;
+    protected LoggerChannelInterface $logger;
+
+    /**
+     * @throws InvalidPluginDefinitionException
+     * @throws PluginNotFoundException
+     */
+    public function __construct(
+        EntityTypeManagerInterface    $entityTypeManager,
+        ActionManager                 $actionManager,
+        FileService                   $fileService,
+        LoggerChannelFactoryInterface $loggerFactory
+    )
+    {
+        /** @var ApplicationStorage $applicationStorage */
+        $applicationStorage = $entityTypeManager->getStorage('membership_application');
+
+        $this->applicationStorage = $applicationStorage;
+        $this->actionManager = $actionManager;
+        $this->fileService = $fileService;
+        $this->logger = $loggerFactory->get('esn_membership_manager');
+    }
+
+    /**
+     * @throws InvalidPluginDefinitionException
+     * @throws PluginNotFoundException
+     */
+    public static function create(ContainerInterface $container): self
+    {
+        /** @var EntityTypeManagerInterface $entityTypeManager */
+        $entityTypeManager = $container->get('entity_type.manager');
+
+        /** @var ActionManager $actionManager */
+        $actionManager = $container->get('plugin.manager.action');
+
+        /** @var FileService $fileService */
+        $fileService = $container->get('esn_membership_manager.file_service');
+
+        /** @var LoggerChannelFactoryInterface $loggerFactory */
+        $loggerFactory = $container->get('logger.factory');
+
+        return new static(
+            $entityTypeManager,
+            $actionManager,
+            $fileService,
+            $loggerFactory
+        );
+    }
+
+    /**
+     * {@inheritdoc}
+     */
+    public function getFormId(): string
+    {
+        return 'esn_membership_manager_view_applications';
+    }
+
+    /**
+     * Builds the applications list page.
+     */
+    public function buildForm(array $form, FormStateInterface $form_state): JsonResponse|array
+    {
+        $params = $this->getRequest()->query;
+        $search = $params->get('search', '');
+        $status = $params->get('status', '');
+        $esncard = $params->get('esncard', '');
+        $pass = $params->get('pass', '');
+        $sortBy = $params->get('sort_by', 'created');
+        $sortOrder = $params->get('sort_order', 'DESC');
+
+        $form['#attached']['library'][] = 'core/drupal.dialog.ajax';
+
+        $form['filters'] = [
+            '#type' => 'details',
+            '#title' => $this->t('Filter applications'),
+            '#open' => TRUE,
+            '#weight' => -20,
+        ];
+
+        $form['filters']['container'] = [
+            '#type' => 'container',
+        ];
+
+        $form['filters']['container']['search'] = [
+            '#type' => 'search',
+            '#title' => $this->t('Search'),
+            '#placeholder' => $this->t('Search by name, surname, email...'),
+            '#default_value' => $search,
+        ];
+
+        $form['filters']['container']['status'] = [
+            '#type' => 'select',
+            '#title' => $this->t('Status'),
+            '#options' => [
+                '' => $this->t('- Any Status -'),
+                'Pending' => $this->t('Pending'),
+                'Approved' => $this->t('Approved'),
+                'Rejected' => $this->t('Rejected'),
+                'Paid' => $this->t('Paid'),
+                'Issued' => $this->t('Issued'),
+                'Delivered' => $this->t('Delivered'),
+            ],
+            '#default_value' => $status,
+        ];
+
+        $form['filters']['container']['esncard'] = [
+            '#type' => 'checkbox',
+            '#title' => $this->t('ESNcard'),
+            '#default_value' => $esncard,
+        ];
+
+        $form['filters']['container']['pass'] = [
+            '#type' => 'checkbox',
+            '#title' => $this->t('Pass'),
+            '#default_value' => $pass,
+        ];
+
+        $form['filters']['container']['sort_by'] = [
+            '#type' => 'select',
+            '#title' => $this->t('Sort by'),
+            '#options' => [
+                'created' => $this->t('Created Date'),
+                'date_paid' => $this->t('Date Paid'),
+                'esncard_number' => $this->t('ESNcard Number'),
+            ],
+            '#default_value' => $sortBy,
+        ];
+
+        $form['filters']['container']['sort_order'] = [
+            '#type' => 'select',
+            '#title' => $this->t('Sort order'),
+            '#options' => [
+                'DESC' => $this->t('Descending'),
+                'ASC' => $this->t('Ascending'),
+            ],
+            '#default_value' => $sortOrder,
+        ];
+
+        $form['filters']['container']['submit'] = [
+            '#type' => 'submit',
+            '#value' => $this->t('Filter'),
+            '#submit' => ['::filterFormSubmit'],
+        ];
+
+        $form['filters']['container']['reset'] = [
+            '#type' => 'submit',
+            '#value' => $this->t('Reset'),
+            '#submit' => ['::filterFormReset'],
+        ];
+
+        $form['actions'] = [
+            '#type' => 'details',
+            '#title' => $this->t('Actions'),
+            '#open' => TRUE,
+            '#weight' => -10,
+        ];
+
+        $actionPluginIDs = [
+            'esn_membership_manager_approve',
+            'esn_membership_manager_reject',
+            'esn_membership_manager_delete',
+            'esn_membership_manager_mark_paid',
+            'esn_membership_manager_issue',
+            'esn_membership_manager_deliver',
+            'esn_membership_manager_blacklist'
+        ];
+
+        $options = ['' => $this->t('- Select an action -')];
+        foreach ($actionPluginIDs as $id) {
+            if ($this->actionManager->hasDefinition($id)) {
+                try {
+                    /** @var ActionBase $action */
+                    $action = $this->actionManager->createInstance($id);
+                    if ($action->access(NULL, $this->currentUser())) {
+                        $definition = $this->actionManager->getDefinition($id);
+                        $options[$id] = $definition['label'];
+                    }
+                } catch (Exception $e) {
+                    $this->logger->warning('Could not check access for action @id: @message', ['@id' => $id, '@message' => $e->getMessage()]);
+                }
+            } else {
+                $this->logger->warning('Missing action plugin definition: @id', ['@id' => $id]);
+            }
+        }
+
+        $options['face_pdf'] = $this->t('Generate ESNcard Pictures PDF');
+
+        $form['actions']['container'] = [
+            '#type' => 'container',
+            '#attributes' => ['class' => ['container-inline']],
+        ];
+
+        $form['actions']['container']['action'] = [
+            '#type' => 'select',
+            '#title' => $this->t('Action'),
+            '#options' => $options,
+        ];
+
+        $form['actions']['container']['submit'] = [
+            '#type' => 'submit',
+            '#value' => $this->t('Apply to selected items'),
+        ];
+
+        $header = [
+            'approval_status' => $this->t('Status'),
+            'name' => $this->t('Name'),
+            'surname' => $this->t('Surname'),
+            'nationality' => $this->t('Nationality'),
+            'email' => $this->t('Email'),
+            'esncard' => $this->t('ESNcard'),
+            'proof' => $this->t('Proof'),
+            'id_doc' => $this->t('ID'),
+            'profile_img' => $this->t('Image'),
+            'operations' => $this->t('Operations'),
+        ];
+
+        $applications = $this->applicationStorage->search($search, $status, $esncard, $pass, $sortOrder, $sortBy);
+
+        $rows = [];
+        foreach ($applications as $application) {
+            $rows[$application->id()] = [
+                'approval_status' => $application->getApprovalStatus() ?? '',
+                'name' => $application->getValue(ApplicationField::Name) ?? '',
+                'surname' => $application->getValue(ApplicationField::Surname) ?? '',
+                'email' => $application->getValue(ApplicationField::Email) ?? '',
+                'nationality' => $application->getValue(ApplicationField::Nationality) ?? '',
+                'esncard' => [
+                    'data' => [
+                        '#markup' => Markup::create('<input type="checkbox" onclick="return false;" style="cursor: default;" ' . ($application->getValue(ApplicationField::HasESNcard) ? 'checked' : '') . '>'),
+                    ],
+                ],
+                'proof' => $this->generateFilePreview($application->getStatusDocument()),
+                'id_doc' => $this->generateFilePreview($application->getIDDocument()),
+                'profile_img' => $this->generateFilePreview($application->getFacePhoto()),
+                'operations' => [
+                    'data' => [
+                        '#type' => 'link',
+                        '#title' => $this->t('View'),
+                        '#url' => Url::fromRoute('esn_membership_manager.application_view', ['id' => $application->id()]),
+                        '#attributes' => [
+                            'class' => ['use-ajax', 'button', 'button--small'],
+                            'data-dialog-type' => 'modal',
+                            'data-dialog-options' => Json::encode(['width' => '90%']),
+                        ],
+                    ],
+                ],
+            ];
+        }
+
+        $form['table'] = [
+            '#type' => 'tableselect',
+            '#header' => $header,
+            '#options' => $rows,
+            '#empty' => $this->t('No applications found.'),
+        ];
+        $form['pager'] = [
+            '#type' => 'pager',
+        ];
+
+        return $form;
+    }
+
+    function generateFilePreview(?FileInterface $file): array|string
+    {
+        if ($file === null) {
+            return '';
+        }
+
+        return [
+            'data' => [
+                '#type' => 'link',
+                '#title' => $this->t('Preview'),
+                '#url' => Url::fromRoute('esn_membership_manager.file_preview', ['file' => $file->id()]),
+                '#attributes' => [
+                    'class' => ['use-ajax', 'button', 'button--small'],
+                    'data-dialog-type' => 'modal',
+                    'data-dialog-options' => Json::encode(['width' => 700, 'minHeight' => 500]),
+                ],
+            ]
+        ];
+    }
+
+    /** @noinspection PhpUnusedParameterInspection */
+    public function filterFormSubmit(array &$form, FormStateInterface $form_state): void
+    {
+        $values = $form_state->getValues();
+        $queryParams = [];
+        if (!empty($values['search'])) $queryParams['search'] = $values['search'];
+        if (!empty($values['status'])) $queryParams['status'] = $values['status'];
+        if (!empty($values['esncard'])) $queryParams['esncard'] = $values['esncard'];
+        if (!empty($values['pass'])) $queryParams['pass'] = $values['pass'];
+        if (!empty($values['sort_by'])) $queryParams['sort_by'] = $values['sort_by'];
+        if (!empty($values['sort_order'])) $queryParams['sort_order'] = $values['sort_order'];
+        $form_state->setRedirect('esn_membership_manager.view_applications', [], ['query' => $queryParams]);
+    }
+
+    /** @noinspection PhpUnusedParameterInspection */
+    public function filterFormReset(array &$form, FormStateInterface $form_state): void
+    {
+        $form_state->setRedirect('esn_membership_manager.view_applications', [], ['query' => []]);
+    }
+
+    public function submitForm(array &$form, FormStateInterface $form_state): void
+    {
+        $trigger = $form_state->getTriggeringElement()['#value'];
+        if ($trigger == $this->t('Filter') || $trigger == $this->t('Reset')) {
+            return;
+        }
+
+        $actionID = $form_state->getValue('action');
+        $selectedIDs = array_filter($form_state->getValue('table'));
+
+        if ($actionID == 'face_pdf') {
+            $validIDs = array_keys(array_filter($selectedIDs));
+            $form_state->setRedirect('esn_membership_manager.face_pdf', [], ['query' => ['id' => $validIDs]]);
+            return;
+        }
+
+        if (empty($selectedIDs) || empty($actionID)) {
+            $this->messenger()->addWarning($this->t('No items selected or no action chosen.'));
+            return;
+        }
+
+        $currentID = '';
+        try {
+            if ($this->actionManager->hasDefinition($actionID)) {
+                /** @var ActionBase $action */
+                $action = $this->actionManager->createInstance($actionID);
+
+                foreach ($selectedIDs as $id => $value) {
+                    $currentID = $id;
+                    $application = $this->applicationStorage->load($id);
+                    if ($action->access($id, $this->currentUser())) {
+                        $action->execute($application);
+                    }
+                }
+
+                $this->messenger()->addStatus($this->t('Action applied to @count items.', ['@count' => count($selectedIDs)]));
+            } else {
+                $this->messenger()->addError($this->t('Action plugin not found.'));
+            }
+        } catch (Exception $e) {
+            $this->logger->error('Failed to execute bulk action @action: @message', [
+                '@action' => $actionID,
+                '@message' => $e->getMessage()
+            ]);
+            $this->messenger()->addError($this->t('An error occurred while processing the action on ID @id: @message', ['@id' => $currentID, '@message' => $e->getMessage()]));
+        }
+    }
+}

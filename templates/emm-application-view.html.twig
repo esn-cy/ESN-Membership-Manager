@@ -1,0 +1,812 @@
+<!--suppress HtmlFormInputWithoutLabel, CssUnusedSymbol -->
+<link href="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.5.13/cropper.min.css" rel="stylesheet">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.5.13/cropper.min.js"></script>
+<style>
+    .split-modal {
+        display: flex;
+        gap: 20px;
+        height: 600px;
+        overflow: hidden;
+    }
+
+    .split-modal button {
+        padding: 8px;
+        border: none;
+        border-radius: 8px;
+    }
+
+    .pane {
+        display: flex;
+        flex-direction: column;
+        flex: 1;
+    }
+
+    .left-pane {
+        padding-right: 15px;
+        border-right: 1px solid #ddd;
+    }
+
+    #image-preview {
+        width: 100%;
+        height: 100%;
+        object-fit: contain;
+    }
+
+    .doc-viewer {
+        position: relative;
+        flex-grow: 1;
+        min-height: 0;
+        margin-bottom: 10px;
+        border: 1px solid #ccc;
+        background: #f2f2f2;
+    }
+
+    .doc-viewer iframe {
+        width: 100%;
+        height: 100%;
+    }
+
+    .doc-controls {
+        display: flex;
+        justify-content: center;
+        gap: 5px;
+    }
+
+    .doc-controls button {
+        background: #eee;
+    }
+
+    .doc-controls button:hover {
+        background: #ddd;
+    }
+
+    .selected-doc {
+        background: #ccc !important;
+    }
+
+    .right-pane {
+        overflow: hidden;
+    }
+
+    .details-table {
+        width: 100%;
+        border-collapse: collapse;
+        margin-bottom: 20px;
+    }
+
+    .details-table th {
+        text-align: left;
+        border-bottom: 2px solid #eee;
+        padding: 8px;
+        color: #666;
+        font-size: 0.9em;
+    }
+
+    .details-table td {
+        padding: 8px;
+        border-bottom: 1px solid #f5f5f5;
+        vertical-align: middle;
+    }
+
+    .label-cell {
+        font-weight: bold;
+        color: #333;
+    }
+
+    .scrollable-content {
+        flex-grow: 1;
+        overflow-y: auto;
+        padding-right: 5px;
+        margin-bottom: 10px;
+    }
+
+    .fixed-footer {
+        flex-shrink: 0;
+        background: #fff;
+        border-top: 2px solid #eee;
+        padding-top: 15px;
+        z-index: 10;
+    }
+
+    .seamless-input {
+        width: 100%;
+        border: 1px solid transparent;
+        background-color: transparent;
+        padding: 4px;
+        font-size: 1em;
+        color: inherit;
+        transition: all 0.2s;
+    }
+
+    .seamless-input:not([readonly]) {
+        border: 1px solid #0074bd;
+        background-color: #fff;
+        border-radius: 4px;
+        box-shadow: 0 0 3px rgba(0, 116, 189, 0.2);
+    }
+
+    .seamless-input:focus {
+        outline: none;
+    }
+
+    .actions {
+        margin-top: auto;
+        display: flex;
+        gap: 10px;
+        border-top: 1px solid #eee;
+        padding-top: 15px;
+        align-items: center;
+        justify-content: flex-end;
+    }
+
+    .divider {
+        border-left: 2px solid #ccc;
+        height: 30px;
+        margin: 0 10px;
+    }
+
+    .button--danger {
+        background-color: #e74c3c;
+        color: white;
+        border: none;
+    }
+
+    .button--action {
+        background-color: #27ae60;
+        color: white;
+        border: none;
+    }
+
+    #api-msg {
+        margin-top: 10px;
+        font-weight: bold;
+        text-align: right;
+    }
+
+    .circular-btn {
+        width: 48px;
+        height: 48px;
+        border-radius: 50%;
+        border: none;
+        display: flex;
+        justify-content: center;
+        align-items: center;
+        cursor: pointer;
+        box-shadow: 0 4px 6px rgba(0, 0, 0, 0.3);
+        color: white;
+        transition: all 0.2s;
+    }
+
+    .circular-btn:hover {
+        transform: scale(1.05);
+    }
+
+    .circular-btn:disabled {
+        opacity: 0.5;
+        cursor: not-allowed;
+        transform: none;
+    }
+
+    .crop-btn {
+        background-color: #0074bd;
+    }
+
+    .cancel-btn {
+        background-color: #e74c3c;
+    }
+
+    .tick-btn {
+        background-color: #27ae60;
+    }
+
+    .dialog-overlay {
+        display: none;
+        position: fixed;
+        top: 0;
+        left: 0;
+        width: 100%;
+        height: 100%;
+        background: rgba(0, 0, 0, 0.5);
+        z-index: 1000;
+        justify-content: center;
+        align-items: center;
+    }
+
+    .dialog-box {
+        background: #fff;
+        padding: 20px;
+        border-radius: 8px;
+        width: 400px;
+        box-shadow: 0 4px 10px rgba(0, 0, 0, 0.2);
+        display: flex;
+        flex-direction: column;
+        gap: 12px;
+    }
+
+    .dialog-box h3 {
+        margin-top: 0;
+        margin-bottom: 5px;
+    }
+
+    .dialog-box label {
+        font-weight: bold;
+        font-size: 0.9em;
+    }
+
+    .switchboard {
+        display: flex;
+        flex-direction: column;
+        gap: 15px;
+        max-height: 400px;
+        overflow-y: auto;
+        padding-right: 5px;
+    }
+
+    .reason-category h4 {
+        margin: 0 0 8px 0;
+        font-size: 0.9em;
+        border-bottom: 1px solid #eee;
+        padding-bottom: 4px;
+    }
+
+    .checkbox-grid {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 8px;
+    }
+
+    .switchboard input[type="checkbox"] {
+        display: none;
+    }
+
+    .switch-label {
+        display: inline-block;
+        padding: 6px 14px;
+        background: #f5f5f5;
+        border: 1px solid #ddd;
+        border-radius: 20px;
+        font-size: 0.85em;
+        cursor: pointer;
+        user-select: none;
+        transition: all 0.2s;
+    }
+
+    .switchboard input[type="checkbox"]:checked + .switch-label {
+        background: #e74c3c;
+        color: white;
+        border-color: #c0392b;
+    }
+
+    .switchboard input[type="checkbox"]:hover + .switch-label {
+        filter: brightness(0.95);
+    }
+
+    .dialog-actions {
+        display: flex;
+        justify-content: flex-end;
+        gap: 10px;
+        margin-top: 10px;
+    }
+
+    .dialog-actions button {
+        padding: 8px 16px;
+        border-radius: 4px;
+        cursor: pointer;
+    }
+</style>
+
+<div class="split-modal">
+    {% set show_proof = urls.proof is not empty %}
+    {% set show_id = not show_proof and urls.id is not empty %}
+    {% set show_photo = not show_proof and not show_id and urls.photo is not empty %}
+    {% set no_docs = not show_proof and not show_id and not show_photo %}
+    {% set is_proof_pdf = urls.proof ? urls.proof|lower ends with '.pdf' : false %}
+    {% set is_id_pdf = urls.id ? urls.id|lower ends with '.pdf' : false %}
+
+    <div class="pane left-pane">
+        <div class="doc-viewer"
+             style="display: flex; flex-direction: column; overflow: hidden; position: relative;{% if no_docs %} justify-content: center;{% endif %}">
+            <iframe id="main-preview"
+                    {% if show_proof and is_proof_pdf %}
+                        src="{{ urls.proof }}"
+                    {% elseif show_id and is_id_pdf %}
+                        src="{{ urls.id }}"
+                    {% endif %}
+                    style="{% if (show_proof and is_proof_pdf) or (show_id and is_id_pdf) %}display: block;{% else %}display: none;{% endif %} width: 100%; height: 100%; border: none;"
+                    title="Document Preview">
+            </iframe>
+            <div id="image-preview-container"
+                 style="{% if (show_proof and not is_proof_pdf) or (show_id and not is_id_pdf) or show_photo %}display: flex;{% else %}display: none;{% endif %} width: 100%; height: 100%; justify-content: center; align-items: center; overflow: hidden; position: relative;">
+                <img id="image-preview"
+                     src="{% if show_proof and not is_proof_pdf %}{{ urls.proof }}{% elseif show_id and not is_id_pdf %}{{ urls.id }}{% elseif show_photo %}{{ urls.photo }}{% endif %}"
+                     alt="File Preview">
+
+                {% if permissions.edit %}
+                    <div id="crop-action-buttons"
+                         style="{% if show_photo %}display: flex;{% else %}display: none;{% endif %}; position: absolute; bottom: 15px; right: 15px; flex-direction: column; gap: 10px; z-index: 10;">
+                        <button type="button" id="btn-save-crop" class="circular-btn tick-btn" style="display: none;"
+                                onclick="saveCrop({{ id }})" title="Save Crop">
+                            <svg viewBox="0 0 24 24" width="24" height="24" stroke="currentColor" stroke-width="2"
+                                 fill="none" stroke-linecap="round" stroke-linejoin="round">
+                                <polyline points="20 6 9 17 4 12"></polyline>
+                            </svg>
+                        </button>
+                        <button type="button" id="btn-toggle-crop" class="circular-btn crop-btn" onclick="toggleCrop()"
+                                title="Crop Image">
+                            <svg id="icon-crop" viewBox="0 0 24 24" width="24" height="24" stroke="currentColor"
+                                 stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round">
+                                <path d="M6.13 1L6 16a2 2 0 0 0 2 2h15"></path>
+                                <path d="M1 6.13L16 6a2 2 0 0 1 2 2v15"></path>
+                            </svg>
+                            <svg id="icon-cancel" viewBox="0 0 24 24" width="24" height="24" stroke="currentColor"
+                                 stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round"
+                                 style="display: none;">
+                                <line x1="18" y1="6" x2="6" y2="18"></line>
+                                <line x1="6" y1="6" x2="18" y2="18"></line>
+                            </svg>
+                        </button>
+                    </div>
+                {% endif %}
+            </div>
+            <div id="no-preview"
+                 style="{% if no_docs %}display:block;{% else %}display:none;{% endif %} padding:20px; text-align:center; font-size: 24pt; font-weight: bold">
+                No documents available
+            </div>
+        </div>
+        <div class="doc-controls">
+            {% if urls.proof %}
+                <button type="button" class="selected-doc" onclick="changeActiveDocument(this, '{{ urls.proof }}')">
+                    Proof of Status
+                </button>
+            {% endif %}
+            {% if urls.id %}
+                <button type="button" {% if urls.proof is empty %} class="selected-doc" {% endif %}
+                        onclick="changeActiveDocument(this, '{{ urls.id }}')">ID Document
+                </button>
+            {% endif %}
+            {% if urls.photo %}
+                <button type="button" {% if (urls.proof is empty) and (urls.id is empty) %} class="selected-doc" {% endif %}
+                        onclick="changeActiveDocument(this, '{{ urls.photo }}', true)">Face Photo
+                </button>
+            {% endif %}
+        </div>
+    </div>
+
+    <div class="pane right-pane">
+        <h3>Application Details</h3>
+        <div class="scrollable-content">
+            <form id="application-form" onsubmit="return false;">
+                <table class="details-table">
+                    <thead>
+                    <tr>
+                        <th style="width: 30%">Label</th>
+                        <th>Content</th>
+                        {% if permissions.edit %}
+                            <th style="width: 50px; text-align:center;">Edit</th>{% endif %}
+                    </tr>
+                    </thead>
+                    <tbody>
+                    {% for field in fieldData %}
+                        <tr>
+                            <td class="label-cell">{{ field.label }}</td>
+                            <td>
+                                {% if field.readonly %}
+                                    {{ field.value }}
+                                {% else %}
+                                    <input type="text"
+                                           name="{{ field.key }}"
+                                           value="{{ field.value }}"
+                                           class="seamless-input"
+                                           readonly>
+                                {% endif %}
+                            </td>
+
+                            {% if permissions.edit %}
+                                <td style="text-align:center;">
+                                    {% if not field.readonly %}
+                                        <input type="checkbox" class="edit-checkbox" onchange="toggleRowEdit(this)">
+                                    {% endif %}
+                                </td>
+                            {% endif %}
+                        </tr>
+                    {% endfor %}
+                    </tbody>
+                </table>
+            </form>
+        </div>
+
+        <div class="fixed-footer">
+            <div class="actions">
+                {% if is_paid %}
+                    <button type="button" id="btn-esncard" class="button"
+                            onclick="window.open('/memberships/applications/{{ id }}/esncard', 'esncardWindow', 'width=660,height=320,popup=1,toolbar=0,location=0,menubar=0')">
+                        View ESNcard
+                    </button>
+                {% endif %}
+
+                <button type="button" id="btn-save" class="button button--primary" style="display:none;"
+                        onclick="doSave({{ id }})">Save Changes
+                </button>
+
+                <div class="divider"></div>
+
+                <button type="button" id="btn-reject" class="button button--danger"
+                        data-has-permission="{{ permissions.reject ? 'true' : 'false' }}"
+                        {% if not permissions.reject %} disabled style="opacity:0.5;" {% else %}
+                    onclick="openRejectDialog()" {% endif %}>
+                    Reject
+                </button>
+                <button type="button" id="btn-approve" class="button button--action"
+                        data-has-permission="{{ permissions.approve ? 'true' : 'false' }}"
+                        {% if not permissions.approve %} disabled style="opacity:0.5;" {% else %}
+                    onclick="doStatus('Approved', {{ id }})" {% endif %}>
+                    Approve
+                </button>
+            </div>
+
+            <div id="reject-dialog" class="dialog-overlay">
+                <div class="dialog-box">
+                    <div>
+                        <h3>Reject Application</h3>
+                        <p class="subtitle">Select all reasons that apply:</p>
+                    </div>
+
+                    <div class="switchboard">
+                        {% if not is_proof_verified and urls.proof is not empty %}
+                            <div class="reason-category" data-category="Status">
+                                <h4>Proof of Status</h4>
+                                <div class="checkbox-grid">
+                                    <label>
+                                        <input type="checkbox" value="Invalid">
+                                        <span class="switch-label">Invalid Document</span>
+                                    </label>
+                                    <label>
+                                        <input type="checkbox" value="Unreadable">
+                                        <span class="switch-label">Unreadable Document</span>
+                                    </label>
+                                </div>
+                            </div>
+                        {% endif %}
+                        {% if not is_identity_verified and urls.id is not empty %}
+                            <div class="reason-category" data-category="Identity">
+                                <h4>ID Document</h4>
+                                <div class="checkbox-grid">
+                                    <label>
+                                        <input type="checkbox" value="Invalid">
+                                        <span class="switch-label">Invalid Document</span>
+                                    </label>
+                                    <label>
+                                        <input type="checkbox" value="Unreadable">
+                                        <span class="switch-label">Unreadable Document</span>
+                                    </label>
+                                </div>
+                            </div>
+                        {% endif %}
+                        {% if urls.photo is not empty %}
+                            <div class="reason-category" data-category="Photo">
+                                <h4>Face Photo</h4>
+                                <div class="checkbox-grid">
+                                    <label>
+                                        <input type="checkbox" value="Invalid">
+                                        <span class="switch-label">Invalid Image</span>
+                                    </label>
+                                    <label>
+                                        <input type="checkbox" value="Rotated">
+                                        <span class="switch-label">Rotated Image</span>
+                                    </label>
+                                    <label>
+                                        <input type="checkbox" value="Cropped">
+                                        <span class="switch-label">Cropped Image</span>
+                                    </label>
+                                    <label>
+                                        <input type="checkbox" value="Blurry">
+                                        <span class="switch-label">Blurry Image</span>
+                                    </label>
+                                </div>
+                            </div>
+                        {% endif %}
+                        <div class="reason-category" data-category="Eligibility">
+                            <h4>Status Eligibility</h4>
+                            <div class="checkbox-grid">
+                                <label>
+                                    <input type="checkbox" value="Local">
+                                    <span class="switch-label">Local Student</span>
+                                </label>
+                                <label>
+                                    <input type="checkbox" value="Ineligible">
+                                    <span class="switch-label">Ineligible to any Category</span>
+                                </label>
+                            </div>
+                        </div>
+                        <div class="reason-category" data-category="Other">
+                            <h4>Other</h4>
+                            <div class="checkbox-grid">
+                                <label>
+                                    <input type="checkbox" value="Duplicate">
+                                    <span class="switch-label">Duplicate Application</span>
+                                </label>
+                                <label>
+                                    <input type="checkbox" value="Other">
+                                    <span class="switch-label">Other Reason</span>
+                                </label>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="dialog-actions">
+                        <button class="button" onclick="closeRejectDialog()"
+                                style="background:#eee; border:none; color:#333;">Cancel
+                        </button>
+                        <button class="button button--danger" onclick="confirmReject({{ id }})">Confirm Rejection
+                        </button>
+                    </div>
+                </div>
+            </div>
+
+            <div id="api-msg"></div>
+        </div>
+    </div>
+</div>
+
+<script>
+    let cropper = null;
+
+    function changeActiveDocument(button, url, isFacePhoto = false) {
+        const frame = document.getElementById("main-preview");
+        const imgContainer = document.getElementById("image-preview-container");
+        const img = document.getElementById("image-preview");
+        const docControls = document.getElementsByClassName("doc-controls")[0];
+
+        for (const otherButton of [].slice.call(docControls.children)) {
+            otherButton.classList.remove('selected-doc');
+        }
+        button.classList.add('selected-doc');
+
+        resetCropUI();
+
+        const cropActionButtons = document.getElementById("crop-action-buttons");
+        if (cropActionButtons) {
+            cropActionButtons.style.display = (isFacePhoto && {{ permissions.edit ? 'true' : 'false' }}) ? "flex" : "none";
+        }
+
+        if (url) {
+            const cleanUrl = url.split('?')[0].toLowerCase();
+            const isPdf = cleanUrl.endsWith('.pdf');
+
+            if (!isPdf) {
+                img.src = url + (url.includes('?') ? '&' : '?') + "t=" + new Date().getTime();
+                frame.style.display = "none";
+                imgContainer.style.display = "flex";
+            } else {
+                frame.src = url;
+                frame.style.display = "block";
+                imgContainer.style.display = "none";
+            }
+            document.getElementById("no-preview").style.display = "none";
+        } else {
+            frame.style.display = "none";
+            imgContainer.style.display = "none";
+            document.getElementById("no-preview").style.display = "block";
+        }
+    }
+
+    function resetCropUI() {
+        if (cropper) {
+            cropper.destroy();
+            cropper = null;
+        }
+        const btnToggle = document.getElementById("btn-toggle-crop");
+        if (btnToggle) {
+            btnToggle.classList.add('crop-btn');
+            btnToggle.classList.remove('cancel-btn');
+        }
+        const iconCrop = document.getElementById("icon-crop");
+        if (iconCrop) iconCrop.style.display = "block";
+        const iconCancel = document.getElementById("icon-cancel");
+        if (iconCancel) iconCancel.style.display = "none";
+
+        const btnSave = document.getElementById("btn-save-crop");
+        if (btnSave) btnSave.style.display = "none";
+    }
+
+
+    function toggleCrop() {
+        if (cropper) {
+            cancelCrop();
+        } else {
+            startCrop();
+        }
+    }
+
+    function startCrop() {
+        const img = document.getElementById("image-preview");
+        if (cropper) cropper.destroy();
+
+        cropper = new Cropper(img, {
+            aspectRatio: 3 / 4,
+            viewMode: 1,
+        });
+
+        const btnToggle = document.getElementById("btn-toggle-crop");
+        btnToggle.classList.remove('crop-btn');
+        btnToggle.classList.add('cancel-btn');
+        document.getElementById("icon-crop").style.display = "none";
+        document.getElementById("icon-cancel").style.display = "block";
+
+        document.getElementById("btn-save-crop").style.display = "flex";
+    }
+
+    function cancelCrop() {
+        resetCropUI();
+        const img = document.getElementById("image-preview");
+        if (img.src) {
+            img.src = img.src.split("&t=")[0].split("?t=")[0] + "?t=" + new Date().getTime();
+        }
+    }
+
+    async function saveCrop(id) {
+        if (!cropper) return;
+
+        const canvas = cropper.getCroppedCanvas({
+            width: 600,
+            height: 800
+        });
+
+        const base64Image = canvas.toDataURL("image/jpeg");
+        const saveBtn = document.getElementById("btn-save-crop");
+        saveBtn.disabled = true;
+
+        const originalToggleDisplay = document.getElementById("btn-toggle-crop").style.display;
+        document.getElementById("btn-toggle-crop").style.display = "none";
+
+        const request = await fetch("{{ apiURLs.crop }}", {
+            method: "POST",
+            headers: {"Content-Type": "application/json"},
+            body: JSON.stringify({
+                "id": id,
+                "image": base64Image
+            })
+        });
+
+        const json = await request.json();
+
+        const msg = document.getElementById("api-msg");
+        msg.innerHTML = json.message;
+        msg.style.color = json.status === 'success' ? "green" : "red";
+
+        saveBtn.disabled = false;
+        document.getElementById("btn-toggle-crop").style.display = originalToggleDisplay;
+
+        if (json.status === 'success') {
+            const img = document.getElementById("image-preview");
+            const baseUrl = img.src.replace('jpeg', 'jpg').split("&t=")[0].split("?t=")[0];
+
+            resetCropUI();
+
+            img.src = baseUrl + "?t=" + new Date().getTime();
+        }
+    }
+
+    function toggleRowEdit(checkbox) {
+        const row = checkbox.closest("tr");
+        const input = row.querySelector("input.seamless-input");
+
+        if (checkbox.checked) {
+            input.removeAttribute("readonly");
+            input.focus();
+
+            input.oninput = function () {
+                checkbox.disabled = input.value !== input.defaultValue;
+            };
+        } else {
+            input.setAttribute("readonly", true);
+
+            input.oninput = null;
+        }
+
+        const anyChecked = document.querySelectorAll(".edit-checkbox:checked").length > 0;
+        const saveBtn = document.getElementById("btn-save");
+        const approveBtn = document.getElementById("btn-approve");
+        const rejectBtn = document.getElementById("btn-reject");
+
+        if (anyChecked) {
+            saveBtn.style.display = "inline-block";
+            approveBtn.disabled = true;
+            approveBtn.style.opacity = "0.5";
+            rejectBtn.disabled = true;
+            rejectBtn.style.opacity = "0.5";
+        } else {
+            saveBtn.style.display = "none";
+            if (approveBtn.dataset.hasPermission === "true") {
+                approveBtn.disabled = false;
+                approveBtn.style.opacity = "1";
+            }
+            if (rejectBtn.dataset.hasPermission === "true") {
+                rejectBtn.disabled = false;
+                rejectBtn.style.opacity = "1";
+            }
+        }
+    }
+
+    async function doSave(id) {
+        const form = document.getElementById("application-form");
+        const data = {"id": id};
+
+        form.querySelectorAll("input.seamless-input").forEach(function (input) {
+            data[input.name] = input.value;
+        });
+
+        const request = await fetch("{{ apiURLs.update }}", {
+            method: "POST",
+            headers: {"Content-Type": "application/json"},
+            body: JSON.stringify(data)
+        });
+
+        const json = await request.json();
+
+        const msg = document.getElementById("api-msg");
+        msg.innerHTML = json.message;
+        msg.style.color = json.status === 'success' ? "green" : "red";
+
+        if (json.status === 'success') {
+            document.querySelectorAll(".edit-checkbox").forEach(c => {
+                if (c.checked) {
+                    c.checked = false;
+                    c.disabled = false;
+                    toggleRowEdit(c);
+                }
+            });
+        }
+    }
+
+    async function doStatus(status, id) {
+        const request = await fetch("{{ apiURLs.status }}", {
+            method: "POST",
+            headers: {"Content-Type": "application/json"},
+            body: JSON.stringify({
+                "status": status,
+                "id": id
+            })
+        });
+
+        const json = await request.json();
+
+        const msg = document.getElementById("api-msg");
+        msg.innerHTML = json.message;
+        msg.style.color = json.status === 'success' ? "green" : "red";
+    }
+
+    function openRejectDialog() {
+        document.querySelectorAll('.switchboard input[type="checkbox"]').forEach(cb => cb.checked = false);
+        document.getElementById('reject-dialog').style.display = 'flex';
+    }
+
+    function closeRejectDialog() {
+        document.getElementById('reject-dialog').style.display = 'none';
+    }
+
+    function confirmReject(id) {
+        const categories = document.querySelectorAll('.reason-category');
+        let reasons = [];
+
+        categories.forEach(group => {
+            const categoryName = group.dataset.category;
+            const checkedBoxes = group.querySelectorAll('input[type="checkbox"]:checked');
+
+            if (checkedBoxes.length > 0) {
+                checkedBoxes.forEach(checkbox => {
+                    reasons.push("Rejected-" + categoryName + "-" + checkbox.value);
+                });
+            }
+        });
+
+        let formattedStatus = 'Rejected';
+
+        if (reasons.length > 0) {
+            formattedStatus = reasons.join('/');
+        }
+
+        closeRejectDialog();
+        doStatus(formattedStatus, id);
+    }
+</script>

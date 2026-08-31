@@ -1,201 +1,73 @@
 <?php /** @noinspection PhpUnused */
 
-use Drupal\Component\Plugin\Exception\InvalidPluginDefinitionException;
-use Drupal\Component\Plugin\Exception\PluginNotFoundException;
-use Drupal\Core\Datetime\DrupalDateTime;
-use Drupal\Core\Entity\EntityStorageException;
-use Drupal\Core\Render\Markup;
 use Drupal\Core\StreamWrapper\StreamWrapperManager;
+use Drupal\esn_membership_manager\Mail;
+use Drupal\esn_membership_manager\Service\CronService;
+use Drupal\omnia\Service\EmailService;
 use Drupal\user\Entity\User;
 
 /**
  * Implements hook_theme().
  * Registers the Twig email templates.
+ * @throws ReflectionException
+ * @noinspection PhpUnusedParameterInspection
  */
 function esn_membership_manager_theme($existing, $type, $theme, $path): array
 {
-    $common_vars = [
-        'name' => 'Student',
-        'logo_location' => 'https://esn.org/sites/default/files/ESN_full-logo-Satellite.png',
-        'custom_footer' => '',
-        'scheme_name' => 'ESN Pass',
+    $themes = EmailService::processHookTheme([
+        Mail\PassConfirmationEmail::class,
+        Mail\BothConfirmationEmail::class,
+        Mail\PassApprovalEmail::class,
+        Mail\BothApprovalEmail::class,
+        Mail\RejectionEmail::class,
+        Mail\CardAssignmentEmail::class,
+        Mail\CardIssuanceEmail::class,
+        Mail\BlacklistEmail::class,
+        Mail\GuestPassApprovalEmail::class,
+        Mail\BacklogEmail::class,
+        Mail\AuthenticationEmail::class,
+    ]);
+
+    $themes['emm_application_view'] = [
+        'variables' => [
+            'id' => NULL,
+            'fieldData' => [],
+            'urls' => [],
+            'permissions' => [],
+            'apiURLs' => [],
+            'is_paid' => FALSE,
+            'is_proof_verified' => FALSE,
+            'is_identity_verified' => FALSE,
+        ],
     ];
 
-    return [
-        // 1. Pass Approval (QR Code only)
-        'emm_pass_approval' => [
-            'variables' => array_merge($common_vars, [
-                'pass_token' => '',
-                'google_wallet_link' => '',
-                'apple_wallet_link' => ''
-            ])
+    $themes['emm_esncard'] = [
+        'variables' => [
+            'face_photo_link' => '',
+            'full_name' => '',
+            'nationality' => '',
+            'dob_day' => '',
+            'dob_month' => '',
+            'dob_year' => '',
+            'host_institution' => '',
+            'section' => '',
+            'valid_since_day' => '',
+            'valid_since_month' => '',
+            'valid_since_year' => '',
+            'esncard_number' => ''
         ],
-
-        // 2. Both Approval (Pass + ESNcard)
-        'emm_both_approval' => [
-            'variables' => array_merge($common_vars, [
-                'pass_token' => '',
-                'payment_link' => '',
-                'google_wallet_link' => '',
-                'apple_wallet_link' => ''
-            ]),
-        ],
-
-        // 3. ESNcard Assignment (Card issued/Created)
-        'emm_card_assignment' => [
-            'variables' => [
-                'name' => 'Student',
-                'logo_location' => 'https://esn.org/sites/default/files/ESN_full-logo-Satellite.png',
-                'custom_footer' => '',
-                'esncard_number' => NULL,
-                'google_wallet_link' => '',
-                'apple_wallet_link' => ''
-            ],
-        ],
-
-        // 4. ESNcard Approval (Payment request)
-        'emm_card_approval' => [
-            'variables' => [
-                'name' => 'Student',
-                'logo_location' => 'https://esn.org/sites/default/files/ESN_full-logo-Satellite.png',
-                'custom_footer' => '',
-                'payment_link' => NULL,
-            ],
-        ],
-
-        // 5. Denial (Both)
-        'emm_both_denial' => [
-            'variables' => $common_vars,
-        ],
-
-        // 6. Pass Confirmation
-        'emm_pass_confirmation' => [
-            'variables' => $common_vars,
-        ],
-
-        // 7. Card Confirmation
-        'emm_card_confirmation' => [
-            'variables' => $common_vars,
-        ],
-
-        // 8. Both Confirmation
-        'emm_both_confirmation' => [
-            'variables' => $common_vars,
-        ],
-
-        // 9. Pass Blacklist
-        'emm_both_blacklist' => [
-            'variables' => $common_vars,
-        ],
-
-        // 10. Card Issuance
-        'emm_card_issuance' => [
-            'variables' => $common_vars,
-        ],
-
-        'emm_submission_view' => [
-            'variables' => [
-                'id' => NULL,
-                'fieldData' => [],
-                'urls' => [],
-                'permissions' => [],
-                'apiURLs' => [],
-                'is_paid' => FALSE,
-            ],
-        ],
-
-        'emm_esncard' => [
-            'variables' => [
-                'face_photo_link' => '',
-                'full_name' => '',
-                'nationality' => '',
-                'dob_day' => '',
-                'dob_month' => '',
-                'dob_year' => '',
-                'host_institution' => '',
-                'section' => '',
-                'doe_day' => '',
-                'doe_month' => '',
-                'doe_year' => '',
-                'esncard_number' => ''
-            ],
-        ]
     ];
+
+    return $themes;
 }
 
 /**
  * Implements hook_mail().
+ * @noinspection PhpUnusedParameterInspection
  */
 function esn_membership_manager_mail($key, &$message, $params): void
 {
-    $config = Drupal::config('esn_membership_manager.settings');
-    $from_email = $config->get('email_from_address');
-    $from_name = $config->get('email_from_name');
-
-    if ($from_email) {
-        if ($from_name) {
-            $message['from'] = "$from_name <$from_email>";
-            $message['headers']['From'] = "$from_name <$from_email>";
-        } else {
-            $message['from'] = $from_email;
-            $message['headers']['From'] = $from_email;
-        }
-    }
-
-    $options = [
-        'langcode' => $message['langcode'],
-    ];
-
-    $message['headers']['Content-Type'] = 'text/html; charset=UTF-8';
-    $message['headers']['MIME-Version'] = '1.0';
-
-    $scheme = $params['scheme_name'] ?? 'ESN Pass';
-
-    switch ($key) {
-        case 'pass_approval':
-            $message['subject'] = t('@scheme Approval', ['@scheme' => $scheme], $options);
-            break;
-
-        case 'both_approval':
-            $message['subject'] = t('@scheme and ESNcard Approval', ['@scheme' => $scheme], $options);
-            break;
-
-        case 'card_approval':
-            $message['subject'] = t('ESNcard Application Approved', [], $options);
-            break;
-
-        case 'card_assignment':
-            $message['subject'] = t('Your ESNcard Details', [], $options);
-            break;
-
-        case 'both_denial':
-            $message['subject'] = t('Application Declined', [], $options);
-            break;
-
-        case 'pass_confirmation':
-            $message['subject'] = t('@scheme Application Received', ['@scheme' => $scheme], $options);
-            break;
-
-        case 'card_confirmation':
-            $message['subject'] = t('ESNcard Application Received', [], $options);
-            break;
-
-        case 'both_confirmation':
-            $message['subject'] = t('@scheme and ESNcard Application Received', ['@scheme' => $scheme], $options);
-            break;
-
-        case 'both_blacklist':
-            $message['subject'] = t('@scheme Blacklisted', ['@scheme' => $scheme], $options);
-            break;
-
-        case 'card_issuance':
-            $message['subject'] = t('ESNcard Issued', [], $options);
-            break;
-    }
-
-    if (isset($params['body'])) {
-        $message['body'][] = Markup::create($params['body']);
-    }
+    EmailService::processHookMail($message, $params);
 }
 
 /**
@@ -207,7 +79,7 @@ function esn_membership_manager_file_download($uri): array|int|null
 
     if ($scheme === 'membership') {
         $currentUser = Drupal::currentUser();
-        if ($currentUser->hasPermission('view submissions')) {
+        if ($currentUser->hasPermission('view applications')) {
             return [
                 'Content-Type' => Drupal::service('file.mime_type.guesser')->guessMimeType($uri),
                 'Cache-Control' => 'private',
@@ -221,15 +93,15 @@ function esn_membership_manager_file_download($uri): array|int|null
 /**
  * Implements hook_preprocess_page().
  */
-function esn_membership_preprocess_page(&$variables): void
+function esn_membership_manager_preprocess_page(&$variables): void
 {
-    $route_name = Drupal::routeMatch()->getRouteName();
+    $routeName = Drupal::routeMatch()->getRouteName();
 
-    $routes_to_hide = [
+    $routesToHide = [
         'esn_membership_manager.apply',
     ];
 
-    if (in_array($route_name, $routes_to_hide)) {
+    if (in_array($routeName, $routesToHide)) {
         if (isset($variables['page']['breadcrumb'])) {
             unset($variables['page']['breadcrumb']);
         }
@@ -261,146 +133,12 @@ function esn_membership_manager_preprocess_menu(&$variables): void
 
 /**
  * Implements hook_cron().
- *
- * Handles GDPR Retention policies:
- * 1. Proofs & ID Scans: Deleted after 2 weeks (14 days).
- * 2. PII & Face Photos: Deleted after 1 year (365 days).
  */
 function esn_membership_manager_cron(): void
 {
-    $database = Drupal::database();
-    $logger = Drupal::service('logger.factory')->get('esn_membership_manager');
-
-    $now = new DrupalDateTime();
-    $twoWeeksAgo = $now->sub(new DateInterval('P14D'));
-    $oneYearAgo = $now->sub(new DateInterval('P1Y'));
-    $format = 'Y-m-d H:i:s';
-
-    try {
-        $fileStorage = Drupal::entityTypeManager()->getStorage('file');
-    } catch (InvalidPluginDefinitionException|PluginNotFoundException $e) {
-        $logger->error('Cron Error: File storage could not be loaded. @message', ['@message' => $e->getMessage()]);
-        return;
-    }
-
-    // 1. Proofs & ID Scans: Deleted after 2 weeks
-    // Based on approved date
-    $query2W = $database->select('esn_membership_manager_applications', 'a')
-        ->fields('a', ['id', 'proof_fid', 'id_document_fid'])
-        ->condition('date_approved', $twoWeeksAgo->format($format), '<');
-
-    // Only process if there are files to delete
-    $filesExistCondition = $query2W->orConditionGroup()
-        ->isNotNull('proof_fid')
-        ->isNotNull('id_document_fid');
-    $query2W->condition($filesExistCondition);
-
-    // 2. PII & Face Photos: Deleted after 1 year relative to status
-    $query1Y = $database->select('esn_membership_manager_applications', 'a')
-        ->fields('a', ['id', 'face_photo_fid']);
-
-    // Create the conditional retention logic group for 1 year
-    $retentionCondition = $query1Y->orConditionGroup();
-
-    // Condition A: ESNcard wanted (1) AND paid more than 1 year ago
-    $conditionPaid1Y = $query1Y->andConditionGroup()
-        ->condition('esncard', 1)
-        ->condition('date_paid', $oneYearAgo->format($format), '<');
-
-    // Condition B: ESNcard NOT wanted (0) AND approved more than 1 year ago
-    $conditionApproved1Y = $query1Y->andConditionGroup()
-        ->condition('esncard', 0)
-        ->condition('date_approved', $oneYearAgo->format($format), '<');
-
-    $retentionCondition->condition($conditionPaid1Y);
-    $retentionCondition->condition($conditionApproved1Y);
-
-    $query1Y->condition($retentionCondition);
-
-    try {
-        $results2W = $query2W->execute()->fetchAll();
-        $results1Y = $query1Y->execute()->fetchAll();
-    } catch (Exception $e) {
-        $logger->error('Database Query Error: There was an issue fetching the applications. @message', ['@message' => $e->getMessage()]);
-        return;
-    }
-
-    // Process 2-week deletions
-    foreach ($results2W as $row) {
-        $fidsToDelete = [];
-        if ($row->proof_fid) $fidsToDelete['proof_fid'] = $row->proof_fid;
-        if ($row->id_document_fid) $fidsToDelete['id_document_fid'] = $row->id_document_fid;
-
-        if (!empty($fidsToDelete)) {
-            foreach ($fidsToDelete as $fieldName => $fid) {
-                // Delete the file entity
-                $file = $fileStorage->load($fid);
-                if ($file) {
-                    try {
-                        $file->delete();
-                    } catch (EntityStorageException $e) {
-                        $logger->warning('File Warning: Unable to delete file: @file. @message', [
-                            '@file' => $fid,
-                            '@message' => $e->getMessage()
-                        ]);
-                    }
-                }
-
-                try {
-                    $database->update('esn_membership_manager_applications')
-                        ->fields([
-                            $fieldName => NULL,
-                        ])
-                        ->condition('id', $row->id)
-                        ->execute();
-                } catch (Exception $e) {
-                    $logger->warning('Database Warning: Unable to nullify field @field for application @id. Message: @message', [
-                        '@field' => $fieldName,
-                        '@id' => $row->id,
-                        '@message' => $e->getMessage()
-                    ]);
-                }
-            }
-        }
-    }
-
-    // Process 1-year deletions
-    foreach ($results1Y as $row) {
-        // Delete face photo if exists
-        if ($row->face_photo_fid) {
-            $file = $fileStorage->load($row->face_photo_fid);
-            if ($file) {
-                try {
-                    $file->delete();
-                } catch (EntityStorageException $e) {
-                    $logger->warning('File Warning: Unable to delete file: @fid. Message: @message', [
-                        '@fid' => $row->face_photo_fid,
-                        '@message' => $e->getMessage()
-                    ]);
-                }
-            }
-        }
-
-        // Anonymize the record
-        try {
-            $database->update('esn_membership_manager_applications')
-                ->fields([
-                    'name' => 'Anonymized',
-                    'surname' => 'Anonymized',
-                    'email' => 'Anonymized',
-                    'dob' => '1970-01-01',
-                    'face_photo_fid' => NULL,
-                    'payment_link' => NULL,
-                ])
-                ->condition('id', $row->id)
-                ->execute();
-        } catch (Exception $e) {
-            $logger->warning('Database Warning: Unable to delete application ID: @id. Message: @message', [
-                '@id' => $row->id,
-                '@message' => $e->getMessage()
-            ]);
-        }
-    }
+    /** @var CronService $cronService */
+    $cronService = Drupal::service('esn_membership_manager.cron_service');
+    $cronService->execute();
 }
 
 /**
@@ -408,19 +146,19 @@ function esn_membership_manager_cron(): void
  */
 function esn_membership_manager_simple_oauth_private_claims_alter(&$private_claims, $token_entity): void
 {
-    $user_id = $token_entity->getUserIdentifier();
-    if (!$user_id) {
+    $userID = $token_entity->getUserIdentifier();
+    if (!$userID) {
         return;
     }
 
-    $user = User::load($user_id);
+    $user = User::load($userID);
 
     $permissions = Drupal::service('user.permissions')->getPermissions();
     $granted = [];
-    foreach ($permissions as $machine_name => $definition) {
+    foreach ($permissions as $name => $definition) {
         if (isset($definition['provider']) && $definition['provider'] === 'esn_membership_manager') {
-            if ($user->hasPermission($machine_name)) {
-                $granted[] = $machine_name;
+            if ($user->hasPermission($name)) {
+                $granted[] = $name;
             }
         }
     }

@@ -2,57 +2,98 @@
 
 namespace Drupal\esn_membership_manager\Controller;
 
-use DateTime;
+use Drupal\Component\Plugin\Exception\InvalidPluginDefinitionException;
+use Drupal\Component\Plugin\Exception\PluginNotFoundException;
+use Drupal\Core\Config\ConfigFactoryInterface;
 use Drupal\Core\Controller\ControllerBase;
 use Drupal\Core\Database\Connection;
+use Drupal\Core\Datetime\DrupalDateTime;
 use Drupal\Core\Entity\EntityTypeManagerInterface;
 use Drupal\Core\Logger\LoggerChannelFactoryInterface;
 use Drupal\Core\Logger\LoggerChannelInterface;
-use Drupal\file\FileInterface;
-use Drupal\file\FileRepositoryInterface;
+use Drupal\esn_membership_manager\Config\MembershipSettings;
+use Drupal\esn_membership_manager\Entity\Application\ApplicationField;
+use Drupal\esn_membership_manager\Entity\Application\ApplicationStorage;
+use Drupal\esn_membership_manager\Service\AppleWalletService;
+use Drupal\esn_membership_manager\Service\FileService;
+use Drupal\esn_membership_manager\Service\GoogleService;
 use Exception;
+use GuzzleHttp\Exception\GuzzleException;
 use Symfony\Component\DependencyInjection\ContainerInterface;
 use Symfony\Component\HttpFoundation\JsonResponse;
 use Symfony\Component\HttpFoundation\Request;
 
 class EditController extends ControllerBase
 {
-    protected $entityTypeManager;
+    protected ApplicationStorage $applicationStorage;
+    protected MembershipSettings $membershipSettings;
+    protected FileService $fileService;
     protected Connection $database;
-    protected FileRepositoryInterface $fileRepository;
+    protected GoogleService $googleService;
+    protected AppleWalletService $appleWalletService;
     protected LoggerChannelInterface $logger;
 
+    /**
+     * @throws InvalidPluginDefinitionException
+     * @throws PluginNotFoundException
+     */
     public function __construct(
-        EntityTypeManagerInterface $entityTypeManager,
+        EntityTypeManagerInterface    $entityTypeManager,
+        ConfigFactoryInterface        $configFactory,
+        FileService                   $fileService,
         Connection                    $database,
-        FileRepositoryInterface    $fileRepository,
-        LoggerChannelFactoryInterface $loggerFactory)
+        GoogleService                 $googleService,
+        AppleWalletService            $appleWalletService,
+        LoggerChannelFactoryInterface $loggerFactory,
+    )
     {
-        $this->entityTypeManager = $entityTypeManager;
+        /** @var ApplicationStorage $applicationStorage */
+        $applicationStorage = $entityTypeManager->getStorage('membership_application');
+
+        $this->applicationStorage = $applicationStorage;
+        $this->membershipSettings = new MembershipSettings($configFactory);
+        $this->fileService = $fileService;
         $this->database = $database;
-        $this->fileRepository = $fileRepository;
+        $this->googleService = $googleService;
+        $this->appleWalletService = $appleWalletService;
         $this->logger = $loggerFactory->get('esn_membership_manager');
     }
 
+    /**
+     * @throws InvalidPluginDefinitionException
+     * @throws PluginNotFoundException
+     */
     public static function create(ContainerInterface $container): self
     {
         /** @var EntityTypeManagerInterface $entityTypeManager */
         $entityTypeManager = $container->get('entity_type.manager');
 
+        /** @var ConfigFactoryInterface $configFactory */
+        $configFactory = $container->get('config.factory');
+
+        /** @var FileService $fileService */
+        $fileService = $container->get('esn_membership_manager.file_service');
+
         /** @var Connection $database */
         $database = $container->get('database');
 
-        /** @var FileRepositoryInterface $fileRepository */
-        $fileRepository = $container->get('file.repository');
+        /** @var GoogleService $googleService */
+        $googleService = $container->get('esn_membership_manager.google_service');
+
+        /** @var AppleWalletService $appleWalletService */
+        $appleWalletService = $container->get('esn_membership_manager.apple_wallet_service');
 
         /** @var LoggerChannelFactoryInterface $loggerFactory */
         $loggerFactory = $container->get('logger.factory');
 
         return new static(
             $entityTypeManager,
+            $configFactory,
+            $fileService,
             $database,
-            $fileRepository,
-            $loggerFactory
+            $googleService,
+            $appleWalletService,
+            $loggerFactory,
         );
     }
 
@@ -69,58 +110,75 @@ class EditController extends ControllerBase
             return new JsonResponse(['status' => 'error', 'message' => 'An invalid ID was provided.'], 400);
         }
 
-        $allowedFields = [
-            'name',
-            'surname',
-            'email',
-            'nationality',
-            'dob',
-            'mobility_status',
-            'host_institution',
-            'pass_token',
-            'esncard_number',
-            'date_last_scanned'
-        ];
-
-        $fieldsToUpdate = [];
-
-        foreach ($allowedFields as $field) {
-            if (isset($body[$field])) {
-                if ($field == "dob") {
-                    $fieldsToUpdate[$field] = DateTime::createFromFormat('d/m/Y', $body[$field])->format('Y-m-d');
-                } else {
-                    $fieldsToUpdate[$field] = $body[$field];
-                }
-            }
-        }
-
-        if (empty($fieldsToUpdate)) {
-            return new JsonResponse(['status' => 'error', 'message' => 'No changes detected.'], 400);
-        }
-
-        try {
-            $application = $this->database->select('esn_membership_manager_applications', 'a')
-                ->fields('a')
-                ->condition('id', $applicationID)
-                ->execute()
-                ->fetchAssoc();
-        } catch (Exception $e) {
-            $this->logger->error('Select query failed: @message', ['@message' => $e->getMessage()]);
-            return new JsonResponse(['status' => 'error', 'message' => 'There was a problem getting the application.'], 500);
-        }
+        $application = $this->applicationStorage->load($applicationID);
 
         if (empty($application)) {
             return new JsonResponse(['status' => 'error', 'message' => 'Application not found.'], 404);
         }
 
+        $hasVerifiedEmail = $application->getValue(ApplicationField::HasVerifiedEmail);
+        $hasVerifiedID = $application->getValue(ApplicationField::HasVerifiedID);
+        $hasVerifiedStatus = $application->getValue(ApplicationField::HasVerifiedStatus);
+
+        foreach (ApplicationField::cases() as $field) {
+            if ($field->isReadOnly($hasVerifiedEmail, $hasVerifiedID, $hasVerifiedStatus)) {
+                continue;
+            }
+
+            if (isset($body[$field->value])) {
+                if ($field->value == ApplicationField::DateOfBirth->value) {
+                    $application->setValue($field, DrupalDateTime::createFromFormat('d/m/Y', $body[$field->value])->format('Y-m-d'));
+                } else {
+                    $application->setValue($field, $body[$field->value]);
+                }
+            }
+        }
+
         try {
-            $this->database->update('esn_membership_manager_applications')
-                ->fields($fieldsToUpdate)
-                ->condition('id', $applicationID)
-                ->execute();
+            $application->save();
         } catch (Exception $e) {
             $this->logger->error('Update query failed: @message', ['@message' => $e->getMessage()]);
             return new JsonResponse(['status' => 'error', 'message' => 'There was a problem updating the application.'], 500);
+        }
+
+        $isApproved = $application->isApproved();
+
+        if ($isApproved && $this->membershipSettings->getGoogleWalletSwitch()) {
+            if ($application->getValue(ApplicationField::HasESNcard)) {
+                try {
+                    $this->googleService->updateApplicationObject($application, 'card');
+                } catch (Exception|GuzzleException $e) {
+                    $this->logger->error('Google Wallet Update Failed: @message', ['@message' => $e->getMessage()]);
+                }
+            }
+            try {
+                $this->googleService->updateApplicationObject($application, 'pass');
+            } catch (Exception|GuzzleException $e) {
+                $this->logger->error('Google Wallet Update Failed: @message', ['@message' => $e->getMessage()]);
+            }
+        }
+
+        if ($isApproved && $this->membershipSettings->getAppleWalletSwitch()) {
+            try {
+                $query = $this->database->select('esn_membership_manager_apple_wallet_registrations', 'w')
+                    ->fields('w', ['push_token']);
+
+                $orGroup = $query->orConditionGroup()
+                    ->condition('serial_number', 'free_pass-' . $application->id())
+                    ->condition('serial_number', 'esncard-' . $application->id());
+
+                $pushTokens = $query->condition($orGroup)
+                    ->execute()
+                    ->fetchCol();
+
+                if (!empty($pushTokens)) {
+                    foreach (array_unique($pushTokens) as $pushToken) {
+                        $this->appleWalletService->sendApplicationUpdateNotification($pushToken);
+                    }
+                }
+            } catch (Exception $e) {
+                $this->logger->error('Apple Wallet Update Failed: @message', ['@message' => $e->getMessage()]);
+            }
         }
 
         return new JsonResponse(['status' => 'success', 'message' => 'Application updated successfully.'], 200);
@@ -155,45 +213,48 @@ class EditController extends ControllerBase
             return new JsonResponse(['status' => 'error', 'message' => 'Failed to decode image.'], 400);
         }
 
-        try {
-            $application = $this->database->select('esn_membership_manager_applications', 'a')
-                ->fields('a', ['face_photo_fid'])
-                ->condition('id', $applicationID)
-                ->execute()
-                ->fetchAssoc();
+        $application = $this->applicationStorage->load($applicationID);
 
-            if (empty($application)) {
-                return new JsonResponse(['status' => 'error', 'message' => 'Application not found.'], 404);
-            }
-
-            if (empty($application['face_photo_fid'])) {
-                return new JsonResponse(['status' => 'error', 'message' => 'No face photo was found for this application.'], 404);
-            }
-
-            $fid = $application['face_photo_fid'];
-            /** @var FileInterface $file */
-            $file = $this->entityTypeManager->getStorage('file')->load($fid);
-
-            if (!$file) {
-                return new JsonResponse(['status' => 'error', 'message' => 'File entity not found.'], 404);
-            }
-
-            if (class_exists('\Drupal\Core\File\FileExists')) {
-                // Drupal 10.3+
-                /** @noinspection PhpFullyQualifiedNameUsageInspection */
-                // @phpstan-ignore-next-line
-                $this->fileRepository->writeData($imageData, $file->getFileUri(), \Drupal\Core\File\FileExists::Replace);
-            } else {
-                // Drupal 9 / <10.3
-                /** @noinspection PhpFullyQualifiedNameUsageInspection */
-                // @phpstan-ignore-next-line
-                $this->fileRepository->writeData($imageData, $file->getFileUri(), \Drupal\Core\File\FileSystemInterface::EXISTS_REPLACE);
-            }
-
-            return new JsonResponse(['status' => 'success', 'message' => 'Photo cropped successfully.'], 200);
-        } catch (Exception $e) {
-            $this->logger->error('Cropping failed: @message', ['@message' => $e->getMessage()]);
-            return new JsonResponse(['status' => 'error', 'message' => 'An error occurred while cropping the photo.'], 500);
+        if (empty($application)) {
+            return new JsonResponse(['status' => 'error', 'message' => 'Application not found.'], 404);
         }
+
+        if (empty($application->getFacePhoto())) {
+            return new JsonResponse(['status' => 'error', 'message' => 'No face photo was found for this application.'], 404);
+        }
+
+        if (!$this->fileService->replaceFileData($application->getFacePhoto()->id(), $imageData)) {
+            return new JsonResponse(['status' => 'error', 'message' => 'Unable to write file.'], 500);
+        }
+
+        $isApproved = $application->isApproved();
+
+        if ($isApproved && $this->membershipSettings->getGoogleWalletSwitch()) {
+            try {
+                $this->googleService->updateApplicationObject($application, 'card');
+            } catch (Exception|GuzzleException $e) {
+                $this->logger->error('Google Wallet Update Failed: @message', ['@message' => $e->getMessage()]);
+            }
+        }
+
+        if ($isApproved && $this->membershipSettings->getAppleWalletSwitch()) {
+            try {
+                $pushTokens = $this->database->select('esn_membership_manager_apple_wallet_registrations', 'w')
+                    ->fields('w', ['push_token'])
+                    ->condition('serial_number', 'esncard-' . $applicationID)
+                    ->execute()
+                    ->fetchCol();
+
+                if (!empty($pushTokens)) {
+                    foreach (array_unique($pushTokens) as $pushToken) {
+                        $this->appleWalletService->sendApplicationUpdateNotification($pushToken);
+                    }
+                }
+            } catch (Exception $e) {
+                $this->logger->error('Apple Wallet Update Failed: @message', ['@message' => $e->getMessage()]);
+            }
+        }
+
+        return new JsonResponse(['status' => 'success', 'message' => 'Photo cropped successfully.'], 200);
     }
 }

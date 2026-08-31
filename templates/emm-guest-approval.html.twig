@@ -1,0 +1,188 @@
+<!--suppress HtmlDeprecatedAttribute -->
+<table border="0" cellpadding="0" cellspacing="0" role="presentation"
+       style="background-color: #ffffff; width: 100%; border-collapse: collapse; border-spacing: 0; font-family: Arial, sans-serif;"
+       width="100%">
+    <tbody>
+    <tr>
+        <td>
+            <table align="center" border="0" cellpadding="0" cellspacing="0"
+                   role="presentation"
+                   style="margin:auto; border-collapse:collapse; border-spacing:0; max-width: 800px; min-width: 320px;">
+                <tbody>
+                <tr>
+                    <td align="center" width="100%">
+                        <table border="0" cellpadding="0" cellspacing="0" role="presentation"
+                               style="background-color: #ffffff;"
+                               width="100%">
+                            <tbody>
+                            <tr>
+                                <td align="center" style="padding: 10px 0;" width="100%">
+                                    <img alt="ESN Logo" height="62"
+                                         src="{{ logo_location }}" style="display: block; border: 0;" width="111">
+                                </td>
+                            </tr>
+                            </tbody>
+                        </table>
+
+                        <table border="0" cellpadding="0" cellspacing="0" role="presentation" width="100%">
+                            <tbody>
+                            <tr>
+                                <td style="padding: 9px 20px;" width="100%">
+                                    <h1 style="font-family: Arial, sans-serif; font-weight: 700; text-align: center; margin: 0; line-height: 1.2; color: #2e3192; font-size: 34pt;">
+                                        {{ guest_scheme_name }} Approval
+                                    </h1>
+                                </td>
+                            </tr>
+                            </tbody>
+                        </table>
+
+                        <table border="0" cellpadding="0" cellspacing="0" role="presentation" width="100%">
+                            <tbody>
+                            <tr>
+                                <td style="padding: 9px 20px;" width="100%">
+                                    <p style="font-family: Arial, sans-serif; font-weight: 400; text-align: center; font-size: 12pt; color: #1c1c1c; margin: 0; line-height: 1.38;">
+                                        Hello {{ name }},
+                                    </p>
+                                    <p style="font-family: Arial, sans-serif; font-weight: 400; text-align: center; font-size: 12pt; color: #1c1c1c; margin: 15px 0 0 0; line-height: 1.38;">
+                                        Your referrer's application for an {{ guest_scheme_name }} has been approved.
+                                    </p>
+                                </td>
+                            </tr>
+                            </tbody>
+                        </table>
+
+                        <table border="0" cellpadding="0" cellspacing="0" role="presentation" width="100%">
+                            <tbody>
+                            <tr>
+                                <td align="center" style="padding: 20px 0 10px 0;" width="100%">
+                                    <h2 style="font-family: Arial, sans-serif; font-weight: 700; text-align: center; margin: 0; line-height: 1.2; color: #2e3192; font-size: 18pt;">
+                                        Entry Instructions
+                                    </h2>
+                                </td>
+                            </tr>
+                            </tbody>
+                        </table>
+
+                        <table border="0" cellpadding="0" cellspacing="0" role="presentation" width="100%">
+                            <tbody>
+                            <tr>
+                                <td style="padding: 9px 20px;" width="100%">
+                                    <p style="font-family: Arial, sans-serif; font-weight: 400; text-align: center; font-size: 12pt; color: #1c1c1c; margin: 0; line-height: 1.38;">
+                                        At the event, your must arrive at the venue together with your referer (the
+                                        person that invited you).
+                                    </p>
+                                </td>
+                            </tr>
+                            </tbody>
+                        </table>
+
+                        <table border="0" cellpadding="0" cellspacing="0" role="presentation" width="100%">
+                            <tbody>
+                            <tr>
+                                <td style="padding: 9px 20px;" width="100%">
+                                    <p style="font-family: Arial, sans-serif; font-weight: 400; text-align: center; font-size: 12pt; color: #1c1c1c; margin: 0; line-height: 1.38;">
+                                        In order to be granted access to the event you will need to present your pass
+                                        found below and a valid ID.
+                                    </p>
+                                </td>
+                            </tr>
+                            </tbody>
+                        </table>
+
+                        <table border="0" cellpadding="0" cellspacing="0" role="presentation" width="100%">
+                            <tbody>
+                            <tr>
+                                <td align="center" style="padding: 15px 0;" width="100%">
+                                    <h3 style="font-family: Arial, sans-serif; font-weight: 700; text-align: center; margin: 0; line-height: 1.2; color: #2e3192; font-size: 18pt;">
+                                        {{ guest_scheme_name }}
+                                    </h3>
+                                </td>
+                            </tr>
+                            </tbody>
+                        </table>
+
+                        {% if (google_wallet_link is empty) and (apple_wallet_link is empty) %}
+                            <table border="0" cellpadding="0" cellspacing="0" role="presentation" width="100%">
+                                <tbody>
+                                <tr>
+                                    <td style="padding: 9px 20px;" width="100%">
+                                        <p style="font-family: Arial, sans-serif; font-weight: 400; text-align: center; font-size: 12pt; color: #1c1c1c; margin: 0; line-height: 1.38;">
+                                            Save this QR code to use:
+                                        </p>
+                                    </td>
+                                </tr>
+                                </tbody>
+                            </table>
+
+                            <table border="0" cellpadding="0" cellspacing="0" role="presentation" width="100%">
+                                <tbody>
+                                <tr>
+                                    <td align="center" style="padding: 15px 0;" width="100%">
+                                        <img src="https://api.qrserver.com/v1/create-qr-code/?size=200x200&amp;data={{ pass_token }}"
+                                             alt="QR Code">
+                                    </td>
+                                </tr>
+                                </tbody>
+                            </table>
+
+                            <table border="0" cellpadding="0" cellspacing="0" role="presentation" width="100%">
+                                <tbody>
+                                <tr>
+                                    <td style="padding: 9px 20px;" width="100%">
+                                        <p style="font-family: Arial, sans-serif; font-weight: 400; text-align: center; font-size: 12pt; color: #1c1c1c; margin: 0; line-height: 1.38;">
+                                            Your Guest Pass token: {{ pass_token }}.
+                                        </p>
+                                    </td>
+                                </tr>
+                                </tbody>
+                            </table>
+                        {% endif %}
+
+                        {% if (google_wallet_link is not empty) or (apple_wallet_link is not empty) %}
+                            <table border="0" cellpadding="0" cellspacing="0" role="presentation" width="100%">
+                                <tbody>
+                                {% if google_wallet_link is not empty %}
+                                    <tr>
+                                        <td style="padding: 9px 20px;" width="100%" align="center">
+                                            <a href="{{ google_wallet_link }}">
+                                                <img alt="Add to Google Wallet"
+                                                     src="https://esncy.org/sites/default/files/2025-12/add_to_google_wallet_badge.png"
+                                                     height="45">
+                                            </a>
+                                        </td>
+                                    </tr>
+                                {% endif %}
+                                {% if apple_wallet_link is not empty %}
+                                    <tr>
+                                        <td style="padding: 9px 20px;" width="100%" align="center">
+                                            <a href="{{ apple_wallet_link }}">
+                                                <img alt="Add to Apple Wallet"
+                                                     src="https://esncy.org/sites/default/files/2026-02/Add_to_Apple_Wallet.png"
+                                                     height="45">
+                                            </a>
+                                        </td>
+                                    </tr>
+                                {% endif %}
+                                </tbody>
+                            </table>
+                        {% endif %}
+
+                        <table border="0" cellpadding="0" cellspacing="0" role="presentation" width="100%">
+                            <tbody>
+                            <tr>
+                                <td style="padding: 20px 20px;" width="100%">
+                                    <div style="border-top: 1px solid #d9d9d9;"></div>
+                                </td>
+                            </tr>
+                            </tbody>
+                        </table>
+
+                        {{ footer|raw }}
+                    </td>
+                </tr>
+                </tbody>
+            </table>
+        </td>
+    </tr>
+    </tbody>
+</table>

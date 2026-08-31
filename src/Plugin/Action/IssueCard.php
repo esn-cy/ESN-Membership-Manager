@@ -5,17 +5,20 @@ namespace Drupal\esn_membership_manager\Plugin\Action;
 use Drupal\Core\Access\AccessResult;
 use Drupal\Core\Access\AccessResultInterface;
 use Drupal\Core\Action\ActionBase;
-use Drupal\Core\Database\Connection;
 use Drupal\Core\Logger\LoggerChannelFactoryInterface;
 use Drupal\Core\Logger\LoggerChannelInterface;
 use Drupal\Core\Plugin\ContainerFactoryPluginInterface;
 use Drupal\Core\Session\AccountInterface;
-use Drupal\esn_membership_manager\Service\EmailManager;
+use Drupal\esn_membership_manager\Entity\Application\ApplicationField;
+use Drupal\esn_membership_manager\Entity\Application\ApplicationInterface;
+use Drupal\esn_membership_manager\Mail\CardIssuanceEmail;
+use Drupal\esn_membership_manager\Utility\ApprovalStatuses;
+use Drupal\omnia\Service\EmailService;
 use Exception;
 use Symfony\Component\DependencyInjection\ContainerInterface;
 
 /**
- * Declines an application.
+ * Marks an application as Issued.
  *
  * @Action(
  *   id = "esn_membership_manager_issue",
@@ -26,20 +29,17 @@ use Symfony\Component\DependencyInjection\ContainerInterface;
  */
 class IssueCard extends ActionBase implements ContainerFactoryPluginInterface
 {
-    protected Connection $database;
-    protected EmailManager $emailManager;
+    protected EmailService $emailService;
     protected LoggerChannelInterface $logger;
 
     public function __construct(
         array                         $configuration, $plugin_id, $plugin_definition,
-        Connection                    $database,
-        EmailManager                  $emailManager,
+        EmailService $emailService,
         LoggerChannelFactoryInterface $loggerFactory
     )
     {
         parent::__construct($configuration, $plugin_id, $plugin_definition);
-        $this->database = $database;
-        $this->emailManager = $emailManager;
+        $this->emailService = $emailService;
         $this->logger = $loggerFactory->get('esn_membership_manager');
     }
 
@@ -48,11 +48,8 @@ class IssueCard extends ActionBase implements ContainerFactoryPluginInterface
         array              $configuration, $plugin_id, $plugin_definition
     ): self
     {
-        /** @var Connection $database */
-        $database = $container->get('database');
-
-        /** @var EmailManager $emailManager */
-        $emailManager = $container->get('esn_membership_manager.email_manager');
+        /** @var EmailService $emailService */
+        $emailService = $container->get('omnia.email_service');
 
         /** @var LoggerChannelFactoryInterface $loggerFactory */
         $loggerFactory = $container->get('logger.factory');
@@ -61,9 +58,8 @@ class IssueCard extends ActionBase implements ContainerFactoryPluginInterface
             $configuration,
             $plugin_id,
             $plugin_definition,
-            $database,
-            $emailManager,
-            $loggerFactory
+            $emailService,
+            $loggerFactory,
         );
     }
 
@@ -71,53 +67,45 @@ class IssueCard extends ActionBase implements ContainerFactoryPluginInterface
      * {@inheritdoc}
      * @throws Exception
      */
-    public function execute($id = NULL): void
+    public function execute(?ApplicationInterface $application = null): void
     {
-        if (empty($id)) {
+        if (empty($application)) {
             return;
         }
 
-        try {
-            $application = $this->database->select('esn_membership_manager_applications', 'a')
-                ->fields('a')
-                ->condition('id', $id)
-                ->execute()
-                ->fetchAssoc();
-        } catch (Exception $e) {
-            $this->logger->error('Failed to load application @id: @message', ['@id' => $id, '@message' => $e->getMessage()]);
-            throw new Exception('Failed to load application');
-        }
-
-        if (empty($application)) {
-            $this->logger->warning('Application @id was not found', ['@id' => $id]);
-            throw new Exception('Application not found');
-        }
-
-        if (!$application['esncard'] || $application['approval_status'] != 'Paid') {
-            $this->logger->warning('Application @id cannot be marked as issued because its current status is @status.', ['@id' => $id, '@status' => $application['status']]);
-            throw new Exception('This status cannot be applied');
+        $issues = $application->addApprovalStatus(ApprovalStatuses::Issued);
+        if (is_string($issues)) {
+            $this->logger->warning('Application @id cannot be marked as issued. @issues.',
+                [
+                    '@id' => $application->id(),
+                    '@issues' => $issues
+                ]
+            );
+            throw new Exception('This status cannot be applied.');
         }
 
         try {
-            $this->database->update('esn_membership_manager_applications')
-                ->fields(['approval_status' => 'Issued'])
-                ->condition('id', $id)
-                ->execute();
+            $application->save();
 
-            $this->logger->notice('Declined submission @id', ['@id' => $id]);
+            $this->logger->notice('Issued application @id', ['@id' => $application->id()]);
         } catch (Exception $e) {
-            $this->logger->error('Unable to mark card as issued @id: @message', ['@id' => $id, '@message' => $e->getMessage()]);
+            $this->logger->error('Unable to mark card as issued @id: @message', ['@id' => $application->id(), '@message' => $e->getMessage()]);
             throw new Exception('Failed to complete issuance process');
         }
-        $this->emailManager->sendEmail($application['email'], 'card_issuance', ['name' => $application['name']]);
+
+        $email = new CardIssuanceEmail(
+            name: $application->getValue(ApplicationField::Name)
+        );
+
+        $this->emailService->send($application->getValue(ApplicationField::Email), $email);
     }
 
     /**
      * {@inheritdoc}
      */
-    public function access($object, AccountInterface $account = NULL, $return_as_object = FALSE): bool|AccessResultInterface
+    public function access($object, ?AccountInterface $account = NULL, $return_as_object = FALSE): bool|AccessResultInterface
     {
-        $access = AccessResult::allowedIfHasPermission($account, 'issue card');
+        $access = AccessResult::allowedIfHasPermission($account, 'issue cards');
         return $return_as_object ? $access : $access->isAllowed();
     }
 }
