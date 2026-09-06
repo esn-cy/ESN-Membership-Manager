@@ -274,7 +274,7 @@ class ApplicationController extends ControllerBase
             '#dob_month' => $dob[1],
             '#dob_year' => substr($dob[0], -2, 2),
             '#host_institution' => $application->getValue(ApplicationField::HostInstitution),
-            '#section' => $application->getValue(ApplicationField::Section),
+            '#section' => ltrim($application->getValue(ApplicationField::Section), 'ESN '),
             '#valid_since_day' => $validSince[2],
             '#valid_since_month' => $validSince[1],
             '#valid_since_year' => substr($validSince[0], -2, 2),
