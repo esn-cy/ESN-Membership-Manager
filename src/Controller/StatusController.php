@@ -136,7 +136,7 @@ class StatusController extends ControllerBase
                 return new JsonResponse(['status' => 'error', 'message' => 'An invalid card number was provided.'], 400);
             }
 
-            if ($isESNcard && in_array($baseStatus, ApprovalStatuses::PaidStatuses)) {
+            if (!$isESNcard && in_array($baseStatus, ApprovalStatuses::PaidStatuses)) {
                 return new JsonResponse(['status' => 'error', 'message' => 'Action not allowed with this kind of identifier.'], 400);
             }
 
@@ -160,7 +160,7 @@ class StatusController extends ControllerBase
 
         $hasESNcard = $application->getValue(ApplicationField::HasESNcard);
 
-        if ($hasESNcard && in_array($baseStatus, ApprovalStatuses::PaidStatuses)) {
+        if (!$hasESNcard && in_array($baseStatus, ApprovalStatuses::PaidStatuses)) {
             return new JsonResponse(['status' => 'error', 'message' => 'Action not allowed for this application.'], 400);
         }
 

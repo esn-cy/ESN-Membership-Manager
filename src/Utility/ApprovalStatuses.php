@@ -108,6 +108,9 @@ class ApprovalStatuses
                 return 'This application already been approved or rejected.';
             }
         } else {
+            if ($currentDominant === $newStatus) {
+                return 'This status has already been applied.';
+            }
             for ($i = 1; $i < count($categoryStatuses) - 1; $i++) {
                 if ($categoryStatuses[$i] === $newStatus) {
                     if ($currentDominant !== $categoryStatuses[$i - 1]) {
