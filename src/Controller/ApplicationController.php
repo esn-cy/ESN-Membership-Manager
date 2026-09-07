@@ -195,11 +195,17 @@ class ApplicationController extends ControllerBase
                 $displayValue = $displayValue == 1 ? 'YES' : 'NO';
             }
 
+            if ($label == 'Nationality' && $displayValue == 'Undetermined') {
+                $readOnly = false;
+            } else {
+                $readOnly = $field->isReadOnly($hasVerifiedEmail, $hasVerifiedID, $hasVerifiedStatus);
+            }
+
             $fieldData[] = [
                 'key' => $field->value,
                 'label' => $label,
                 'value' => $displayValue,
-                'readonly' => $field->isReadOnly($hasVerifiedEmail, $hasVerifiedID, $hasVerifiedStatus),
+                'readonly' => $readOnly,
             ];
         }
 

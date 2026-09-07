@@ -121,8 +121,10 @@ class EditController extends ControllerBase
         $hasVerifiedStatus = $application->getValue(ApplicationField::HasVerifiedStatus);
 
         foreach (ApplicationField::cases() as $field) {
-            if ($field->isReadOnly($hasVerifiedEmail, $hasVerifiedID, $hasVerifiedStatus)) {
-                continue;
+            if ($field->name != 'Nationality' && $application->getValue($field) != 'Undetermined') {
+                if ($field->isReadOnly($hasVerifiedEmail, $hasVerifiedID, $hasVerifiedStatus)) {
+                    continue;
+                }
             }
 
             if (isset($body[$field->value])) {

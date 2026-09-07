@@ -110,6 +110,10 @@ class ApproveApplication extends ActionBase implements ContainerFactoryPluginInt
             return;
         }
 
+        if ($application->getValue(ApplicationField::Nationality) == 'Undetermined') {
+            throw new Exception('Nationality cannot be left as Undetermined.');
+        }
+
         $issues = $application->addApprovalStatus(ApprovalStatuses::Approved);
         if (is_string($issues)) {
             $this->logger->warning('Application @id cannot be marked as approved. @issues.',
