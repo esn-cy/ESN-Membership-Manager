@@ -124,10 +124,12 @@ class AppleWalletService extends AppleServiceBase
 
         $facePhotoFileID = $application->getFacePhoto()->id();
 
+        $images = [];
+
         $type = $this->fileService->getFileMimeType($facePhotoFileID);
         if (!empty($type)) {
             if ($type == 'image/png') {
-                $images[] = [$this->fileService->getFilePath($facePhotoFileID) => 'thumbnail.png'];
+                $images = ['thumbnail.png' => $this->fileService->getFilePath($facePhotoFileID)];
             } else {
                 $imageContents = $this->fileService->readFile($facePhotoFileID);
 
@@ -139,13 +141,13 @@ class AppleWalletService extends AppleServiceBase
                     imagedestroy($imageResource);
 
                     if ($this->fileService->replaceFileData($facePhotoFileID, $pngData)) {
-                        $images[] = [$this->fileService->getFilePath($facePhotoFileID) => 'thumbnail.png'];
+                        $images = ['thumbnail.png' => $this->fileService->getFilePath($facePhotoFileID)];
                     }
                 }
             }
         }
 
-        $images = [
+        $images += [
             'logo.png' => $imagesPath . 'logo.png',
             'logo@2x.png' => $imagesPath . 'logo@2x.png',
             'logo@3x.png' => $imagesPath . 'logo@3x.png',
