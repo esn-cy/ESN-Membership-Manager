@@ -30,6 +30,6 @@ class Status
         if (empty($this->category) && empty($this->issue)) {
             return $this->status;
         }
-        return $this->status . ' - ' . $this->category . ' - ' . $this->issue;
+        return $this->status . '-' . $this->category . '-' . $this->issue;
     }
 }

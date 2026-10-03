@@ -190,21 +190,21 @@ class MembershipDashboard extends AuthenticatedFormBase
 
             if (!empty($reasons)) {
                 foreach ($reasons as $reason) {
-                    if ($reason['category'] == 'Eligibility') {
+                    if ($reason->category == 'Eligibility') {
                         $eligibilityIssues[] = $reason;
                         continue;
                     }
                     if (!empty($eligibilityIssues)) {
                         continue;
                     }
-                    if ($reason['category'] == 'Other' && $reason['issue'] == 'Other') {
+                    if ($reason->category == 'Other' && $reason->issue == 'Other') {
                         $hasOther = true;
                         continue;
                     }
-                    if (in_array($reason['category'], ['Status', 'Identity', 'Photo'])) {
-                        $rejectedDocuments[] = $reason['category'];
+                    if (in_array($reason->category, ['Status', 'Identity', 'Photo'])) {
+                        $rejectedDocuments[] = $reason->category;
                         $reasonString = 'the uploaded ';
-                        switch ($reason['category']) {
+                        switch ($reason->category) {
                             case 'Status':
                                 $reasonString .= 'Proof of Status ';
                                 break;
@@ -215,7 +215,7 @@ class MembershipDashboard extends AuthenticatedFormBase
                                 $reasonString .= 'Face Photo ';
                                 break;
                         }
-                        $reasonString .= 'is ' . strtolower($reason['issue']);
+                        $reasonString .= 'is ' . strtolower($reason->issue);
                         $formatedReasons[] = $reasonString;
                     }
                 }
@@ -270,8 +270,8 @@ class MembershipDashboard extends AuthenticatedFormBase
             $reasons = $application->getPendingReasons();
 
             foreach ($reasons as $reason) {
-                if (in_array($reason['category'], ['Status', 'Identity', 'Photo'])) {
-                    $pendingDocuments[] = $reason['category'];
+                if (in_array($reason->category, ['Status', 'Identity', 'Photo'])) {
+                    $pendingDocuments[] = $reason->category;
                 }
             }
         }

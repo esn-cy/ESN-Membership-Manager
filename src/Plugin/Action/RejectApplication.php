@@ -73,7 +73,8 @@ class RejectApplication extends ActionBase implements ContainerFactoryPluginInte
             return;
         }
 
-        $issues = $application->addApprovalStatus(ApprovalStatuses::Rejected);
+        $statusToApply = (!empty($reasons) && $reasons !== ApprovalStatuses::Rejected) ? $reasons : ApprovalStatuses::Rejected;
+        $issues = $application->addApprovalStatus($statusToApply);
         if (is_string($issues)) {
             $this->logger->warning('Application @id cannot be marked as rejected. @issues.',
                 [

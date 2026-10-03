@@ -50,9 +50,9 @@ class ApprovalStatuses
         foreach ($reasonsSplit as $reason) {
             $reasonParts = explode('-', $reason);
             $statuses[] = new Status(
-                $reasonParts[0],
-                $reasonParts[1] ?? '',
-                $reasonParts[2] ?? ''
+                trim($reasonParts[0]),
+                trim($reasonParts[1] ?? ''),
+                trim($reasonParts[2] ?? '')
             );
         }
         return $statuses;
@@ -128,17 +128,18 @@ class ApprovalStatuses
     {
         $currentDominant = self::getDominantStatus($currentRawStatus);
 
-        if (in_array($newStatus, self::PositiveStatuses)) {
-            $issue = self::checkApprovalStatusIssue($currentDominant->status, $newStatus, self::PositiveStatuses);
+        $newDominant = self::getDominantStatus($newStatus);
+        if (in_array($newDominant->status, self::PositiveStatuses)) {
+            $issue = self::checkApprovalStatusIssue($currentDominant->status, $newDominant->status, self::PositiveStatuses);
             if (!empty($issue)) {
                 return $issue;
             }
-        } elseif (in_array($newStatus, self::NegativeStatuses)) {
-            $issue = self::checkApprovalStatusIssue($currentDominant->status, $newStatus, self::NegativeStatuses);
+        } elseif (in_array($newDominant->status, self::NegativeStatuses)) {
+            $issue = self::checkApprovalStatusIssue($currentDominant->status, $newDominant->status, self::NegativeStatuses);
             if (!empty($issue)) {
                 return $issue;
             }
-        } elseif (in_array($newStatus, self::AuxiliaryStatuses)) {
+        } elseif (in_array($newDominant->status, self::AuxiliaryStatuses)) {
             if (in_array($currentDominant->status, self::PendingStatuses)) {
                 return 'This status cannot be applied to a pending application.';
             }

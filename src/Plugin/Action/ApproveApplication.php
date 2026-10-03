@@ -124,7 +124,6 @@ class ApproveApplication extends ActionBase implements ContainerFactoryPluginInt
             );
             throw new Exception('This status cannot be applied.');
         }
-        $application->clearPendingStatuses();
 
         $token = strtoupper(md5(uniqid(rand(), true)));
 
@@ -172,6 +171,7 @@ class ApproveApplication extends ActionBase implements ContainerFactoryPluginInt
         }
 
         try {
+            $application->clearPendingStatuses();
             $application->save();
 
             if ($this->membershipSettings->getGoogleWalletSwitch()) {
