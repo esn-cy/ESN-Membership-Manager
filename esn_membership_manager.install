@@ -53,30 +53,6 @@ function esn_membership_manager_install(): void
             ]
         ])->save();
     }
-
-    $consumerStorage = Drupal::entityTypeManager()->getStorage('consumer');
-    $clientUUID = '45534e20-5363-616e-6572-204f41757468';
-
-    $exists = $consumerStorage->loadByProperties(['uuid' => $clientUUID]);
-    if (empty($exists)) {
-        $consumer = $consumerStorage->create([
-            'uuid' => $clientUUID,
-            'label' => 'ESN Scanner App',
-            'machine_name' => 'esn_scanner_app',
-            'description' => 'Authentication client for the ESN Scanner app.',
-            'client_id' => $clientUUID,
-            'secret' => '',
-            'confidential' => FALSE,
-            'third_party' => FALSE,
-            'pkce' => TRUE,
-            'redirect' => 'org.esncy.esnscanner://callback',
-            'grant_types' => [
-                'authorization_code',
-                'refresh_token',
-            ],
-        ]);
-        $consumer->save();
-    }
 }
 
 /**
@@ -397,5 +373,32 @@ function esn_membership_manager_update_3002(): void
 
     if (!$updateManager->getEntityType('membership_guest')) {
         $updateManager->installEntityType($entityTypeManager->getDefinition('membership_guest'));
+    }
+}
+
+/**
+ * @throws EntityStorageException
+ * @throws InvalidPluginDefinitionException
+ * @throws PluginNotFoundException
+ */
+function esn_membership_manager_update_3100(): void
+{
+    $scopeStorage = Drupal::entityTypeManager()->getStorage('oauth2_scope');
+    $scopeName = 'omnia_scanner_esn_membership_manager';
+    $scope = $scopeStorage->load($scopeName);
+
+    if (empty($scope)) {
+        $scopeStorage->create([
+            'name' => $scopeName,
+            'description' => 'Grants ESN Membership Manager permissions to the Omnia Scanner App',
+            'granularity_id' => 'role',
+            'granularity_configuration' => [
+                'role' => 'esn_membership_manager_admin'
+            ],
+            'grant_types' => [
+                'authorization_code' => ['status' => TRUE, 'description' => ''],
+                'refresh_token' => ['status' => TRUE, 'description' => ''],
+            ]
+        ])->save();
     }
 }
