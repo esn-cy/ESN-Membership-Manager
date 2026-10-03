@@ -337,6 +337,11 @@ class GoogleService extends GoogleServiceBase
         $expiryDate = (clone $paidDate)->add(new DateInterval("P1Y"));
         $privateImageID = $this->uploadPrivateImage($application->getFacePhoto()->id());
 
+        $section = $application->getValue(ApplicationField::Section);
+        if (str_starts_with($section, 'ESN ')) {
+            $section = substr($section, 4);
+        }
+
         return new GenericObject([
             'genericType' => 'GENERIC_OTHER',
             'cardTitle' => new LocalizedString([
@@ -424,7 +429,7 @@ class GoogleService extends GoogleServiceBase
                 [
                     'id' => 'esn_section',
                     'header' => 'ESN Section',
-                    'body' => $application->getValue(ApplicationField::Section)
+                    'body' => $section
                 ],
                 [
                     'id' => 'valid_since',

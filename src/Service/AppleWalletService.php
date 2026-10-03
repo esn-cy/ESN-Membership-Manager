@@ -59,6 +59,11 @@ class AppleWalletService extends AppleServiceBase
         $paidDate = $application->getDatePaid();
         $paidDate->setTime(0, 0);
 
+        $section = $application->getValue(ApplicationField::Section);
+        if (str_starts_with($section, 'ESN ')) {
+            $section = substr($section, 4);
+        }
+
         $passData = $this->getCommonAttributes($serialNumber) +
             [
                 'description' => 'ESNcard',
@@ -94,7 +99,7 @@ class AppleWalletService extends AppleServiceBase
                         [
                             'key' => 'esn_section',
                             'label' => 'ESN Section',
-                            'value' => $application->getValue(ApplicationField::Section)
+                            'value' => $section
                         ],
                         [
                             'key' => 'valid_since',

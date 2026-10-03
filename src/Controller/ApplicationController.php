@@ -269,6 +269,11 @@ class ApplicationController extends ControllerBase
         $paidDate->setTime(0, 0);
         $validSince = explode('-', $paidDate->format('Y-m-d'));
 
+        $section = $application->getValue(ApplicationField::Section);
+        if (str_starts_with($section, 'ESN ')) {
+            $section = substr($section, 4);
+        }
+
         $facePhotoURL = $this->fileService->getFileURL(!empty($application->getFacePhoto()) ? $application->getFacePhoto()->id() : null);
 
         return [
@@ -280,7 +285,7 @@ class ApplicationController extends ControllerBase
             '#dob_month' => $dob[1],
             '#dob_year' => substr($dob[0], -2, 2),
             '#host_institution' => $application->getValue(ApplicationField::HostInstitution),
-            '#section' => ltrim($application->getValue(ApplicationField::Section), 'ESN '),
+            '#section' => $section,
             '#valid_since_day' => $validSince[2],
             '#valid_since_month' => $validSince[1],
             '#valid_since_year' => substr($validSince[0], -2, 2),
@@ -349,6 +354,7 @@ class ApplicationController extends ControllerBase
 
                 if (($currentY + $imageHeight) > (297 - 10)) {
                     $pdf->addPage();
+                    $currentY = 10;
                 }
             }
 
