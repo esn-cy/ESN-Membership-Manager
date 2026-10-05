@@ -83,7 +83,7 @@ class ApproveGuestPass extends ActionBase implements ContainerFactoryPluginInter
             return;
         }
 
-        $token = 'GUEST' . substr(strtoupper(md5(uniqid(rand(), true))), 0, 27);
+        $token = 'GUEST' . substr(strtoupper(bin2hex(random_bytes(16))), 0, 27);
 
         $guestPass
             ->setValue(GuestPassField::PassToken, $token)

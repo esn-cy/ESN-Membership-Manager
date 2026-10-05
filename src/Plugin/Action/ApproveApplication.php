@@ -125,7 +125,7 @@ class ApproveApplication extends ActionBase implements ContainerFactoryPluginInt
             throw new Exception('This status cannot be applied.');
         }
 
-        $token = strtoupper(md5(uniqid(rand(), true)));
+        $token = strtoupper(bin2hex(random_bytes(16)));
 
         $application
             ->setValue(ApplicationField::PassToken, $token)
