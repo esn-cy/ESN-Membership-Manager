@@ -7,6 +7,7 @@ use Drupal\Component\Plugin\Exception\PluginNotFoundException;
 use Drupal\Core\Controller\ControllerBase;
 use Drupal\Core\Database\Connection;
 use Drupal\Core\Entity\EntityTypeManagerInterface;
+use Drupal\Core\Flood\FloodInterface;
 use Drupal\Core\Logger\LoggerChannelFactoryInterface;
 use Drupal\Core\Logger\LoggerChannelInterface;
 use Drupal\esn_membership_manager\Entity\Application\ApplicationStorage;
@@ -21,6 +22,7 @@ class AuthenticationController extends ControllerBase
 {
     protected Connection $database;
     protected ApplicationStorage $applicationStorage;
+    protected FloodInterface $flood;
     protected EmailService $emailService;
     protected LoggerChannelInterface $logger;
     protected array $allowedTypes = ['login', 'register'];
@@ -32,7 +34,8 @@ class AuthenticationController extends ControllerBase
     public function __construct(
         Connection                    $database,
         EntityTypeManagerInterface    $entityTypeManager,
-        EmailService $emailService,
+        FloodInterface $flood,
+        EmailService   $emailService,
         LoggerChannelFactoryInterface $loggerFactory,
     )
     {
@@ -41,6 +44,7 @@ class AuthenticationController extends ControllerBase
 
         $this->database = $database;
         $this->applicationStorage = $applicationStorage;
+        $this->flood = $flood;
         $this->emailService = $emailService;
         $this->logger = $loggerFactory->get('esn_membership_manager');
     }
@@ -57,6 +61,9 @@ class AuthenticationController extends ControllerBase
         /** @var EntityTypeManagerInterface $entityTypeManager */
         $entityTypeManager = $container->get('entity_type.manager');
 
+        /** @var FloodInterface $flood */
+        $flood = $container->get('flood');
+
         /** @var EmailService $emailService */
         $emailService = $container->get('omnia.email_service');
 
@@ -66,6 +73,7 @@ class AuthenticationController extends ControllerBase
         return new static(
             $database,
             $entityTypeManager,
+            $flood,
             $emailService,
             $loggerFactory,
         );
@@ -103,6 +111,12 @@ class AuthenticationController extends ControllerBase
         if (!$exists) {
             return new JsonResponse(null, 200);
         }
+
+        if (!$this->flood->isAllowed("esn_membership_manager.auth_request_$type", 3, 3600, $email)) {
+            return new JsonResponse(['error' => 'You have made too many attempts. Please try again later.'], 429);
+        }
+
+        $this->flood->register("esn_membership_manager.auth_request_$type", 3600, $email);
 
         try {
             $code = (string)random_int(10000000, 99999999);
@@ -155,6 +169,17 @@ class AuthenticationController extends ControllerBase
             return new JsonResponse(['error' => 'Invalid authentication type.'], 400);
         }
 
+        if (!$this->flood->isAllowed("esn_membership_manager.auth_verify_$type", 5, 3600, $email)) {
+            try {
+                $this->database->delete('esn_membership_manager_authentication')
+                    ->condition('email', $email)
+                    ->condition('type', $type)
+                    ->execute();
+            } catch (Exception) {
+            }
+            return new JsonResponse(['error' => 'You have made too many attempts. Please try again later.'], 429);
+        }
+
         try {
             $authRecord = $this->database->select('esn_membership_manager_authentication', 'a')
                 ->fields('a')
@@ -168,6 +193,7 @@ class AuthenticationController extends ControllerBase
         }
 
         if (!$authRecord || $authRecord['code'] !== $code || $authRecord['expires_at'] < time()) {
+            $this->flood->register("esn_membership_manager.auth_verify_$type", 3600, $email);
             return new JsonResponse(['error' => 'Invalid or expired code.'], 401);
         }
 
@@ -183,6 +209,8 @@ class AuthenticationController extends ControllerBase
 
         $session = $request->getSession();
         $session->set($type . '_verified_email', $email);
+
+        $this->flood->clear("esn_membership_manager.auth_verify_$type", $email);
 
         return new JsonResponse([], 200);
     }

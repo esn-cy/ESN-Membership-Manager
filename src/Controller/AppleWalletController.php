@@ -9,6 +9,7 @@ use Drupal\Core\Controller\ControllerBase;
 use Drupal\Core\Database\Connection;
 use Drupal\Core\Datetime\DrupalDateTime;
 use Drupal\Core\Entity\EntityTypeManagerInterface;
+use Drupal\Core\Flood\FloodInterface;
 use Drupal\Core\Logger\LoggerChannelFactoryInterface;
 use Drupal\Core\Logger\LoggerChannelInterface;
 use Drupal\Core\Site\Settings;
@@ -34,6 +35,7 @@ class AppleWalletController extends ControllerBase
     protected Connection $database;
     protected MembershipSettings $membershipSettings;
     protected Settings $settings;
+    protected FloodInterface $flood;
     protected LoggerChannelInterface $logger;
 
     /**
@@ -46,6 +48,7 @@ class AppleWalletController extends ControllerBase
         Connection                    $database,
         ConfigFactoryInterface        $configFactory,
         Settings                      $settings,
+        FloodInterface $flood,
         LoggerChannelFactoryInterface $loggerFactory
     )
     {
@@ -61,6 +64,7 @@ class AppleWalletController extends ControllerBase
         $this->database = $database;
         $this->membershipSettings = new MembershipSettings($configFactory);
         $this->settings = $settings;
+        $this->flood = $flood;
         $this->logger = $loggerFactory->get('esn_membership_manager');
     }
 
@@ -85,6 +89,9 @@ class AppleWalletController extends ControllerBase
         /** @var Settings $settings */
         $settings = $container->get('settings');
 
+        /** @var FloodInterface $flood */
+        $flood = $container->get('flood');
+
         /** @var LoggerChannelFactoryInterface $loggerFactory */
         $loggerFactory = $container->get('logger.factory');
 
@@ -94,6 +101,7 @@ class AppleWalletController extends ControllerBase
             $database,
             $configFactory,
             $settings,
+            $flood,
             $loggerFactory,
         );
     }
@@ -387,9 +395,15 @@ class AppleWalletController extends ControllerBase
     {
         $content = json_decode($request->getContent(), TRUE);
 
+        if (!$this->flood->isAllowed("esn_membership_manager.apple_log", 5, 60)) {
+            return new Response('', 200);
+        }
+
+        $this->flood->register("esn_membership_manager.apple_log", 60);
+
         if (isset($content['logs']) && is_array($content['logs'])) {
-            foreach ($content['logs'] as $message) {
-                $this->logger->error('Apple Wallet Device Log: @message', ['@message' => $message]);
+            for ($i = 0; $i < min(count($content['logs']), 5); $i++) {
+                $this->logger->error('Apple Wallet Device Log: @message', ['@message' => ($content['logs'][$i])]);
             }
         }
 
