@@ -4,6 +4,7 @@ esn_membership_manager.scan:
     _controller: '\Drupal\esn_membership_manager\Controller\ScanController::scanCard'
     _title: 'Scan Free Passes and ESNcards'
   requirements:
+    _csrf_request_header_token: 'TRUE'
     _permission: 'scan cards'
   methods: [ POST ]
   options:
@@ -15,6 +16,7 @@ esn_membership_manager.add:
     _controller: '\Drupal\esn_membership_manager\Controller\AddController::addCard'
     _title: 'Add ESNcard'
   requirements:
+    _csrf_request_header_token: 'TRUE'
     _permission: 'manage esncard numbers'
   methods: [ POST ]
   options:
@@ -26,6 +28,7 @@ esn_membership_manager.status:
     _controller: '\Drupal\esn_membership_manager\Controller\StatusController::changeStatus'
     _title: 'Change the status of an ESNcard'
   requirements:
+    _csrf_request_header_token: 'TRUE'
     _access: 'TRUE'
   methods: [ POST ]
   options:
@@ -37,6 +40,7 @@ esn_membership_manager.edit:
     _controller: '\Drupal\esn_membership_manager\Controller\EditController::editApplication'
     _title: 'Edit Application'
   requirements:
+    _csrf_request_header_token: 'TRUE'
     _permission: 'edit applications'
   methods: [ POST ]
   options:
@@ -48,6 +52,7 @@ esn_membership_manager.crop:
     _controller: '\Drupal\esn_membership_manager\Controller\EditController::cropPhoto'
     _title: 'Crop Photo'
   requirements:
+    _csrf_request_header_token: 'TRUE'
     _permission: 'edit applications'
   methods: [ POST ]
   options:

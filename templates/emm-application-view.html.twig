@@ -661,7 +661,10 @@
 
         const request = await fetch("{{ apiURLs.crop }}", {
             method: "POST",
-            headers: {"Content-Type": "application/json"},
+            headers: {
+                "Content-Type": "application/json",
+                "X-CSRF-Token": "{{ csrf_token }}"
+            },
             body: JSON.stringify({
                 "id": id,
                 "image": base64Image
@@ -738,7 +741,10 @@
 
         const request = await fetch("{{ apiURLs.update }}", {
             method: "POST",
-            headers: {"Content-Type": "application/json"},
+            headers: {
+                "Content-Type": "application/json",
+                "X-CSRF-Token": "{{ csrf_token }}"
+            },
             body: JSON.stringify(data)
         });
 
@@ -762,7 +768,10 @@
     async function doStatus(status, id) {
         const request = await fetch("{{ apiURLs.status }}", {
             method: "POST",
-            headers: {"Content-Type": "application/json"},
+            headers: {
+                "Content-Type": "application/json",
+                "X-CSRF-Token": "{{ csrf_token }}"
+            },
             body: JSON.stringify({
                 "status": status,
                 "id": id

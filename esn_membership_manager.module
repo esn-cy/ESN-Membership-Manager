@@ -35,6 +35,7 @@ function esn_membership_manager_theme($existing, $type, $theme, $path): array
             'urls' => [],
             'permissions' => [],
             'apiURLs' => [],
+            'csrf_token' => NULL,
             'is_paid' => FALSE,
             'is_proof_verified' => FALSE,
             'is_identity_verified' => FALSE,

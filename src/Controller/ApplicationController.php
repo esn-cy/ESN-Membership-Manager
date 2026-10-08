@@ -4,6 +4,7 @@ namespace Drupal\esn_membership_manager\Controller;
 
 use Drupal\Component\Plugin\Exception\InvalidPluginDefinitionException;
 use Drupal\Component\Plugin\Exception\PluginNotFoundException;
+use Drupal\Core\Access\CsrfTokenGenerator;
 use Drupal\Core\Controller\ControllerBase;
 use Drupal\Core\Datetime\DrupalDateTime;
 use Drupal\Core\Entity\EntityTypeManagerInterface;
@@ -27,6 +28,7 @@ class ApplicationController extends ControllerBase
 {
     protected ApplicationStorage $applicationStorage;
     protected FileService $fileService;
+    protected CsrfTokenGenerator $csrfTokenGenerator;
 
     /**
      * Constructs a ApplicationController object.
@@ -36,7 +38,8 @@ class ApplicationController extends ControllerBase
      */
     public function __construct(
         EntityTypeManagerInterface $entityTypeManager,
-        FileService                $fileService
+        FileService        $fileService,
+        CsrfTokenGenerator $csrfTokenGenerator
     )
     {
         /** @var ApplicationStorage $applicationStorage */
@@ -44,6 +47,7 @@ class ApplicationController extends ControllerBase
 
         $this->applicationStorage = $applicationStorage;
         $this->fileService = $fileService;
+        $this->csrfTokenGenerator = $csrfTokenGenerator;
     }
 
     /**
@@ -58,9 +62,13 @@ class ApplicationController extends ControllerBase
         /** @var FileService $fileService */
         $fileService = $container->get('esn_membership_manager.file_service');
 
+        /** @var CsrfTokenGenerator $csrfTokenGenerator */
+        $csrfTokenGenerator = $container->get('csrf_token');
+
         return new static(
             $entityTypeManager,
             $fileService,
+            $csrfTokenGenerator
         );
     }
 
@@ -228,6 +236,7 @@ class ApplicationController extends ControllerBase
                 'crop' => Url::fromRoute('esn_membership_manager.crop')->toString(),
                 'status' => Url::fromRoute('esn_membership_manager.status')->toString()
             ],
+            '#csrf_token' => $this->csrfTokenGenerator->get('rest'),
             '#is_paid' => $application->isPaid(),
             '#is_proof_verified' => $hasVerifiedStatus,
             '#is_identity_verified' => $hasVerifiedID,
