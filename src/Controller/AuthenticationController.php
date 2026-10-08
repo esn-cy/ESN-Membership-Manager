@@ -109,7 +109,10 @@ class AuthenticationController extends ControllerBase
         }
 
         if (!$exists) {
-            return new JsonResponse(null, 200);
+            return new JsonResponse([
+                'status' => 'success',
+                'message' => $successMessage
+            ], 200);
         }
 
         if (!$this->flood->isAllowed("esn_membership_manager.auth_request_$type", 3, 3600, $email)) {
@@ -192,7 +195,7 @@ class AuthenticationController extends ControllerBase
             return new JsonResponse(['error' => 'There was an issue while processing your request. Please try again later.'], 500);
         }
 
-        if (!$authRecord || $authRecord['code'] !== $code || $authRecord['expires_at'] < time()) {
+        if (!$authRecord || !hash_equals((string)$authRecord['code'], (string)$code) || $authRecord['expires_at'] < time()) {
             $this->flood->register("esn_membership_manager.auth_verify_$type", 3600, $email);
             return new JsonResponse(['error' => 'Invalid or expired code.'], 401);
         }

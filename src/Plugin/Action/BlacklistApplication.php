@@ -92,8 +92,11 @@ class BlacklistApplication extends ActionBase implements ContainerFactoryPluginI
             throw new Exception('This status cannot be applied.');
         }
 
-        if ($application->getValue(ApplicationField::HasESNcard)) {
-            $this->stripeService->disablePaymentLink($application->id());
+        try {
+            if ($paymentLinkID = $application->getValue(ApplicationField::PaymentLinkID)) {
+                $this->stripeService->disablePaymentLink($paymentLinkID);
+            }
+        } catch (Exception) {
         }
 
         try {

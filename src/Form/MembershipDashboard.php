@@ -1125,7 +1125,7 @@ class MembershipDashboard extends AuthenticatedFormBase
      */
     public function submitPersonalFields(array &$form, FormStateInterface $form_state): void
     {
-        if (!$form_state->get('is_approved_identity')) return;
+        if ($form_state->get('is_approved_identity')) return;
 
         /** @noinspection PhpUnhandledExceptionInspection */
         $application = $this->getApplication();
@@ -1169,7 +1169,7 @@ class MembershipDashboard extends AuthenticatedFormBase
      */
     public function submitMobilityFields(array &$form, FormStateInterface $form_state): void
     {
-        if (!$form_state->get('is_approved_status')) return;
+        if ($form_state->get('is_approved_status')) return;
 
         /** @noinspection PhpUnhandledExceptionInspection */
         $application = $this->getApplication();

@@ -211,7 +211,7 @@ class AppleWalletController extends ControllerBase
         $siteSalt = $this->settings::getHashSalt();
         $expectedToken = hash('sha256', $serialNumber . $siteSalt);
 
-        return $token === $expectedToken;
+        return hash_equals($expectedToken, $token);
     }
 
     public function handleDeviceRegistration(Request $request, string $deviceLibraryIdentifier, string $passTypeIdentifier, string $serialNumber): Response|JSONResponse
