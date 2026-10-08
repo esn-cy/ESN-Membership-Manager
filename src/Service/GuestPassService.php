@@ -11,8 +11,8 @@ use Drupal\Core\Datetime\DrupalDateTime;
 use Drupal\Core\Entity\EntityStorageException;
 use Drupal\Core\Entity\EntityTypeManagerInterface;
 use Drupal\esn_membership_manager\Config\MembershipSettings;
-use Drupal\esn_membership_manager\Entity\Application\Application;
 use Drupal\esn_membership_manager\Entity\Application\ApplicationField;
+use Drupal\esn_membership_manager\Entity\Application\ApplicationInterface;
 use Drupal\esn_membership_manager\Entity\GuestPass\GuestPassField;
 use Drupal\esn_membership_manager\Entity\GuestPass\GuestPassStorage;
 use Drupal\esn_membership_manager\Plugin\Action\ApproveGuestPass;
@@ -50,7 +50,7 @@ class GuestPassService
      * @throws EntityStorageException
      * @throws Exception
      */
-    public function requestGuestPass(Application $referrer, string $name, string $surname, string $email, string $reason): void
+    public function requestGuestPass(ApplicationInterface $referrer, string $name, string $surname, string $email, string $reason): void
     {
         $guestPass = $this->guestPassStorage->create();
         $guestPass->setValue(GuestPassField::RefererID, $referrer->id());

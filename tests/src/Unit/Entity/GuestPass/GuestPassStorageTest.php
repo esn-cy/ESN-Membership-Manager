@@ -129,11 +129,16 @@ class GuestPassStorageTest extends MembershipManagerTestCase
         $otherEntity = $this->createMock(EntityInterface::class);
         $otherEntity->method('id')->willReturn('2');
 
-        $storage->method('doLoadMultiple')->willReturnMap([
-            [['1'], ['1' => $guestPass]],
-            [['2'], ['2' => $otherEntity]],
-            [['3'], []],
-        ]);
+        $storage->method('doLoadMultiple')->willReturnCallback(function (array $ids) use ($guestPass, $otherEntity) {
+            $id = reset($ids);
+            if ((string)$id === '1') {
+                return ['1' => $guestPass];
+            }
+            if ((string)$id === '2') {
+                return ['2' => $otherEntity];
+            }
+            return [];
+        });
 
         $this->assertSame($guestPass, $storage->load('1'));
         $this->assertNull($storage->load('2'));

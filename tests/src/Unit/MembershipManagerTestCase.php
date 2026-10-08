@@ -15,6 +15,7 @@ use Drupal\Core\Config\TypedConfigManagerInterface;
 use Drupal\Core\DependencyInjection\ContainerBuilder;
 use Drupal\Core\Entity\EntityTypeManagerInterface;
 use Drupal\Core\Extension\ModuleHandlerInterface;
+use Drupal\Core\File\FileSystemInterface;
 use Drupal\Core\Form\FormState;
 use Drupal\Core\Language\Language;
 use Drupal\Core\Language\LanguageManagerInterface;
@@ -112,6 +113,10 @@ abstract class MembershipManagerTestCase extends TestCase
 
         $currentUser = $this->createMock(AccountProxyInterface::class);
         $this->container->set('current_user', $currentUser);
+
+        $fileSystem = $this->createMock(FileSystemInterface::class);
+        $fileSystem->method('basename')->willReturnCallback(fn($path) => basename((string)$path));
+        $this->container->set('file_system', $fileSystem);
 
         $requestStack = new RequestStack();
         $requestStack->push(new Request());
