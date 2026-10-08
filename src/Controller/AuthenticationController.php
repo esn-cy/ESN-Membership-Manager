@@ -92,20 +92,14 @@ class AuthenticationController extends ControllerBase
             return new JsonResponse(['error' => 'Email is required.'], 400);
         }
 
-        switch ($type) {
-            case 'login':
-                $successMessage = 'A code was sent to your email address.';
-                $formattedType = 'Login';
-
-                $exists = $this->applicationStorage->countByEmail($email) > 0;
-                break;
-            case 'register':
-                $successMessage = 'A code was sent to your email address. If you do not receive it within 5 minutes, please check your spam or try a different email.';
-                $formattedType = 'Registration';
-                $exists = TRUE;
-                break;
-            default:
-                return new JsonResponse(['error' => 'Invalid authentication type.'], 400);
+        if ($type === 'login') {
+            $successMessage = 'A code was sent to your email address.';
+            $formattedType = 'Login';
+            $exists = $this->applicationStorage->countByEmail($email) > 0;
+        } else {
+            $successMessage = 'A code was sent to your email address. If you do not receive it within 5 minutes, please check your spam or try a different email.';
+            $formattedType = 'Registration';
+            $exists = TRUE;
         }
 
         if (!$exists) {

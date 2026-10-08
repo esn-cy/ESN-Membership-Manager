@@ -210,7 +210,7 @@ class EditController extends ControllerBase
             return new JsonResponse(['status' => 'error', 'message' => 'An invalid cropped image was provided.'], 400);
         }
 
-        $imageData = base64_decode($croppedImage);
+        $imageData = base64_decode($croppedImage, true);
         if ($imageData === FALSE) {
             return new JsonResponse(['status' => 'error', 'message' => 'Failed to decode image.'], 400);
         }

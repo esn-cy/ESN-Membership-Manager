@@ -12,7 +12,6 @@ use Drupal\esn_membership_manager\Entity\Application\ApplicationInterface;
 use Drupal\esn_membership_manager\Entity\Application\ApplicationStorage;
 use Drupal\esn_membership_manager\Service\FileService;
 use Exception;
-use Symfony\Component\DependencyInjection\ContainerInterface;
 
 class GDPRCron
 {
@@ -36,28 +35,6 @@ class GDPRCron
         $this->applicationStorage = $applicationStorage;
         $this->fileService = $fileService;
         $this->logger = $loggerFactory->get('esn_membership_manager');
-    }
-
-    /**
-     * @throws InvalidPluginDefinitionException
-     * @throws PluginNotFoundException
-     */
-    public static function create(ContainerInterface $container): self
-    {
-        /** @var EntityTypeManagerInterface $entityTypeManager */
-        $entityTypeManager = $container->get('entity_type.manager');
-
-        /** @var FileService $fileService */
-        $fileService = $container->get('esn_membership_manager.file_service');
-
-        /** @var LoggerChannelFactoryInterface $loggerFactory */
-        $loggerFactory = $container->get('logger.factory');
-
-        return new static(
-            $entityTypeManager,
-            $fileService,
-            $loggerFactory
-        );
     }
 
     /**

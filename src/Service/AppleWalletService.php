@@ -138,12 +138,10 @@ class AppleWalletService extends AppleServiceBase
             } else {
                 $imageContents = $this->fileService->readFile($facePhotoFileID);
 
-                if ($imageResource = imagecreatefromstring($imageContents)) {
+                if ($imageResource = @imagecreatefromstring($imageContents)) {
                     ob_start();
                     imagepng($imageResource);
                     $pngData = ob_get_clean();
-
-                    imagedestroy($imageResource);
 
                     if ($this->fileService->replaceFileData($facePhotoFileID, $pngData)) {
                         $images = ['thumbnail.png' => $this->fileService->getFilePath($facePhotoFileID)];

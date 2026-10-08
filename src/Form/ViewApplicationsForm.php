@@ -85,6 +85,7 @@ class ViewApplicationsForm extends FormBase
 
     /**
      * Builds the applications list page.
+     * @codeCoverageIgnore
      */
     public function buildForm(array $form, FormStateInterface $form_state): JsonResponse|array
     {

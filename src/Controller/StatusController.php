@@ -128,33 +128,38 @@ class StatusController extends ControllerBase
             return new JsonResponse(['status' => 'error', 'message' => 'An invalid status was provided.'], 400);
         }
 
-        if (empty($applicationID)) {
-            $isESNcard = preg_match("/^\d\d\d\d\d\d\d[A-Z][A-Z][A-Z][A-Z0-9]$/", $identifier) == 1;
-            $isPass = preg_match("/^[A-F0-9]{32}$/", $identifier) == 1;
+        try {
+            if (empty($applicationID)) {
+                $isESNcard = preg_match("/^\d\d\d\d\d\d\d[A-Z][A-Z][A-Z][A-Z0-9]$/", $identifier) == 1;
+                $isPass = preg_match("/^[A-F0-9]{32}$/", $identifier) == 1;
 
-            if (!$isESNcard && !$isPass) {
-                return new JsonResponse(['status' => 'error', 'message' => 'An invalid card number was provided.'], 400);
-            }
+                if (!$isESNcard && !$isPass) {
+                    return new JsonResponse(['status' => 'error', 'message' => 'An invalid card number was provided.'], 400);
+                }
 
-            if (!$isESNcard && in_array($baseStatus, ApprovalStatuses::PaidStatuses)) {
-                return new JsonResponse(['status' => 'error', 'message' => 'Action not allowed with this kind of identifier.'], 400);
-            }
+                if (!$isESNcard && in_array($baseStatus, ApprovalStatuses::PaidStatuses)) {
+                    return new JsonResponse(['status' => 'error', 'message' => 'Action not allowed with this kind of identifier.'], 400);
+                }
 
-            if ($isESNcard) {
-                $application = $this->applicationStorage->getByESNcard($identifier);
-            } elseif ($isPass) {
-                $application = $this->applicationStorage->getByPassToken($identifier);
-            }
-        } else {
-            if (!is_numeric($applicationID)) {
-                return new JsonResponse(['status' => 'error', 'message' => 'An invalid ID was provided.'], 400);
-            }
+                if ($isESNcard) {
+                    $application = $this->applicationStorage->getByESNcard($identifier);
+                } elseif ($isPass) {
+                    $application = $this->applicationStorage->getByPassToken($identifier);
+                }
+            } else {
+                if (!is_numeric($applicationID)) {
+                    return new JsonResponse(['status' => 'error', 'message' => 'An invalid ID was provided.'], 400);
+                }
 
-            $application = $this->applicationStorage->load($applicationID);
+                $application = $this->applicationStorage->load($applicationID);
+            }
+        } catch (Exception $e) {
+            $this->logger->error('Failed to retrieve application: @message', ['@message' => $e->getMessage()]);
+            return new JsonResponse(['status' => 'error', 'message' => $e->getMessage()], 500);
         }
 
         if (empty($application)) {
-            $this->logger->warning('Application @id was not found', ['@id' => $applicationID]);
+            $this->logger->warning('Application @id was not found', ['@id' => !empty($applicationID) ? $applicationID : $identifier]);
             return new JsonResponse(['status' => 'error', 'message' => 'Application not found.'], 404);
         }
 

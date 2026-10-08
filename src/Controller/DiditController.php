@@ -58,7 +58,7 @@ class DiditController extends ControllerBase
         $redirect = new RedirectResponse(Url::fromRoute('esn_membership_manager.apply', [], ['absolute' => true])->toString());
 
         if (empty($sessionID)) {
-            $this->setFailedStatus($sessionID, 'Session ID not present in query parameters.');
+            $this->logger->warning('Didit ID Verification failed. Session ID not present in query parameters.');
             return $redirect;
         }
 
@@ -70,6 +70,7 @@ class DiditController extends ControllerBase
                 ->fetchAssoc();
         } catch (Exception $e) {
             $this->setFailedStatus($sessionID, 'Unable to retrieve applications. ' . $e->getMessage());
+            return $redirect;
         }
 
         if (empty($application)) {

@@ -165,11 +165,10 @@ class ESNcardService
                 ->range(0, 1)
                 ->forUpdate();
 
-            /** @noinspection PhpPossiblePolymorphicInvocationInspection */
             $nextNumber = $query->execute()->fetchField();
         } catch (Exception $e) {
             $this->logger->error('Failed to assign ESNcard number: @message', ['@message' => $e->getMessage()]);
-            throw new Exception("Failed to get next available ESNcard number: {$e->getMessage()}", null, $e);
+            throw new Exception("Failed to get next available ESNcard number: {$e->getMessage()}", 0, $e);
         }
 
         if (empty($nextNumber)) {

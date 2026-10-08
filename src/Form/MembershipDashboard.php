@@ -140,6 +140,7 @@ class MembershipDashboard extends AuthenticatedFormBase
     /**
      * @inheritDoc
      * @noinspection HtmlUnknownTarget
+     * @codeCoverageIgnore
      */
     public function buildForm(array $form, FormStateInterface $form_state): array
     {

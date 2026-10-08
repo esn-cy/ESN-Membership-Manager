@@ -51,6 +51,10 @@ class ESNcardNumberForm extends FormBase
         return 'esncard_number_form';
     }
 
+    /**
+     * {@inheritDoc}
+     * @codeCoverageIgnore
+     */
     public function buildForm(array $form, FormStateInterface $form_state): array
     {
         $form['cards'] = [

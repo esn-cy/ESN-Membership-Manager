@@ -4,6 +4,7 @@ namespace Drupal\esn_membership_manager\Form;
 
 use Drupal\Component\Utility\Crypt;
 use Drupal\Core\Config\ConfigFactoryInterface;
+use Drupal\Core\Config\TypedConfigManagerInterface;
 use Drupal\Core\Extension\ModuleHandlerInterface;
 use Drupal\Core\File\FileSystemInterface;
 use Drupal\Core\Form\ConfigFormBase;
@@ -30,14 +31,15 @@ class SettingsForm extends ConfigFormBase
     protected ModuleHandlerInterface $moduleHandler;
 
     public function __construct(
-        ConfigFactoryInterface $configFactory,
-        WeeztixService         $weeztixService,
-        StateInterface         $state,
-        FileSystemInterface    $fileSystem,
-        ModuleHandlerInterface $moduleHandler,
+        ConfigFactoryInterface      $configFactory,
+        TypedConfigManagerInterface $typedConfigManager,
+        WeeztixService              $weeztixService,
+        StateInterface              $state,
+        FileSystemInterface         $fileSystem,
+        ModuleHandlerInterface      $moduleHandler,
     )
     {
-        parent::__construct($configFactory);
+        parent::__construct($configFactory, $typedConfigManager);
         $this->weeztixService = $weeztixService;
         $this->state = $state;
         $this->fileSystem = $fileSystem;
@@ -48,6 +50,9 @@ class SettingsForm extends ConfigFormBase
     {
         /** @var ConfigFactoryInterface $configFactory */
         $configFactory = $container->get('config.factory');
+
+        /** @var TypedConfigManagerInterface $typedConfigManager */
+        $typedConfigManager = $container->get('config.typed');
 
         /** @var WeeztixService $weeztixService */
         $weeztixService = $container->get('esn_membership_manager.weeztix_service');
@@ -63,6 +68,7 @@ class SettingsForm extends ConfigFormBase
 
         return new static(
             $configFactory,
+            $typedConfigManager,
             $weeztixService,
             $state,
             $fileSystem,
@@ -80,6 +86,7 @@ class SettingsForm extends ConfigFormBase
 
     /**
      * {@inheritdoc}
+     * @codeCoverageIgnore
      */
     public function buildForm(array $form, FormStateInterface $form_state): array
     {
@@ -661,27 +668,32 @@ class SettingsForm extends ConfigFormBase
 
         $tempDir = $this->fileSystem->getTempDirectory();
         $certificatePath = $this->fileSystem->tempnam($tempDir, 'apple_cert_') . '.p12';
-        if (empty($certificatePath)) {
+        if (empty(str_replace('.p12', '', $certificatePath))) {
             throw new Exception('Could not create temporary certificate file.');
         }
 
-        if (!file_put_contents($certificatePath, $p12String)) {
+        if (!@file_put_contents($certificatePath, $p12String)) {
             throw new Exception('Could not write to the temporary certificate file.');
         }
 
-        $value = shell_exec(
+        $executionResult = $this->executeOpenSSL($certificatePath, $password);
+
+        unlink($certificatePath);
+
+        if (empty($executionResult)) {
+            throw new Exception('Could not read certificate file.');
+        }
+
+        return $executionResult;
+    }
+
+    protected function executeOpenSSL(string $certificatePath, string $password): ?string
+    {
+        return shell_exec(
             "openssl pkcs12 -in " . escapeshellarg($certificatePath) .
             " -passin " . escapeshellarg("pass:" . $password) .
             " -passout " . escapeshellarg("pass:" . $password) .
             " -legacy"
         );
-
-        unlink($certificatePath);
-
-        if (empty($value)) {
-            throw new Exception('Could not read certificate file.');
-        }
-
-        return $value;
     }
 }

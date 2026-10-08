@@ -172,6 +172,7 @@ class ApplicationForm extends AuthenticatedFormBase
 
     /**
      * {@inheritdoc}
+     * @codeCoverageIgnore
      */
     public function buildForm(array $form, FormStateInterface $form_state): array
     {

@@ -26,6 +26,13 @@
       "Drupal\\esn_membership_manager\\": "src/"
     }
   },
+  "autoload-dev": {
+    "psr-4": {
+      "Drupal\\Tests\\esn_membership_manager\\": "tests/src/",
+      "Drupal\\Tests\\": "vendor/drupal/core/tests/Drupal/Tests/",
+      "Drupal\\TestTools\\": "vendor/drupal/core/tests/Drupal/TestTools/"
+    }
+  },
   "require": {
     "esn-cy/omnia": "^1.0",
     "esn/esn_accounts_api": "^1.1",
@@ -38,14 +45,16 @@
     "ext-simplexml": "*"
   },
   "require-dev": {
-    "drupal/core": "^10"
+    "drupal/core-dev": "^10"
   },
   "config": {
     "allow-plugins": {
-      "composer/installers": true,
-      "drupal/core-vendor-hardening": true,
-      "drupal/core-recipe-unpack": true,
-      "drupal/core-project-message": true
+      "symfony/runtime": true,
+      "drupal/core-composer-scaffold": false,
+      "phpstan/extension-installer": true,
+      "dealerdirect/phpcodesniffer-composer-installer": true,
+      "php-http/discovery": true,
+      "tbachert/spi": true
     }
   },
   "repositories": {

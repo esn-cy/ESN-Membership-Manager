@@ -1,4 +1,7 @@
-<?php /** @noinspection PhpUnused */
+<?php /**
+ * @noinspection PhpDeprecationInspection
+ * @noinspection PhpUnused
+ */
 
 namespace Drupal\esn_membership_manager\Controller;
 
@@ -20,6 +23,7 @@ use Symfony\Component\HttpFoundation\Request;
 use Symfony\Component\HttpFoundation\Response;
 use Symfony\Component\HttpFoundation\ResponseHeaderBag;
 use TCPDF;
+use Throwable;
 
 /**
  * Controller for viewing application details.
@@ -38,8 +42,8 @@ class ApplicationController extends ControllerBase
      */
     public function __construct(
         EntityTypeManagerInterface $entityTypeManager,
-        FileService        $fileService,
-        CsrfTokenGenerator $csrfTokenGenerator
+        FileService                $fileService,
+        CsrfTokenGenerator         $csrfTokenGenerator,
     )
     {
         /** @var ApplicationStorage $applicationStorage */
@@ -68,7 +72,7 @@ class ApplicationController extends ControllerBase
         return new static(
             $entityTypeManager,
             $fileService,
-            $csrfTokenGenerator
+            $csrfTokenGenerator,
         );
     }
 
@@ -184,8 +188,6 @@ class ApplicationController extends ControllerBase
                                 break;
                             case ApplicationField::FacePhotoFileID:
                                 $photoURL = $url;
-                                break;
-                            default:
                                 break;
                         }
                         $displayValue = Link::fromTextAndUrl($url, Url::fromUri($url, ['attributes' => ['target' => '_blank']]))->toRenderable();
@@ -311,6 +313,8 @@ class ApplicationController extends ControllerBase
      */
     public function generateFacePDF(Request $request): Response
     {
+        defined('TCPDF_SILENCE_DEPRECATION') || define('TCPDF_SILENCE_DEPRECATION', true);
+
         $queryParams = $request->query->all();
         $applicationIDs = $queryParams['id'] ?? [];
 
@@ -355,6 +359,10 @@ class ApplicationController extends ControllerBase
             $origW = $sizes[0];
             $origH = $sizes[1];
 
+            if ($origH <= 0 || $origW <= 0) {
+                continue;
+            }
+
             $targetWidth = ($origW / $origH) * $imageHeight;
 
             if (($currentX + $targetWidth) > (10 + $availableWidth)) {
@@ -367,9 +375,12 @@ class ApplicationController extends ControllerBase
                 }
             }
 
-            $pdf->Image($path, $currentX, $currentY, $targetWidth, $imageHeight, '', '', '', true, 300, '', false, false, 1);
-
-            $currentX += $targetWidth;
+            try {
+                @$pdf->Image($path, $currentX, $currentY, $targetWidth, $imageHeight, '', '', '', true, 300, '', false, false, 1);
+                $currentX += $targetWidth;
+            } catch (Throwable) {
+                continue;
+            }
         }
 
         $pdfContent = $pdf->Output('esncard_images.pdf', 'S');

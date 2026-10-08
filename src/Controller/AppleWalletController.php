@@ -291,7 +291,7 @@ class AppleWalletController extends ControllerBase
                 ->execute()
                 ->fetchCol();
         } catch (Exception $e) {
-            $this->logger->error('Unable to retrieve the device passes for @$device: @error.', ['@device' => $deviceLibraryIdentifier, '@error' => $e->getMessage()]);
+            $this->logger->error('Unable to retrieve the device passes for @device: @error.', ['@device' => $deviceLibraryIdentifier, '@error' => $e->getMessage()]);
             return new JsonResponse(['error' => 'Unable to retrieve the device passes.'], 500);
         }
 

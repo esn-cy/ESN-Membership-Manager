@@ -104,6 +104,7 @@ abstract class AuthenticatedFormBase extends FormBase
 
     /**
      * {@inheritDoc}
+     * @codeCoverageIgnore
      */
     public function buildForm(array $form, FormStateInterface $form_state): array
     {

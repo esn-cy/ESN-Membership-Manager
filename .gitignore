@@ -1,3 +1,34 @@
-vendor
-.idea
+# Composer & dependencies
+/vendor/
 composer.lock
+composer.phar
+
+# Testing & code coverage
+/reports/
+/.phpunit.cache/
+.phpunit.result.cache
+/coverage/
+*.log
+.phpcs-cache
+
+# IDE & editors
+.idea/
+.vscode/
+*.suo
+*.ntvs*
+*.njsproj
+*.sln
+*.sw?
+*~
+*.sublime-project
+*.sublime-workspace
+
+# Operating System files
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+Desktop.ini
