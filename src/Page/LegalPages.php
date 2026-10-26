@@ -71,57 +71,98 @@ class LegalPages extends ControllerBase
 
     public function privacyPage(): array
     {
-        $content = "
-      <h1>Privacy Policy</h1>
-      <p><b>Last Updated: </b>18/05/2026</p>
-      <p>This Privacy Policy explains how ESN Membership Manager (\"we,\" \"us,\" or \"our\"), operated by {$this->omniaSettings->getOrganisationName()}, collects, uses, shares, and protects your personal information when you use our platform to apply for, manage, and use your ESNcard and {$this->membershipSettings->getPassName()}.</p>
-      <h3>1. Information We Collect</h3>
-      <p>To provide you with our services, we collect the following personal information during the application process:</p>
-      <ul>
-        <li><b>Identity Data: </b>Name, surname, date of birth, and nationality.</li>
-        <li><b>Contact Data: </b>Email address.</li>
-        <li><b>Academic & Mobility Data: </b>Host institution, ESN section, and mobility status (e.g., Erasmus Student, ESN Volunteer).</li>
-        <li><b>Media & Documents: </b>Scanned identity/mobility proof documents (in case of manual verification) and a face photo (in case of an ESNcard).</li>
-      </ul>
-      <h3>2. How We Use Your Information</h3>
-      <p>We use your data strictly to:</p>
-      <ul>
-        <li>Verify your eligibility for the ESNcard or {$this->membershipSettings->getPassName()}.</li>
-        <li>Issue and manage your membership, including physical ESNcards, digital {$this->membershipSettings->getPassName()}, and Guest Passes.</li>
-        <li>Process payments for your membership.</li>
-        <li>Prevent fraud and ensure compliance with ESN guidelines.</li>
-      </ul>
-      <h3>3. Data Retention and Deletion (GDPR Compliance)</h3>
-      <p>We employ strict, automated data retention policies to ensure we do not hold your personal data longer than necessary. Our system automatically processes data deletion according to the following schedule:</p>
-      <ul>
-        <li><b>Identity Documents and Proofs: </b>Any uploaded ID scans and proofs of mobility are permanently deleted from our servers 14 days after your application is either approved or rejected.</li>
-        <li><b>Face Photos: </b>Face photos are permanently deleted 1 year (365 days) after your payment date (if you applied for an ESNcard).</li>
-        <li><b>Account Anonymization: </b>After 1 year, your personal database record is completely anonymized. Your name and surname are replaced with \"Anonymized,\" your date of birth is reset to the 1st of January of your birthyear, and your email address is permanently obfuscated.</li>
-        <li><b>Associated Records: </b>At the 1-year mark, any Apple Wallet registrations, authentication codes, and guest passes tied to your account are permanently erased.</li>
-      </ul>
-      <h3>4. Third-Party Integrations and Data Sharing</h3>
-      <p>To operate ESN Membership Manager effectively, we integrate with trusted third-party services. We only share the minimum data required for these services to function:</p>
-      <ul>
-        <li><b>ESN Accounts: </b>To verify your membership status automatically, your data is checked against the centralized ESN Accounts system managed by ESN AISBL in Belgium.</li>
-        <li><b>Stripe (Payments): </b>If your application includes and ESNcard, a Stripe payment link is added to your account. We share your application ID with Stripe to link your payment to your application. After one year, your active payment links are disabled.</li>
-        <li><b>Weeztix (Ticketing): </b>When you are assigned an ESNcard, your card number is securely transmitted to Weeztix to act as an active coupon code for event discounts.</li>
-        <li><b>Google Services:</b>
-            <li><b>Google Sheets: </b>We maintain financial and issuance logs via Google Sheets. We log the date, your full name, card number, host institution, nationality, payment method, and amount paid.</li>
-            <li><b>Google Wallet: </b>If you add your pass to Google Wallet, we transmit your name, photo, date of birth, nationality, and mobility details to Google to generate the secure digital object.</li>
-        </li>
-        <li><b>Apple Wallet: </b>If you add your pass to an iOS device, similar pass data (name, nationality, DOB, photo) is formatted for Apple Wallet. We use the Apple Push Notification service (APNs) to send background updates to your passes if your membership details change.</li>
-      </ul>
-      <h3>5. Your Data Protection Rights</h3>
-      <p>Under the General Data Protection Regulation (GDPR), you have the right to:</p>
-      <ul>
-      <li><b>Access: </b>Request a copy of the personal data we hold about you.</li>
-      <li><b>Rectification: </b>Request correction of inaccurate personal data.</li>
-      <li><b>Erasure (Right to be Forgotten): </b>Request immediate deletion of your data before our automated 1-year retention period, provided there is no legal obligation to retain it.</li>
-      <li><b>Restriction & Objection: </b>Object to or restrict the processing of your data.</li>
-      </ul>
-      <h3>6. Contact Us</h3>
-      <p>If you have any questions about this Privacy Policy, how your data is handled, or if you wish to exercise your data rights, please contact the Web Projects Administrator of {$this->omniaSettings->getOrganisationName()}.</p>
-    ";
+        $orgName = htmlspecialchars($this->omniaSettings->getOrganisationName());
+        $passName = htmlspecialchars($this->membershipSettings->getPassName());
+        $contactEmail = htmlspecialchars($this->membershipSettings->getAdminEmailAddress());
+
+        $content = <<<HTML
+            <h1>Privacy Policy</h1>
+            <p><b>Last Updated: </b>26/10/2026</p>
+            <p>This Privacy Policy explains how ESN Membership Manager ("we," "us," or "our"), operated by <strong>$orgName</strong> as the Data Controller under the General Data Protection Regulation (GDPR), collects, uses, shares, and protects your personal information when you use our platform to apply for, manage, and use your ESNcard, $passName, and associated guest passes.</p>
+
+            <h3>1. Information We Collect</h3>
+            <p>We collect and process the minimum amount of personal data necessary to verify your eligibility, issue your membership credentials, and facilitate event participation:</p>
+            <ul>
+                <li><b>Identity Data: </b>Full legal name, surname, date of birth, and nationality.</li>
+                <li><b>Contact Data: </b>Email address (used for passwordless one-time code authentication and service notifications).</li>
+                <li><b>Academic & Mobility Data: </b>Host institution/university, local ESN section, and mobility status/programme (e.g., Erasmus+ Studies, Traineeship, European Solidarity Corps, International Full Degree).</li>
+                <li><b>Verification Media & Documents: </b>Scanned copies of government-issued identity documents (passport or national ID card), mobility proof documents (e.g., Learning Agreement, Traineeship Certificate, Acceptance Letter, or Certificate of Studies), and a passport-style portrait photograph (required for physical ESNcard printing and digital wallet representation).</li>
+                <li><b>Technical & Session Data: </b>IP addresses, browser user-agent strings, and session/CSRF tokens strictly required to authenticate your requests and protect against unauthorised access.</li>
+            </ul>
+
+            <h3>2. Legal Bases for Processing (GDPR Article 6 & Article 9)</h3>
+            <p>We process your personal information under the following lawful bases:</p>
+            <ul>
+                <li><b>Performance of a Contract (Art. 6(1)(b) GDPR): </b>Processing is necessary to evaluate your application, issue your $passName or ESNcard, process payment, generate wallet passes, and grant you access to member-only events and ticketing.</li>
+                <li><b>Explicit Consent (Art. 6(1)(a) & Art. 9(2)(a) GDPR): </b>Where applicable, you provide explicit consent when uploading identity documents, face photographs, or initiating automated identity verification via third-party providers.</li>
+                <li><b>Legitimate Interests (Art. 6(1)(f) GDPR): </b>To maintain platform security, prevent fraud or double-issuance of subsidised mobility cards, and ensure safe, organised event admissions.</li>
+                <li><b>Legal Obligation (Art. 6(1)(c) GDPR): </b>To comply with applicable non-profit financial, tax, and auditing requirements relating to membership fee transactions.</li>
+            </ul>
+
+            <h3>3. How We Use Your Information</h3>
+            <p>Your data is used strictly for the following purposes:</p>
+            <ul>
+                <li>Verifying your eligibility for the $passName or official ESNcard under Erasmus Student Network AISBL statutes.</li>
+                <li>Generating and issuing digital passes for mobile wallets (Apple Wallet, Google Wallet) and producing physical ESNcards.</li>
+                <li>Administering temporary Guest Passes for visiting friends and family.</li>
+                <li>Validating active membership status at event entrances and integrating with our event ticketing platforms.</li>
+                <li>Processing membership fees securely via our payment gateway.</li>
+            </ul>
+            
+            <h3>4. Third-Party Integrations and Data Processors</h3>
+            <p>We share data only with trusted third-party service providers acting as data processors or independent controllers where necessary to deliver core platform services:</p>
+            <ul>
+                <li><b>Didit (Identity Verification): </b>If you choose online identity verification, you are redirected to Didit (Didit Identity Verification). Didit processes your ID document and a live facial capture to confirm identity and prevent duplicate applications. Didit processes this data under strict security standards in compliance with GDPR.</li>
+                <li><b>ESN Accounts (ESN AISBL): </b>For members or volunteers authenticating via Single Sign-On, credentials and roles are verified against the central identity system managed by Erasmus Student Network AISBL in Brussels, Belgium.</li>
+                <li><b>Stripe (Payment Processing): </b>All online payments are processed through Stripe Payments Europe, Ltd. We transmit your application identifier to reconcile payments. We do not collect, process, or store credit or debit card numbers on our servers.</li>
+                <li><b>Weeztix (Event Ticketing): </b>When an ESNcard or $passName is issued, your card identifier is shared with Weeztix to activate membership pricing coupons for event tickets.</li>
+                <li><b>Google Services:</b>
+                  <ul>
+                    <li><b>Google Wallet: </b>If you choose to add your pass to Google Wallet, we transmit your name, photo, date of birth, nationality, and pass identifiers to Google LLC / Google Ireland Ltd. via the Google Wallet API to generate the secure digital pass.</li>
+                    <li><b>Google Sheets: </b>We maintain administrative and financial auditing logs (date, name, card number, institution, nationality, payment method, amount paid) on access-controlled Google Sheets.</li>
+                  </ul>
+                </li>
+                <li><b>Apple Wallet & APNs: </b>If you add your pass to an iOS device, pass data is formatted into an encrypted Apple `.pkpass` file. Device identifiers and Apple Push Notification service (APNs) tokens are retained solely to push real-time status and expiry updates to your pass.</li>
+            </ul>
+
+            <h3>5. International Data Transfers</h3>
+            <p>Certain third-party service providers (such as Google, Apple, or Stripe) may process or store data on servers located outside the European Economic Area (EEA). In such cases, we ensure that appropriate safeguards are in place—such as European Commission Standard Contractual Clauses (SCCs), adequacy decisions, or equivalent legally recognised frameworks—to ensure your personal data receives a level of protection essentially equivalent to that guaranteed within the European Union.</p>
+            
+            <h3>6. Data Retention and Automated Deletion (GDPR Compliance)</h3>
+            <p>We employ automated data minimisation and purge schedules to ensure personal data is never retained longer than necessary:</p>
+            <ul>
+                <li><b>Identity Documents and Mobility Proofs: </b>All uploaded ID scans, passports, and mobility proof documents are permanently and irrevocably deleted from our servers <strong>14 days</strong> after your application is either approved or rejected.</li>
+                <li><b>Face Photographs: </b>Passport-style portrait photos are permanently deleted <strong>1 year (365 days)</strong> after your payment/issuance date.</li>
+                <li><b>Account Anonymization: </b>Exactly 1 year after issuance, your personal database record is completely and irreversibly anonymised. Your name is set to "Anonymized," your date of birth is truncated to the 1st of January of your birth year, and your email address is permanently obfuscated.</li>
+                <li><b>Associated Tokens: </b>At the 1-year mark, all Apple Wallet device registrations, authentication passcodes, and guest pass records tied to your account are permanently erased.</li>
+            </ul>
+
+            <h3>7. Cookies and Tracking Technologies</h3>
+            <p>Our platform does not use advertising, marketing, or tracking cookies. We use only strictly necessary, functional cookies and session tokens required to maintain your authenticated session and provide Cross-Site Request Forgery (CSRF) protection. You can disable cookies in your browser settings, but doing so may prevent you from logging into the platform.</p>
+
+            <h3>8. Your Data Protection Rights</h3>
+            <p>Under the General Data Protection Regulation (GDPR), you possess the following rights regarding your personal data:</p>
+            <ul>
+                <li><b>Right of Access (Art. 15): </b>You can request confirmation of whether we process your data and obtain a copy of your stored records.</li>
+                <li><b>Right to Rectification (Art. 16): </b>You can request correction of inaccurate or incomplete personal information.</li>
+                <li><b>Right to Erasure / "Right to be Forgotten" (Art. 17): </b>You may request the immediate deletion of your personal data before our standard 1-year automated purging schedule, provided no overriding statutory retention obligation exists.</li>
+                <li><b>Right to Restriction of Processing (Art. 18): </b>You can ask us to suspend processing of your data under certain circumstances.</li>
+                <li><b>Right to Data Portability (Art. 20): </b>You have the right to receive your personal data in a structured, commonly used, and machine-readable format.</li>
+                <li><b>Right to Object (Art. 21): </b>You can object to processing based on legitimate interests.</li>
+            </ul>
+            <p>To exercise any of these rights, please email us at <a href="mailto:$contactEmail">$contactEmail</a>. We verify all requests to protect your privacy and will respond within <strong>30 calendar days</strong> without charge.</p>
+
+            <h3>9. Right to Lodge a Complaint with a Supervisory Authority</h3>
+            <p>If you believe that our collection or processing of your personal information infringes upon the General Data Protection Regulation, you have the right to lodge a complaint with a supervisory authority, in particular in the EU Member State of your habitual residence, place of work, or place of the alleged infringement.</p>
+
+            <h3>10. Contact the Data Controller</h3>
+            <p>If you have questions, concerns, or requests regarding this Privacy Policy or how your personal information is handled, please contact:</p>
+            <p>
+            <strong>$orgName</strong><br>
+            Data Protection & Web Projects Administration<br>
+            Email: <a href="mailto:$contactEmail">$contactEmail</a>
+            </p>
+    HTML;
 
         return [
             '#type' => 'markup',

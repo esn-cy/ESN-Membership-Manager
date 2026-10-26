@@ -6,26 +6,33 @@ esn_membership_manager.category:
   expanded: TRUE
   weight: -50
 
+esn_membership_manager.about:
+  title: "About Memberships"
+  description: "About our membership options and services"
+  parent: esn_membership_manager.category
+  route_name: esn_membership_manager.apply
+  weight: 1
+
 esn_membership_manager.apply:
   title: "Application Form"
   description: "Apply for an ESNcard"
   parent: esn_membership_manager.category
   route_name: esn_membership_manager.apply
-  weight: 1
+  weight: 2
 
 esn_membership_manager.dashboard:
   title: "Dashboard"
   description: "Manage Membership"
   parent: esn_membership_manager.category
   route_name: esn_membership_manager.dashboard
-  weight: 2
+  weight: 3
 
 esn_membership_manager.view_applications:
   title: "View Applications"
   description: "View all applications"
   parent: esn_membership_manager.category
   route_name: esn_membership_manager.view_applications
-  weight: 3
+  weight: 4
   options:
     _permission: "view applications"
 
@@ -34,7 +41,7 @@ esn_membership_manager.view_guest_passes:
   description: "View all guest passes"
   parent: esn_membership_manager.category
   route_name: esn_membership_manager.view_guest_passes
-  weight: 4
+  weight: 5
   options:
     _permission: "view guest passes"
 
@@ -43,7 +50,7 @@ esn_membership_manager.scan:
   description: "Scan ESNcards and Free Passes and get validity information"
   parent: esn_membership_manager.category
   route_name: esn_membership_manager.scan_page
-  weight: 5
+  weight: 6
   options:
     _permission: "scan cards"
 
@@ -52,9 +59,23 @@ esn_membership_manager.manage_esncard_numbers:
   description: "Manage available ESNcard numbers for distribution"
   parent: esn_membership_manager.category
   route_name: esn_membership_manager.manage_esncard_numbers
-  weight: 6
+  weight: 7
   options:
     _permission: "manage esncard numbers"
+
+esn_membership_manager.terms_of_service:
+  title: "Terms of Service"
+  description: "View the Terms of Service for our memberships"
+  parent: esn_membership_manager.category
+  route_name: esn_membership_manager.terms_of_service
+  weight: 8
+
+esn_membership_manager.privacy_policy:
+  title: "Privacy Policy"
+  description: "View the Privacy Policy for our memberships"
+  parent: esn_membership_manager.category
+  route_name: esn_membership_manager.privacy_policy
+  weight: 9
 
 esn_membership_manager.settings:
   title: "ESN Membership Manager Settings"

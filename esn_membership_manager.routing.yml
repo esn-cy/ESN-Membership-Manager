@@ -190,6 +190,14 @@ esn_membership_manager.dashboard:
   requirements:
     _access: 'TRUE'
 
+esn_membership_manager.about:
+  path: '/memberships/about'
+  defaults:
+    _controller: '\Drupal\esn_membership_manager\Page\AboutPage::aboutPage'
+    _title: 'About Memberships'
+  requirements:
+    _access: 'TRUE'
+
 esn_membership_manager.terms_of_service:
   path: '/memberships/terms-of-service'
   defaults:
