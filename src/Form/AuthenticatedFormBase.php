@@ -5,19 +5,26 @@ namespace Drupal\esn_membership_manager\Form;
 use Drupal\Component\Plugin\Exception\InvalidPluginDefinitionException;
 use Drupal\Component\Plugin\Exception\PluginNotFoundException;
 use Drupal\Component\Render\MarkupInterface;
+use Drupal\Core\Config\ConfigFactoryInterface;
 use Drupal\Core\Database\Connection;
 use Drupal\Core\Datetime\DrupalDateTime;
 use Drupal\Core\Entity\EntityTypeManagerInterface;
+use Drupal\Core\Extension\Extension;
+use Drupal\Core\Extension\ModuleHandlerInterface;
 use Drupal\Core\Form\FormBase;
 use Drupal\Core\Form\FormStateInterface;
 use Drupal\Core\Logger\LoggerChannelFactoryInterface;
 use Drupal\Core\Logger\LoggerChannelInterface;
+use Drupal\Core\Render\Markup;
 use Drupal\Core\Url;
+use Drupal\esn_membership_manager\Config\MembershipSettings;
 use Drupal\esn_membership_manager\Entity\Application\ApplicationInterface;
 use Drupal\esn_membership_manager\Entity\Application\ApplicationStorage;
+use Drupal\esn_membership_manager\Service\GoogleService;
 use Exception;
 use GuzzleHttp\ClientInterface;
 use GuzzleHttp\Exception\GuzzleException;
+use Random\RandomException;
 use Symfony\Component\DependencyInjection\ContainerInterface;
 
 abstract class AuthenticatedFormBase extends FormBase
@@ -25,6 +32,9 @@ abstract class AuthenticatedFormBase extends FormBase
     protected Connection $database;
     protected ApplicationStorage $applicationStorage;
     protected ClientInterface $httpClient;
+    protected MembershipSettings $membershipSettings;
+    protected GoogleService $googleService;
+    protected Extension $module;
     protected LoggerChannelInterface $logger;
 
     protected bool $isAuthenticated = false;
@@ -39,6 +49,9 @@ abstract class AuthenticatedFormBase extends FormBase
         Connection                    $database,
         EntityTypeManagerInterface    $entityTypeManager,
         ClientInterface               $httpClient,
+        ConfigFactoryInterface        $configFactory,
+        ModuleHandlerInterface        $moduleHandler,
+        GoogleService                 $googleService,
         LoggerChannelFactoryInterface $loggerFactory,
     )
     {
@@ -48,6 +61,9 @@ abstract class AuthenticatedFormBase extends FormBase
         $this->database = $database;
         $this->applicationStorage = $applicationStorage;
         $this->httpClient = $httpClient;
+        $this->membershipSettings = new MembershipSettings($configFactory);
+        $this->module = $moduleHandler->getModule('esn_membership_manager');
+        $this->googleService = $googleService;
         $this->logger = $loggerFactory->get('esn_membership_manager');
     }
 
@@ -66,6 +82,15 @@ abstract class AuthenticatedFormBase extends FormBase
         /** @var ClientInterface $httpClient */
         $httpClient = $container->get('http_client');
 
+        /** @var ConfigFactoryInterface $configFactory */
+        $configFactory = $container->get('config.factory');
+
+        /** @var ModuleHandlerInterface $moduleHandler */
+        $moduleHandler = $container->get('module_handler');
+
+        /** @var GoogleService $googleService */
+        $googleService = $container->get('esn_membership_manager.google_service');
+
         /** @var LoggerChannelFactoryInterface $loggerFactory */
         $loggerFactory = $container->get('logger.factory');
 
@@ -73,6 +98,9 @@ abstract class AuthenticatedFormBase extends FormBase
             $database,
             $entityTypeManager,
             $httpClient,
+            $configFactory,
+            $moduleHandler,
+            $googleService,
             $loggerFactory,
         );
     }
@@ -105,6 +133,7 @@ abstract class AuthenticatedFormBase extends FormBase
     /**
      * {@inheritDoc}
      * @codeCoverageIgnore
+     * @throws RandomException
      */
     public function buildForm(array $form, FormStateInterface $form_state): array
     {
@@ -287,6 +316,9 @@ abstract class AuthenticatedFormBase extends FormBase
         $form_state->setRebuild();
     }
 
+    /**
+     * @throws RandomException
+     */
     protected function addAuthenticationDialog(array &$form, FormStateInterface $form_state): void
     {
         $session = $this->getRequest()->getSession();
@@ -318,19 +350,12 @@ abstract class AuthenticatedFormBase extends FormBase
             '#type' => 'fieldset'
         ];
 
-        $form['auth']['email'] = [
-            '#type' => 'email',
-            '#title' => $this->t('Email'),
-            '#description' => $this->t('A verification code will be sent to this email address.'),
-            '#required' => TRUE,
-            '#defailt_value' => $form_state->getValue('email') ?? $authenticationData['email'] ?? '',
-        ];
-
         $apiMessage = $form_state->get('api_message');
         if ($apiMessage) {
             $messageType = $form_state->get('api_message_type') ?? 'status';
             $form['auth']['message'] = [
                 '#markup' => '<p class="alert alert-' . ($messageType == 'status' ? 'success' : 'warning') . '">' . $apiMessage . '</p>',
+                '#weight' => -25,
             ];
         }
 
@@ -338,6 +363,42 @@ abstract class AuthenticatedFormBase extends FormBase
             $this->isDialogAdded = true;
             return;
         }
+
+        if (!$isCodeSent && $this->membershipSettings->getGoogleAuthenticationSwitch()) {
+            $stateToken = bin2hex(random_bytes(32));
+            $session->set('google_oauth_state', [
+                'token' => $stateToken,
+                'type' => $this->getAuthenticationType(),
+            ]);
+
+            $authUrl = $this->googleService->getMembershipAuthURL($stateToken);
+
+            $svgPath = $this->module->getPath() . '/assets/images/auth/google-sign-in.svg';
+            $buttonContent = file_exists($svgPath)
+                ? file_get_contents($svgPath)
+                : $this->t('Sign in with Google');
+
+            $form['auth']['google_sign_in'] = [
+                '#type' => 'markup',
+                '#markup' => Markup::create('<div class="google-auth-wrapper"><a href="' . htmlspecialchars($authUrl) . '" class="google-auth-button" title="' . $this->t('Sign in with Google') . '">' . $buttonContent . '</a></div>'),
+                '#weight' => -20,
+            ];
+
+            $form['auth']['google_divider'] = [
+                '#type' => 'markup',
+                '#markup' => Markup::create('<div class="google-auth-divider"><span>' . $this->t('or') . '</span></div>'),
+                '#weight' => -10,
+            ];
+        }
+
+        $form['auth']['email'] = [
+            '#type' => 'email',
+            '#title' => $this->t('Email'),
+            '#description' => $this->t('A verification code will be sent to this email address.'),
+            '#required' => TRUE,
+            '#default_value' => $form_state->getValue('email') ?? $authenticationData['email'] ?? '',
+            '#weight' => 0,
+        ];
 
         if (!$isCodeSent) {
             $form['auth']['send_code'] = [

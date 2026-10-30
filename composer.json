@@ -34,10 +34,8 @@
     }
   },
   "require": {
-    "esn-cy/omnia": "^1.0",
+    "esn-cy/omnia": "^1.6",
     "esn/esn_accounts_api": "^1.1",
-    "drupal/simple_oauth": "^6.1",
-    "google/apiclient-services": "^0.441",
     "tecnickcom/tcpdf": "^6.11",
     "thenetworg/oauth2-azure": "^2.2",
     "ext-gd": "*",

@@ -7,9 +7,13 @@ namespace Drupal\Tests\esn_membership_manager\Unit\Form;
 use Drupal\Component\Plugin\Exception\InvalidPluginDefinitionException;
 use Drupal\Component\Plugin\Exception\PluginNotFoundException;
 use Drupal\Component\Render\MarkupInterface;
+use Drupal\Core\Config\ConfigFactoryInterface;
+use Drupal\Core\Config\ImmutableConfig;
 use Drupal\Core\Database\Connection;
 use Drupal\Core\Database\Query\Merge;
 use Drupal\Core\Entity\EntityTypeManagerInterface;
+use Drupal\Core\Extension\Extension;
+use Drupal\Core\Extension\ModuleHandlerInterface;
 use Drupal\Core\Form\FormState;
 use Drupal\Core\Form\FormStateInterface;
 use Drupal\Core\Logger\LoggerChannelInterface;
@@ -18,6 +22,7 @@ use Drupal\Core\Routing\UrlGeneratorInterface;
 use Drupal\esn_membership_manager\Entity\Application\ApplicationInterface;
 use Drupal\esn_membership_manager\Entity\Application\ApplicationStorage;
 use Drupal\esn_membership_manager\Form\AuthenticatedFormBase;
+use Drupal\esn_membership_manager\Service\GoogleService;
 use Drupal\Tests\esn_membership_manager\Unit\MembershipManagerTestCase;
 use Exception;
 use GuzzleHttp\Client;
@@ -99,6 +104,7 @@ class TestAuthenticatedForm extends AuthenticatedFormBase
  * Unit tests for AuthenticatedFormBase.
  *
  * @covers \Drupal\esn_membership_manager\Form\AuthenticatedFormBase
+ * @uses   \Drupal\esn_membership_manager\Config\MembershipSettings
  * @group esn_membership_manager
  */
 class AuthenticatedFormBaseTest extends MembershipManagerTestCase
@@ -139,9 +145,24 @@ class AuthenticatedFormBaseTest extends MembershipManagerTestCase
         $urlGenerator = $this->createMock(UrlGeneratorInterface::class);
         $urlGenerator->method('generateFromRoute')->willReturn('https://example.com/auth');
 
+        $configFactory = $this->createMock(ConfigFactoryInterface::class);
+        $config = $this->createMock(ImmutableConfig::class);
+        $config->method('get')->willReturn(null);
+        $configFactory->method('get')->with('esn_membership_manager.settings')->willReturn($config);
+
+        $module = $this->createMock(Extension::class);
+        $module->method('getPath')->willReturn('/path/to/module');
+        $moduleHandler = $this->createMock(ModuleHandlerInterface::class);
+        $moduleHandler->method('getModule')->with('esn_membership_manager')->willReturn($module);
+
+        $googleService = $this->createMock(GoogleService::class);
+
         $this->container->set('database', $this->database);
         $this->container->set('entity_type.manager', $entityTypeManager);
         $this->container->set('http_client', $this->httpClient);
+        $this->container->set('config.factory', $configFactory);
+        $this->container->set('module_handler', $moduleHandler);
+        $this->container->set('esn_membership_manager.google_service', $googleService);
         $this->container->set('logger.factory', $this->getLoggerFactoryMock($this->logger));
         $this->container->set('messenger', $this->messenger);
         $this->container->set('request_stack', $requestStack);
@@ -151,6 +172,9 @@ class AuthenticatedFormBaseTest extends MembershipManagerTestCase
             $this->database,
             $entityTypeManager,
             $this->httpClient,
+            $configFactory,
+            $moduleHandler,
+            $googleService,
             $this->getLoggerFactoryMock($this->logger)
         );
         $this->form->setMessenger($this->messenger);
@@ -526,6 +550,109 @@ class AuthenticatedFormBaseTest extends MembershipManagerTestCase
         $this->assertArrayHasKey('auth', $form);
         $this->assertArrayNotHasKey('send_code', $form['auth']);
         $this->assertArrayNotHasKey('verify_submit', $form['auth']);
+    }
+
+    public function testAddAuthenticationDialogWithGoogleAuthEnabledAndSvgExists(): void
+    {
+        $configFactory = $this->getConfigFactoryStub([
+            'esn_membership_manager.settings' => [
+                'switch_google_authentication' => true,
+            ],
+        ]);
+        $module = $this->createMock(Extension::class);
+        $module->method('getPath')->willReturn(realpath(__DIR__ . '/../../../../'));
+        $moduleHandler = $this->createMock(ModuleHandlerInterface::class);
+        $moduleHandler->method('getModule')->with('esn_membership_manager')->willReturn($module);
+
+        $googleService = $this->createMock(GoogleService::class);
+        $googleService->method('getMembershipAuthURL')
+            ->with($this->isType('string'))
+            ->willReturn('https://accounts.google.com/o/oauth2/v2/auth?client_id=test');
+
+        $entityTypeManager = $this->createMock(EntityTypeManagerInterface::class);
+        $entityTypeManager->method('getStorage')->with('membership_application')->willReturn($this->applicationStorage);
+
+        $requestStack = new RequestStack();
+        $request = new Request();
+        $request->setSession($this->session);
+        $requestStack->push($request);
+
+        $form = new TestAuthenticatedForm(
+            $this->database,
+            $entityTypeManager,
+            $this->httpClient,
+            $configFactory,
+            $moduleHandler,
+            $googleService,
+            $this->getLoggerFactoryMock($this->logger)
+        );
+        $form->setStringTranslation($this->container->get('string_translation'));
+        $form->setRequestStack($requestStack);
+
+        $formArray = [];
+        $formState = new FormState();
+
+        $form->callAddAuthenticationDialog($formArray, $formState);
+
+        $this->assertArrayHasKey('google_sign_in', $formArray['auth']);
+        $this->assertArrayHasKey('google_divider', $formArray['auth']);
+        $this->assertInstanceOf(MarkupInterface::class, $formArray['auth']['google_sign_in']['#markup']);
+        $this->assertInstanceOf(MarkupInterface::class, $formArray['auth']['google_divider']['#markup']);
+        $this->assertStringContainsString('https://accounts.google.com/o/oauth2/v2/auth?client_id=test', (string)$formArray['auth']['google_sign_in']['#markup']);
+        $this->assertStringContainsString('<svg', (string)$formArray['auth']['google_sign_in']['#markup']);
+        $this->assertStringContainsString('<span>or</span>', (string)$formArray['auth']['google_divider']['#markup']);
+
+        $oauthState = $this->session->get('google_oauth_state');
+        $this->assertIsArray($oauthState);
+        $this->assertArrayHasKey('token', $oauthState);
+        $this->assertEquals('login', $oauthState['type']);
+    }
+
+    public function testAddAuthenticationDialogWithGoogleAuthEnabledAndSvgMissing(): void
+    {
+        $configFactory = $this->getConfigFactoryStub([
+            'esn_membership_manager.settings' => [
+                'switch_google_authentication' => true,
+            ],
+        ]);
+        $module = $this->createMock(Extension::class);
+        $module->method('getPath')->willReturn('/invalid/nonexistent/path');
+        $moduleHandler = $this->createMock(ModuleHandlerInterface::class);
+        $moduleHandler->method('getModule')->with('esn_membership_manager')->willReturn($module);
+
+        $googleService = $this->createMock(GoogleService::class);
+        $googleService->method('getMembershipAuthURL')
+            ->with($this->isType('string'))
+            ->willReturn('https://accounts.google.com/o/oauth2/v2/auth?client_id=test');
+
+        $entityTypeManager = $this->createMock(EntityTypeManagerInterface::class);
+        $entityTypeManager->method('getStorage')->with('membership_application')->willReturn($this->applicationStorage);
+
+        $requestStack = new RequestStack();
+        $request = new Request();
+        $request->setSession($this->session);
+        $requestStack->push($request);
+
+        $form = new TestAuthenticatedForm(
+            $this->database,
+            $entityTypeManager,
+            $this->httpClient,
+            $configFactory,
+            $moduleHandler,
+            $googleService,
+            $this->getLoggerFactoryMock($this->logger)
+        );
+        $form->setStringTranslation($this->container->get('string_translation'));
+        $form->setRequestStack($requestStack);
+
+        $formArray = [];
+        $formState = new FormState();
+
+        $form->callAddAuthenticationDialog($formArray, $formState);
+
+        $this->assertArrayHasKey('google_sign_in', $formArray['auth']);
+        $this->assertInstanceOf(MarkupInterface::class, $formArray['auth']['google_sign_in']['#markup']);
+        $this->assertStringContainsString('Sign in with Google', (string)$formArray['auth']['google_sign_in']['#markup']);
     }
 
     /**

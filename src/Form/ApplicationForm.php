@@ -14,21 +14,19 @@ use Drupal\Core\Database\Connection;
 use Drupal\Core\Datetime\DrupalDateTime;
 use Drupal\Core\Entity\EntityStorageInterface;
 use Drupal\Core\Entity\EntityTypeManagerInterface;
-use Drupal\Core\Extension\Extension;
 use Drupal\Core\Extension\ModuleHandlerInterface;
 use Drupal\Core\Form\FormStateInterface;
 use Drupal\Core\Logger\LoggerChannelFactoryInterface;
 use Drupal\Core\Render\Markup;
 use Drupal\Core\Url;
 use Drupal\esn_accounts_api\Entity\Organisation;
-use Drupal\esn_membership_manager\Config\MembershipSettings;
 use Drupal\esn_membership_manager\Entity\Application\ApplicationField;
-use Drupal\esn_membership_manager\Entity\Application\ApplicationStorage;
 use Drupal\esn_membership_manager\Mail\BothConfirmationEmail;
 use Drupal\esn_membership_manager\Mail\PassConfirmationEmail;
 use Drupal\esn_membership_manager\Plugin\Action\ApproveApplication;
 use Drupal\esn_membership_manager\Service\DiditService;
 use Drupal\esn_membership_manager\Service\FileService;
+use Drupal\esn_membership_manager\Service\GoogleService;
 use Drupal\esn_membership_manager\Utility\ApprovalStatuses;
 use Drupal\esn_membership_manager\Utility\MobilityStatuses;
 use Drupal\esn_membership_manager\Utility\Nationalities;
@@ -40,12 +38,9 @@ use Symfony\Component\DependencyInjection\ContainerInterface;
 
 class ApplicationForm extends AuthenticatedFormBase
 {
-    protected MembershipSettings $membershipSettings;
     protected OmniaSettings $omniaSettings;
     protected FileService $fileService;
     protected EmailService $emailService;
-    protected Extension $module;
-    protected ApplicationStorage $applicationStorage;
     protected ApproveApplication $approveApplication;
     protected EntityStorageInterface $organisationStorage;
     protected DiditService $diditService;
@@ -62,26 +57,21 @@ class ApplicationForm extends AuthenticatedFormBase
         EntityTypeManagerInterface    $entityTypeManager,
         ClientInterface               $httpClient,
         FileService                   $fileService,
-        EmailService $emailService,
+        EmailService                  $emailService,
         ModuleHandlerInterface        $moduleHandler,
         ActionManager                 $actionManager,
+        GoogleService                 $googleService,
         DiditService                  $diditService,
         LoggerChannelFactoryInterface $loggerFactory,
     )
     {
-        /** @var ApplicationStorage $applicationStorage */
-        $applicationStorage = $entityTypeManager->getStorage('membership_application');
-
         /** @var ApproveApplication $approveApplication */
         $approveApplication = $actionManager->createInstance('esn_membership_manager_approve');
 
-        parent::__construct($database, $entityTypeManager, $httpClient, $loggerFactory);
-        $this->membershipSettings = new MembershipSettings($configFactory);
+        parent::__construct($database, $entityTypeManager, $httpClient, $configFactory, $moduleHandler, $googleService, $loggerFactory);
         $this->omniaSettings = new OmniaSettings($configFactory);
         $this->fileService = $fileService;
         $this->emailService = $emailService;
-        $this->module = $moduleHandler->getModule('esn_membership_manager');
-        $this->applicationStorage = $applicationStorage;
         $this->approveApplication = $approveApplication;
         $this->organisationStorage = $entityTypeManager->getStorage('esn_organisation');
         $this->diditService = $diditService;
@@ -119,6 +109,9 @@ class ApplicationForm extends AuthenticatedFormBase
         /** @var ActionManager $actionManager */
         $actionManager = $container->get('plugin.manager.action');
 
+        /** @var GoogleService $googleService */
+        $googleService = $container->get('esn_membership_manager.google_service');
+
         /** @var DiditService $diditService */
         $diditService = $container->get('esn_membership_manager.didit_service');
 
@@ -134,6 +127,7 @@ class ApplicationForm extends AuthenticatedFormBase
             $emailService,
             $moduleHandler,
             $actionManager,
+            $googleService,
             $diditService,
             $loggerFactory,
         );

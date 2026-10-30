@@ -36,6 +36,7 @@ use Drupal\esn_membership_manager\Mail\PassConfirmationEmail;
 use Drupal\esn_membership_manager\Plugin\Action\ApproveApplication;
 use Drupal\esn_membership_manager\Service\DiditService;
 use Drupal\esn_membership_manager\Service\FileService;
+use Drupal\esn_membership_manager\Service\GoogleService;
 use Drupal\omnia\Config\OmniaSettings;
 use Drupal\omnia\Service\EmailService;
 use Drupal\Tests\esn_membership_manager\Unit\MembershipManagerTestCase;
@@ -151,6 +152,9 @@ class ApplicationFormTest extends MembershipManagerTestCase
         $this->container->set('request_stack', $requestStack);
         $this->container->set('url_generator', $urlGenerator);
 
+        $googleService = $this->createMock(GoogleService::class);
+        $this->container->set('esn_membership_manager.google_service', $googleService);
+
         $this->form = new ApplicationForm(
             $configFactory,
             $this->database,
@@ -160,6 +164,7 @@ class ApplicationFormTest extends MembershipManagerTestCase
             $this->emailService,
             $moduleHandler,
             $actionManager,
+            $googleService,
             $this->diditService,
             $this->getLoggerFactoryMock($this->logger),
         );

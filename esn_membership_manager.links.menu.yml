@@ -10,7 +10,7 @@ esn_membership_manager.about:
   title: "About Memberships"
   description: "About our membership options and services"
   parent: esn_membership_manager.category
-  route_name: esn_membership_manager.apply
+  route_name: esn_membership_manager.about
   weight: 1
 
 esn_membership_manager.apply:
@@ -82,6 +82,5 @@ esn_membership_manager.settings:
   description: "Configure settings for the ESN Membership Manager module."
   parent: omnia.category
   route_name: esn_membership_manager.settings
-  weight: 10
   options:
     _permission: "manage module settings"

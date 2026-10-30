@@ -47,7 +47,7 @@ class AboutPage extends ControllerBase
     {
         $passName = htmlspecialchars($this->membershipSettings->getPassName());
         $guestPassName = htmlspecialchars($this->membershipSettings->getGuestPassName());
-        $orgName = htmlspecialchars($this->omniaSettings->getOrganisationName());
+        $orgName = htmlspecialchars($this->omniaSettings->getOrganisationName() ?? '');
 
         $applyUrl = Url::fromRoute('esn_membership_manager.apply')->toString();
         $dashboardUrl = Url::fromRoute('esn_membership_manager.dashboard')->toString();

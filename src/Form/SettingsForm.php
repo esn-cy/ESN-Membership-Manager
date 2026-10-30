@@ -98,48 +98,89 @@ class SettingsForm extends ConfigFormBase
             '#open' => true
         ];
 
-        $form['switches']['switch_guest_pass'] = [
+        $form['switches']['features'] = [
+            '#type' => 'fieldset',
+            '#title' => $this->t('ESN Membership Manager Features'),
+        ];
+
+        $form['switches']['features']['switch_guest_pass'] = [
             '#type' => 'checkbox',
             '#title' => $this->t('Enable Guest Passes'),
             '#default_value' => $membershipSettings->getGuestPassSwitch(),
         ];
 
         if ($this->moduleHandler->moduleExists('estia_housing')) {
-            $form['switches']['switch_estia'] = [
+            $form['switches']['omnia_modules'] = [
+                '#type' => 'fieldset',
+                '#title' => $this->t('Omnia Module Integrations'),
+            ];
+
+            $form['switches']['omnia_modules']['switch_estia'] = [
                 '#type' => 'checkbox',
-                '#title' => $this->t('Enable Estia Housing Integration'),
+                '#title' => $this->t('Enable Estia Housing'),
                 '#default_value' => $membershipSettings->getEstiaSwitch(),
             ];
         }
 
-        $form['switches']['switch_weeztix'] = [
-            '#type' => 'checkbox',
-            '#title' => $this->t('Enable Weeztix Integration'),
-            '#default_value' => $membershipSettings->getWeeztixSwitch(),
+        $form['switches']['authentication'] = [
+            '#type' => 'fieldset',
+            '#title' => $this->t('Third-party Authentication'),
         ];
 
-        $form['switches']['switch_google_sheets'] = [
+        $form['switches']['authentication']['switch_google_authentication'] = [
             '#type' => 'checkbox',
-            '#title' => $this->t('Enable Google Sheets Integration'),
-            '#default_value' => $membershipSettings->getGoogleSheetsSwitch(),
+            '#title' => $this->t('Enable Google Authentication'),
+            '#default_value' => $membershipSettings->getGoogleAuthenticationSwitch(),
         ];
 
-        $form['switches']['switch_google_wallet'] = [
+        $form['switches']['verification'] = [
+            '#type' => 'fieldset',
+            '#title' => $this->t('Verification'),
+        ];
+
+        $form['switches']['verification']['switch_didit'] = [
+            '#type' => 'checkbox',
+            '#title' => $this->t('Enable Didit Integration'),
+            '#default_value' => $membershipSettings->getDiditSwitch(),
+        ];
+
+        $form['switches']['digital_wallets'] = [
+            '#type' => 'fieldset',
+            '#title' => $this->t('Digital Wallets'),
+        ];
+
+        $form['switches']['digital_wallets']['switch_google_wallet'] = [
             '#type' => 'checkbox',
             '#title' => $this->t('Enable Google Wallet Integration'),
             '#default_value' => $membershipSettings->getGoogleWalletSwitch(),
         ];
 
-        $form['switches']['switch_apple_wallet'] = [
+        $form['switches']['digital_wallets']['switch_apple_wallet'] = [
             '#type' => 'checkbox',
             '#title' => $this->t('Enable Apple Wallet Integration'),
             '#default_value' => $membershipSettings->getAppleWalletSwitch(),
         ];
 
-        $form['switches']['switch_didit'] = [
+        $form['switches']['ticketing'] = [
+            '#type' => 'fieldset',
+            '#title' => $this->t('Ticketing'),
+        ];
+
+        $form['switches']['ticketing']['switch_weeztix'] = [
             '#type' => 'checkbox',
-            '#title' => $this->t('Enable Didit Integration'),
-            '#default_value' => $membershipSettings->getDiditSwitch(),
+            '#title' => $this->t('Enable Weeztix Integration'),
+            '#default_value' => $membershipSettings->getWeeztixSwitch(),
+        ];
+
+        $form['switches']['logging'] = [
+            '#type' => 'fieldset',
+            '#title' => $this->t('Logging'),
+        ];
+
+        $form['switches']['logging']['switch_google_sheets'] = [
+            '#type' => 'checkbox',
+            '#title' => $this->t('Enable Google Sheets Integration'),
+            '#default_value' => $membershipSettings->getGoogleSheetsSwitch(),
         ];
 
         $form['general'] = [
@@ -398,16 +439,43 @@ class SettingsForm extends ConfigFormBase
             }
         }
 
+        $googleAuthEnabled = $form_state->getValue('switch_google_authentication') ?? $membershipSettings->getGoogleAuthenticationSwitch();
+
+        $form['google_authentication'] = [
+            '#type' => 'details',
+            '#title' => $this->t('Google Authentication Settings'),
+            '#description' => $this->t('Configuration for the Google Authentication feature.'),
+            '#open' => $googleAuthEnabled
+        ];
+
+        $form['google_authentication']['google_auth_client_id'] = [
+            '#type' => 'textfield',
+            '#title' => $this->t('Client ID'),
+            '#description' => $this->t('The Client ID from the Google Auth Platform.'),
+            '#default_value' => $membershipSettings->getGoogleAuthClientID(),
+            '#disabled' => !$googleAuthEnabled,
+            '#required' => $googleAuthEnabled
+        ];
+
+        $form['google_authentication']['google_auth_client_secret'] = [
+            '#type' => 'textfield',
+            '#title' => $this->t('Client Secret'),
+            '#description' => $this->t('The Client Secret from the Google Auth Platform.'),
+            '#default_value' => $membershipSettings->getGoogleAuthClientSecret(),
+            '#disabled' => !$googleAuthEnabled,
+            '#required' => $googleAuthEnabled
+        ];
+
         $googleSheetsEnabled = $form_state->getValue('switch_google_sheets') ?? $membershipSettings->getGoogleSheetsSwitch();
 
-        $form['google'] = [
+        $form['google_sheets'] = [
             '#type' => 'details',
-            '#title' => $this->t('Google Settings'),
-            '#description' => $this->t('Configuration for the Google Service.'),
+            '#title' => $this->t('Google Sheets Settings'),
+            '#description' => $this->t('Configuration for the Google Sheets logging feature.'),
             '#open' => $googleSheetsEnabled
         ];
 
-        $form['google']['google_spreadsheet_id'] = [
+        $form['google_sheets']['google_spreadsheet_id'] = [
             '#type' => 'textfield',
             '#title' => $this->t('Spreadsheet ID'),
             '#description' => $this->t('The long ID string from the Google Sheet URL.'),
@@ -416,7 +484,7 @@ class SettingsForm extends ConfigFormBase
             '#required' => $googleSheetsEnabled
         ];
 
-        $form['google']['google_sheet_name'] = [
+        $form['google_sheets']['google_sheet_name'] = [
             '#type' => 'textfield',
             '#title' => $this->t('Sheet Name'),
             '#description' => $this->t('The name of the specific tab (e.g., "Data").'),
@@ -546,6 +614,7 @@ class SettingsForm extends ConfigFormBase
             ->setGuestPassSwitch($form_state->getValue('switch_guest_pass'))
             ->setEstiaSwitch($this->moduleHandler->moduleExists('estia_housing') && $form_state->getValue('switch_estia'))
             ->setWeeztixSwitch($form_state->getValue('switch_weeztix'))
+            ->setGoogleAuthenticationSwitch($form_state->getValue('switch_google_authentication'))
             ->setGoogleSheetsSwitch($form_state->getValue('switch_google_sheets'))
             ->setGoogleWalletSwitch($form_state->getValue('switch_google_wallet'))
             ->setAppleWalletSwitch($form_state->getValue('switch_apple_wallet'))
@@ -568,6 +637,8 @@ class SettingsForm extends ConfigFormBase
             ->setWeeztixClientSecret($form_state->getValue('weeztix_client_secret'))
             ->setWeeztixPassCouponListID($form_state->getValue('weeztix_pass_coupon_list_id'))
             ->setWeeztixCardCouponListID($form_state->getValue('weeztix_card_coupon_list_id'))
+            ->setGoogleAuthClientID($form_state->getValue('google_auth_client_id'))
+            ->setGoogleAuthClientSecret($form_state->getValue('google_auth_client_secret'))
             ->setSpreadsheetID($form_state->getValue('google_spreadsheet_id'))
             ->setSheetName($form_state->getValue('google_sheet_name'))
             ->setAppleCertificatePassword($form_state->getValue('apple_certificate_password'))

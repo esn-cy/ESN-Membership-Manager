@@ -71,9 +71,9 @@ class LegalPages extends ControllerBase
 
     public function privacyPage(): array
     {
-        $orgName = htmlspecialchars($this->omniaSettings->getOrganisationName());
+        $orgName = htmlspecialchars($this->omniaSettings->getOrganisationName() ?? '');
         $passName = htmlspecialchars($this->membershipSettings->getPassName());
-        $contactEmail = htmlspecialchars($this->membershipSettings->getAdminEmailAddress());
+        $contactEmail = htmlspecialchars($this->membershipSettings->getAdminEmailAddress() ?? '');
 
         $content = <<<HTML
             <h1>Privacy Policy</h1>

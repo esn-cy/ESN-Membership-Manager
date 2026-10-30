@@ -102,3 +102,53 @@
     background-color: rgba(122, 193, 67, 0.1);
     border: 1px solid rgba(122, 193, 67, 0.3);
 }
+
+.esn-membership-manager-login-form .google-auth-wrapper {
+    display: flex;
+    justify-content: center;
+    margin-bottom: 0.5rem;
+}
+
+.esn-membership-manager-login-form .google-auth-button {
+    display: inline-block;
+    line-height: 0;
+    transition: opacity 0.2s ease, transform 0.1s ease;
+    cursor: pointer;
+}
+
+.esn-membership-manager-login-form .google-auth-button:hover {
+    opacity: 0.9;
+    transform: translateY(-1px);
+}
+
+.esn-membership-manager-login-form .google-auth-button svg {
+    display: block;
+    width: 200px;
+    height: auto;
+}
+
+.esn-membership-manager-login-form .google-auth-divider {
+    display: flex;
+    align-items: center;
+    text-align: center;
+    margin: 1.5rem 0;
+    color: #888;
+    font-size: 0.85rem;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+}
+
+.esn-membership-manager-login-form .google-auth-divider::before,
+.esn-membership-manager-login-form .google-auth-divider::after {
+    content: '';
+    flex: 1;
+    border-bottom: 1px solid #ddd;
+}
+
+.esn-membership-manager-login-form .google-auth-divider:not(:empty)::before {
+    margin-right: 0.75em;
+}
+
+.esn-membership-manager-login-form .google-auth-divider:not(:empty)::after {
+    margin-left: 0.75em;
+}

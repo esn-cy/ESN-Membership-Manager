@@ -4,6 +4,7 @@ description: 'Provides a framework to accept applications for both Free Passes a
 core_version_requirement: ^9 || ^10
 package: Custom
 dependencies:
+  - esn-cy:omnia
   - drupal:file
   - drupal:views_bulk_operations
 configure: esn_membership_manager.settings

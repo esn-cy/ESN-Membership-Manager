@@ -61,6 +61,7 @@ class MembershipSettingsTest extends MembershipManagerTestCase
         $this->assertFalse($settings->getGoogleWalletSwitch());
         $this->assertFalse($settings->getAppleWalletSwitch());
         $this->assertFalse($settings->getDiditSwitch());
+        $this->assertFalse($settings->getGoogleAuthenticationSwitch());
 
         $this->assertEquals('ESN Pass', $settings->getPassName());
         $this->assertNull($settings->getEmailAddress());
@@ -96,6 +97,9 @@ class MembershipSettingsTest extends MembershipManagerTestCase
 
         $this->assertNull($settings->getDiditAPIKey());
         $this->assertNull($settings->getDiditWorkflowID());
+
+        $this->assertNull($settings->getGoogleAuthClientID());
+        $this->assertNull($settings->getGoogleAuthClientSecret());
     }
 
     public function testGettersReturnConfiguredValues(): void
@@ -109,6 +113,7 @@ class MembershipSettingsTest extends MembershipManagerTestCase
                 'switch_google_wallet' => true,
                 'switch_apple_wallet' => true,
                 'switch_didit' => true,
+                'switch_google_authentication' => true,
                 'pass_name' => 'Custom Pass',
                 'email_address' => 'info@esn.org',
                 'email_name' => 'ESN Info',
@@ -137,6 +142,8 @@ class MembershipSettingsTest extends MembershipManagerTestCase
                 'apple_pass_type_id' => 'pass.org.esn.custom',
                 'didit_api_key' => 'didit_key_xyz',
                 'didit_workflow_id' => 'didit_wf_789',
+                'google_auth_client_id' => 'google_cid_123',
+                'google_auth_client_secret' => 'google_csec_456',
             ],
         ]);
 
@@ -149,6 +156,7 @@ class MembershipSettingsTest extends MembershipManagerTestCase
         $this->assertTrue($settings->getGoogleWalletSwitch());
         $this->assertTrue($settings->getAppleWalletSwitch());
         $this->assertTrue($settings->getDiditSwitch());
+        $this->assertTrue($settings->getGoogleAuthenticationSwitch());
 
         $this->assertEquals('Custom Pass', $settings->getPassName());
         $this->assertEquals('info@esn.org', $settings->getEmailAddress());
@@ -184,6 +192,9 @@ class MembershipSettingsTest extends MembershipManagerTestCase
 
         $this->assertEquals('didit_key_xyz', $settings->getDiditAPIKey());
         $this->assertEquals('didit_wf_789', $settings->getDiditWorkflowID());
+
+        $this->assertEquals('google_cid_123', $settings->getGoogleAuthClientID());
+        $this->assertEquals('google_csec_456', $settings->getGoogleAuthClientSecret());
     }
 
     public function testSettersAndSave(): void
@@ -226,6 +237,9 @@ class MembershipSettingsTest extends MembershipManagerTestCase
             ['apple_pass_type_id', 'type_new'],
             ['didit_api_key', 'dkey_new'],
             ['didit_workflow_id', 'dwf_new'],
+            ['switch_google_authentication', true],
+            ['google_auth_client_id', 'google_cid_new'],
+            ['google_auth_client_secret', 'google_csec_new'],
         ];
 
         $mutableConfig->expects($this->exactly(count($setExpected)))
@@ -289,6 +303,9 @@ class MembershipSettingsTest extends MembershipManagerTestCase
 
         $this->assertSame($settings, $settings->setDiditAPIKey('dkey_new'));
         $this->assertSame($settings, $settings->setDiditWorkflowID('dwf_new'));
+        $this->assertSame($settings, $settings->setGoogleAuthenticationSwitch(true));
+        $this->assertSame($settings, $settings->setGoogleAuthClientID('google_cid_new'));
+        $this->assertSame($settings, $settings->setGoogleAuthClientSecret('google_csec_new'));
 
         $settings->save();
     }

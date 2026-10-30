@@ -6,6 +6,7 @@ use DateInterval;
 use DateTimeInterface;
 use Drupal\Core\Config\ConfigFactoryInterface;
 use Drupal\Core\Logger\LoggerChannelFactoryInterface;
+use Drupal\Core\Url;
 use Drupal\esn_membership_manager\Config\MembershipSettings;
 use Drupal\esn_membership_manager\Entity\Application\ApplicationField;
 use Drupal\esn_membership_manager\Entity\Application\ApplicationInterface;
@@ -45,6 +46,16 @@ class GoogleService extends GoogleServiceBase
         $this->membershipSettings = new MembershipSettings($configFactory);
         $this->omniaSettings = new OmniaSettings($configFactory);
         $this->logger = $loggerFactory->get('esn_membership_manager');
+    }
+
+    public function getMembershipAuthURL(?string $state = null): string
+    {
+        return parent::getAuthURL(
+            $this->membershipSettings->getGoogleAuthClientID() ?? '',
+            $this->membershipSettings->getGoogleAuthClientSecret() ?? '',
+            Url::fromRoute('esn_membership_manager.google_auth', [], ['absolute' => TRUE])->toString(),
+            $state
+        );
     }
 
     public function appendRow(array $data): bool

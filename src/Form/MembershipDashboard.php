@@ -16,12 +16,12 @@ use Drupal\Core\Form\FormStateInterface;
 use Drupal\Core\Logger\LoggerChannelFactoryInterface;
 use Drupal\Core\Render\Markup;
 use Drupal\Core\Url;
-use Drupal\esn_membership_manager\Config\MembershipSettings;
 use Drupal\esn_membership_manager\Entity\Application\ApplicationField;
 use Drupal\esn_membership_manager\Entity\GuestPass\GuestPassField;
 use Drupal\esn_membership_manager\Entity\GuestPass\GuestPassStorage;
 use Drupal\esn_membership_manager\Object\Status;
 use Drupal\esn_membership_manager\Service\FileService;
+use Drupal\esn_membership_manager\Service\GoogleService;
 use Drupal\esn_membership_manager\Service\GuestPassService;
 use Drupal\esn_membership_manager\Utility\ApprovalStatuses;
 use Drupal\esn_membership_manager\Utility\Nationalities;
@@ -31,7 +31,6 @@ use Symfony\Component\DependencyInjection\ContainerInterface;
 
 class MembershipDashboard extends AuthenticatedFormBase
 {
-    protected MembershipSettings $membershipSettings;
     protected GuestPassStorage $guestPassStorage;
     protected FileService $fileService;
     protected GuestPassService $guestPassService;
@@ -48,6 +47,7 @@ class MembershipDashboard extends AuthenticatedFormBase
         LoggerChannelFactoryInterface $loggerFactory,
         ConfigFactoryInterface        $configFactory,
         FileService                   $fileService,
+        GoogleService                 $googleService,
         ModuleHandlerInterface        $moduleHandler,
         GuestPassService              $guestPassService,
     )
@@ -55,8 +55,7 @@ class MembershipDashboard extends AuthenticatedFormBase
         /** @var GuestPassStorage $guestPassStorage */
         $guestPassStorage = $entityTypeManager->getStorage('membership_guest');
 
-        parent::__construct($database, $entityTypeManager, $httpClient, $loggerFactory);
-        $this->membershipSettings = new MembershipSettings($configFactory);
+        parent::__construct($database, $entityTypeManager, $httpClient, $configFactory, $moduleHandler, $googleService, $loggerFactory);
         $this->guestPassStorage = $guestPassStorage;
         $this->fileService = $fileService;
         $this->guestPassService = $guestPassService;
@@ -87,6 +86,9 @@ class MembershipDashboard extends AuthenticatedFormBase
         /** @var FileService $fileService */
         $fileService = $container->get('esn_membership_manager.file_service');
 
+        /** @var GoogleService $googleService */
+        $googleService = $container->get('esn_membership_manager.google_service');
+
         /** @var ModuleHandlerInterface $moduleHandler */
         $moduleHandler = $container->get('module_handler');
 
@@ -100,6 +102,7 @@ class MembershipDashboard extends AuthenticatedFormBase
             $loggerFactory,
             $configFactory,
             $fileService,
+            $googleService,
             $moduleHandler,
             $guestPassService,
         );

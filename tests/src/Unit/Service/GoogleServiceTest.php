@@ -7,6 +7,7 @@ namespace Drupal\Tests\esn_membership_manager\Unit\Service;
 use Drupal\Core\Config\ConfigFactoryInterface;
 use Drupal\Core\Datetime\DrupalDateTime;
 use Drupal\Core\Logger\LoggerChannelInterface;
+use Drupal\Core\Routing\UrlGeneratorInterface;
 use Drupal\esn_membership_manager\Config\MembershipSettings;
 use Drupal\esn_membership_manager\Entity\Application\ApplicationField;
 use Drupal\esn_membership_manager\Entity\Application\ApplicationInterface;
@@ -922,5 +923,49 @@ class GoogleServiceTest extends MembershipManagerTestCase
         $this->expectExceptionMessage('Unsupported application type.');
 
         $service->updateApplicationObject($application, 'unsupported_type');
+    }
+
+    public function testGetMembershipAuthURL(): void
+    {
+        $urlGenerator = $this->createMock(UrlGeneratorInterface::class);
+        $urlGenerator->method('generateFromRoute')
+            ->with('esn_membership_manager.google_auth', [], ['absolute' => TRUE])
+            ->willReturn('https://example.com/auth/google');
+        $this->container->set('url_generator', $urlGenerator);
+
+        $configFactory = $this->getTestConfigFactory([
+            MembershipSettings::CONFIG_NAME => [
+                'google_auth_client_id' => 'my_client_id_123',
+                'google_auth_client_secret' => 'my_client_secret_456',
+            ],
+        ]);
+        $fileService = $this->createMock(FileService::class);
+        $loggerFactory = $this->getLoggerFactoryMock();
+
+        $service = new GoogleService($configFactory, $fileService, $loggerFactory);
+        $authUrl = $service->getMembershipAuthURL('sample_state_token');
+
+        $this->assertStringContainsString('https://accounts.google.com/o/oauth2/v2/auth', $authUrl);
+        $this->assertStringContainsString('client_id=my_client_id_123', $authUrl);
+        $this->assertStringContainsString('state=sample_state_token', $authUrl);
+        $this->assertStringContainsString('prompt=select_account', $authUrl);
+    }
+
+    public function testGetMembershipAuthURLWithDefaults(): void
+    {
+        $urlGenerator = $this->createMock(UrlGeneratorInterface::class);
+        $urlGenerator->method('generateFromRoute')
+            ->with('esn_membership_manager.google_auth', [], ['absolute' => TRUE])
+            ->willReturn('https://example.com/auth/google');
+        $this->container->set('url_generator', $urlGenerator);
+
+        $configFactory = $this->getTestConfigFactory();
+        $fileService = $this->createMock(FileService::class);
+        $loggerFactory = $this->getLoggerFactoryMock();
+
+        $service = new GoogleService($configFactory, $fileService, $loggerFactory);
+        $authUrl = $service->getMembershipAuthURL();
+
+        $this->assertStringContainsString('https://accounts.google.com/o/oauth2/v2/auth', $authUrl);
     }
 }

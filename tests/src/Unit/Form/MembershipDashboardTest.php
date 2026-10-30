@@ -10,6 +10,7 @@ use Drupal\Core\Database\Connection;
 use Drupal\Core\Datetime\DrupalDateTime;
 use Drupal\Core\Entity\EntityStorageException;
 use Drupal\Core\Entity\EntityTypeManagerInterface;
+use Drupal\Core\Extension\Extension;
 use Drupal\Core\Extension\ModuleHandlerInterface;
 use Drupal\Core\Form\FormState;
 use Drupal\Core\Logger\LoggerChannelInterface;
@@ -23,6 +24,7 @@ use Drupal\esn_membership_manager\Form\AuthenticatedFormBase;
 use Drupal\esn_membership_manager\Form\MembershipDashboard;
 use Drupal\esn_membership_manager\Object\Status;
 use Drupal\esn_membership_manager\Service\FileService;
+use Drupal\esn_membership_manager\Service\GoogleService;
 use Drupal\esn_membership_manager\Service\GuestPassService;
 use Drupal\esn_membership_manager\Utility\ApprovalStatuses;
 use Drupal\file\FileInterface;
@@ -71,7 +73,9 @@ class MembershipDashboardTest extends MembershipManagerTestCase
         $httpClient = $this->createMock(Client::class);
         $this->logger = $this->createMock(LoggerChannelInterface::class);
         $this->fileService = $this->createMock(FileService::class);
+        $moduleExtension = $this->createMock(Extension::class);
         $moduleHandler = $this->createMock(ModuleHandlerInterface::class);
+        $moduleHandler->method('getModule')->with('esn_membership_manager')->willReturn($moduleExtension);
         $this->guestPassService = $this->createMock(GuestPassService::class);
         $this->messenger = $this->createMock(MessengerInterface::class);
 
@@ -102,6 +106,8 @@ class MembershipDashboardTest extends MembershipManagerTestCase
         $this->container->set('messenger', $this->messenger);
         $this->container->set('request_stack', $requestStack);
 
+        $googleService = $this->createMock(GoogleService::class);
+        $this->container->set('esn_membership_manager.google_service', $googleService);
         $this->form = new MembershipDashboard(
             $database,
             $entityTypeManager,
@@ -109,6 +115,7 @@ class MembershipDashboardTest extends MembershipManagerTestCase
             $this->getLoggerFactoryMock($this->logger),
             $configFactory,
             $this->fileService,
+            $googleService,
             $moduleHandler,
             $this->guestPassService
         );

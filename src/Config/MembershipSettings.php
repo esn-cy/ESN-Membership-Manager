@@ -46,6 +46,17 @@ class MembershipSettings
         return $this;
     }
 
+    public function getGoogleAuthenticationSwitch(): bool
+    {
+        return $this->config->get('switch_google_authentication') ?? false;
+    }
+
+    public function setGoogleAuthenticationSwitch(bool $value): self
+    {
+        $this->config->set('switch_google_authentication', $value);
+        return $this;
+    }
+
     public function getWeeztixSwitch(): bool
     {
         return $this->config->get('switch_weeztix') ?? false;
@@ -323,6 +334,28 @@ class MembershipSettings
     public function setSpreadsheetID(string $value): self
     {
         $this->config->set('google_spreadsheet_id', $value);
+        return $this;
+    }
+
+    public function getGoogleAuthClientID(): ?string
+    {
+        return $this->config->get('google_auth_client_id');
+    }
+
+    public function setGoogleAuthClientID(string $value): self
+    {
+        $this->config->set('google_auth_client_id', $value);
+        return $this;
+    }
+
+    public function getGoogleAuthClientSecret(): ?string
+    {
+        return $this->config->get('google_auth_client_secret');
+    }
+
+    public function setGoogleAuthClientSecret(string $value): self
+    {
+        $this->config->set('google_auth_client_secret', $value);
         return $this;
     }
 
