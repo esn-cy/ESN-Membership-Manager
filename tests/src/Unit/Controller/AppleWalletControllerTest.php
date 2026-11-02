@@ -23,7 +23,7 @@ use Drupal\esn_membership_manager\Entity\Application\ApplicationInterface;
 use Drupal\esn_membership_manager\Entity\Application\ApplicationStorage;
 use Drupal\esn_membership_manager\Entity\GuestPass\GuestPassInterface;
 use Drupal\esn_membership_manager\Entity\GuestPass\GuestPassStorage;
-use Drupal\esn_membership_manager\Service\AppleWalletService;
+use Drupal\esn_membership_manager\Service\AppleService;
 use Drupal\Tests\esn_membership_manager\Unit\MembershipManagerTestCase;
 use Exception;
 use Symfony\Component\DependencyInjection\ContainerInterface;
@@ -40,7 +40,7 @@ use Symfony\Component\HttpKernel\Exception\NotFoundHttpException;
  */
 class AppleWalletControllerTest extends MembershipManagerTestCase
 {
-    private AppleWalletService $appleWalletService;
+    private AppleService $appleService;
     private EntityTypeManagerInterface $entityTypeManager;
     private ApplicationStorage $applicationStorage;
     private GuestPassStorage $guestPassStorage;
@@ -54,7 +54,7 @@ class AppleWalletControllerTest extends MembershipManagerTestCase
     {
         parent::setUp();
 
-        $this->appleWalletService = $this->createMock(AppleWalletService::class);
+        $this->appleService = $this->createMock(AppleService::class);
         $this->applicationStorage = $this->createMock(ApplicationStorage::class);
         $this->guestPassStorage = $this->createMock(GuestPassStorage::class);
 
@@ -95,7 +95,7 @@ class AppleWalletControllerTest extends MembershipManagerTestCase
         $container->method('get')
             ->willReturnCallback(function ($id) use ($configFactory, $loggerFactory) {
                 return match ($id) {
-                    'esn_membership_manager.apple_wallet_service' => $this->appleWalletService,
+                    'esn_membership_manager.apple_wallet_service' => $this->appleService,
                     'entity_type.manager' => $this->entityTypeManager,
                     'database' => $this->database,
                     'config.factory' => $configFactory,
@@ -121,7 +121,7 @@ class AppleWalletControllerTest extends MembershipManagerTestCase
         ]);
 
         $controller = new AppleWalletController(
-            $this->appleWalletService,
+            $this->appleService,
             $this->entityTypeManager,
             $this->database,
             $configFactory,
@@ -146,7 +146,7 @@ class AppleWalletControllerTest extends MembershipManagerTestCase
         ]);
 
         $controller = new AppleWalletController(
-            $this->appleWalletService,
+            $this->appleService,
             $this->entityTypeManager,
             $this->database,
             $configFactory,
@@ -177,7 +177,7 @@ class AppleWalletControllerTest extends MembershipManagerTestCase
         ]);
 
         $controller = new AppleWalletController(
-            $this->appleWalletService,
+            $this->appleService,
             $this->entityTypeManager,
             $this->database,
             $configFactory,
@@ -206,7 +206,7 @@ class AppleWalletControllerTest extends MembershipManagerTestCase
             ->with($cardNumber)
             ->willReturn($app);
 
-        $this->appleWalletService->expects($this->once())
+        $this->appleService->expects($this->once())
             ->method('createESNcard')
             ->with($app)
             ->willReturn('PKPASS_BINARY_BYTES');
@@ -216,7 +216,7 @@ class AppleWalletControllerTest extends MembershipManagerTestCase
         ]);
 
         $controller = new AppleWalletController(
-            $this->appleWalletService,
+            $this->appleService,
             $this->entityTypeManager,
             $this->database,
             $configFactory,
@@ -248,7 +248,7 @@ class AppleWalletControllerTest extends MembershipManagerTestCase
             ->with($guestToken)
             ->willReturn($guestPass);
 
-        $this->appleWalletService->expects($this->once())
+        $this->appleService->expects($this->once())
             ->method('createGuestPass')
             ->with($guestPass, $referer)
             ->willReturn('GUEST_PKPASS_BYTES');
@@ -258,7 +258,7 @@ class AppleWalletControllerTest extends MembershipManagerTestCase
         ]);
 
         $controller = new AppleWalletController(
-            $this->appleWalletService,
+            $this->appleService,
             $this->entityTypeManager,
             $this->database,
             $configFactory,
@@ -284,7 +284,7 @@ class AppleWalletControllerTest extends MembershipManagerTestCase
         ]);
 
         $controller = new AppleWalletController(
-            $this->appleWalletService,
+            $this->appleService,
             $this->entityTypeManager,
             $this->database,
             $configFactory,
@@ -312,7 +312,7 @@ class AppleWalletControllerTest extends MembershipManagerTestCase
         ]);
 
         $controller = new AppleWalletController(
-            $this->appleWalletService,
+            $this->appleService,
             $this->entityTypeManager,
             $this->database,
             $configFactory,
@@ -349,7 +349,7 @@ class AppleWalletControllerTest extends MembershipManagerTestCase
         ]);
 
         $controller = new AppleWalletController(
-            $this->appleWalletService,
+            $this->appleService,
             $this->entityTypeManager,
             $this->database,
             $configFactory,
@@ -391,7 +391,7 @@ class AppleWalletControllerTest extends MembershipManagerTestCase
         ]);
 
         $controller = new AppleWalletController(
-            $this->appleWalletService,
+            $this->appleService,
             $this->entityTypeManager,
             $this->database,
             $configFactory,
@@ -424,7 +424,7 @@ class AppleWalletControllerTest extends MembershipManagerTestCase
         ]);
 
         $controller = new AppleWalletController(
-            $this->appleWalletService,
+            $this->appleService,
             $this->entityTypeManager,
             $this->database,
             $configFactory,
@@ -459,7 +459,7 @@ class AppleWalletControllerTest extends MembershipManagerTestCase
         ]);
 
         $controller = new AppleWalletController(
-            $this->appleWalletService,
+            $this->appleService,
             $this->entityTypeManager,
             $this->database,
             $configFactory,
@@ -496,7 +496,7 @@ class AppleWalletControllerTest extends MembershipManagerTestCase
         ]);
 
         $controller = new AppleWalletController(
-            $this->appleWalletService,
+            $this->appleService,
             $this->entityTypeManager,
             $this->database,
             $configFactory,
@@ -527,7 +527,7 @@ class AppleWalletControllerTest extends MembershipManagerTestCase
         ]);
 
         $controller = new AppleWalletController(
-            $this->appleWalletService,
+            $this->appleService,
             $this->entityTypeManager,
             $this->database,
             $configFactory,
@@ -555,7 +555,7 @@ class AppleWalletControllerTest extends MembershipManagerTestCase
         $this->applicationStorage->method('load')->with('100')->willReturn($app);
         $this->applicationStorage->method('getByESNcard')->with('1234567ABCD')->willReturn($app);
 
-        $this->appleWalletService->expects($this->once())
+        $this->appleService->expects($this->once())
             ->method('createESNcard')
             ->with($app)
             ->willReturn('PKPASS_BYTES');
@@ -567,7 +567,7 @@ class AppleWalletControllerTest extends MembershipManagerTestCase
         ]);
 
         $controller = new AppleWalletController(
-            $this->appleWalletService,
+            $this->appleService,
             $this->entityTypeManager,
             $this->database,
             $configFactory,
@@ -608,7 +608,7 @@ class AppleWalletControllerTest extends MembershipManagerTestCase
         ]);
 
         $controller = new AppleWalletController(
-            $this->appleWalletService,
+            $this->appleService,
             $this->entityTypeManager,
             $this->database,
             $configFactory,
@@ -639,7 +639,7 @@ class AppleWalletControllerTest extends MembershipManagerTestCase
             ->with($passToken)
             ->willReturn($app);
 
-        $this->appleWalletService->expects($this->once())
+        $this->appleService->expects($this->once())
             ->method('createFreePass')
             ->with($app)
             ->willReturn('FREE_PASS_BYTES');
@@ -649,7 +649,7 @@ class AppleWalletControllerTest extends MembershipManagerTestCase
         ]);
 
         $controller = new AppleWalletController(
-            $this->appleWalletService,
+            $this->appleService,
             $this->entityTypeManager,
             $this->database,
             $configFactory,
@@ -678,7 +678,7 @@ class AppleWalletControllerTest extends MembershipManagerTestCase
             ->with($cardNumber)
             ->willReturn($app);
 
-        $this->appleWalletService->expects($this->once())
+        $this->appleService->expects($this->once())
             ->method('createESNcard')
             ->willThrowException(new Exception('Apple cert missing'));
 
@@ -691,7 +691,7 @@ class AppleWalletControllerTest extends MembershipManagerTestCase
         ]);
 
         $controller = new AppleWalletController(
-            $this->appleWalletService,
+            $this->appleService,
             $this->entityTypeManager,
             $this->database,
             $configFactory,
@@ -722,7 +722,7 @@ class AppleWalletControllerTest extends MembershipManagerTestCase
         ]);
 
         $controller = new AppleWalletController(
-            $this->appleWalletService,
+            $this->appleService,
             $this->entityTypeManager,
             $this->database,
             $configFactory,
@@ -756,7 +756,7 @@ class AppleWalletControllerTest extends MembershipManagerTestCase
         ]);
 
         $controller = new AppleWalletController(
-            $this->appleWalletService,
+            $this->appleService,
             $this->entityTypeManager,
             $this->database,
             $configFactory,
@@ -788,7 +788,7 @@ class AppleWalletControllerTest extends MembershipManagerTestCase
             ->with($guestToken)
             ->willReturn($guestPass);
 
-        $this->appleWalletService->expects($this->once())
+        $this->appleService->expects($this->once())
             ->method('createGuestPass')
             ->with($guestPass, $referer)
             ->willReturn('GUEST_PKPASS_BYTES');
@@ -798,7 +798,7 @@ class AppleWalletControllerTest extends MembershipManagerTestCase
         ]);
 
         $controller = new AppleWalletController(
-            $this->appleWalletService,
+            $this->appleService,
             $this->entityTypeManager,
             $this->database,
             $configFactory,
@@ -828,7 +828,7 @@ class AppleWalletControllerTest extends MembershipManagerTestCase
             ->with($guestToken)
             ->willReturn($guestPass);
 
-        $this->appleWalletService->expects($this->once())
+        $this->appleService->expects($this->once())
             ->method('createGuestPass')
             ->willThrowException(new Exception('Guest pass failure'));
 
@@ -841,7 +841,7 @@ class AppleWalletControllerTest extends MembershipManagerTestCase
         ]);
 
         $controller = new AppleWalletController(
-            $this->appleWalletService,
+            $this->appleService,
             $this->entityTypeManager,
             $this->database,
             $configFactory,
@@ -892,7 +892,7 @@ class AppleWalletControllerTest extends MembershipManagerTestCase
         ]);
 
         $controller = new AppleWalletController(
-            $this->appleWalletService,
+            $this->appleService,
             $this->entityTypeManager,
             $this->database,
             $configFactory,
@@ -936,7 +936,7 @@ class AppleWalletControllerTest extends MembershipManagerTestCase
         ]);
 
         $controller = new AppleWalletController(
-            $this->appleWalletService,
+            $this->appleService,
             $this->entityTypeManager,
             $this->database,
             $configFactory,
@@ -967,7 +967,7 @@ class AppleWalletControllerTest extends MembershipManagerTestCase
         ]);
 
         $controller = new AppleWalletController(
-            $this->appleWalletService,
+            $this->appleService,
             $this->entityTypeManager,
             $this->database,
             $configFactory,
@@ -1008,7 +1008,7 @@ class AppleWalletControllerTest extends MembershipManagerTestCase
         ]);
 
         $controller = new AppleWalletController(
-            $this->appleWalletService,
+            $this->appleService,
             $this->entityTypeManager,
             $this->database,
             $configFactory,
@@ -1065,7 +1065,7 @@ class AppleWalletControllerTest extends MembershipManagerTestCase
         ]);
 
         $controller = new AppleWalletController(
-            $this->appleWalletService,
+            $this->appleService,
             $this->entityTypeManager,
             $this->database,
             $configFactory,
@@ -1108,7 +1108,7 @@ class AppleWalletControllerTest extends MembershipManagerTestCase
         ]);
 
         $controller = new AppleWalletController(
-            $this->appleWalletService,
+            $this->appleService,
             $this->entityTypeManager,
             $this->database,
             $configFactory,
@@ -1138,7 +1138,7 @@ class AppleWalletControllerTest extends MembershipManagerTestCase
         ]);
 
         $controller = new AppleWalletController(
-            $this->appleWalletService,
+            $this->appleService,
             $this->entityTypeManager,
             $this->database,
             $configFactory,
@@ -1170,7 +1170,7 @@ class AppleWalletControllerTest extends MembershipManagerTestCase
         ]);
 
         $controller = new AppleWalletController(
-            $this->appleWalletService,
+            $this->appleService,
             $this->entityTypeManager,
             $this->database,
             $configFactory,
@@ -1204,7 +1204,7 @@ class AppleWalletControllerTest extends MembershipManagerTestCase
         ]);
 
         $controller = new AppleWalletController(
-            $this->appleWalletService,
+            $this->appleService,
             $this->entityTypeManager,
             $this->database,
             $configFactory,
@@ -1241,7 +1241,7 @@ class AppleWalletControllerTest extends MembershipManagerTestCase
         ]);
 
         $controller = new AppleWalletController(
-            $this->appleWalletService,
+            $this->appleService,
             $this->entityTypeManager,
             $this->database,
             $configFactory,
@@ -1274,7 +1274,7 @@ class AppleWalletControllerTest extends MembershipManagerTestCase
         $this->applicationStorage->method('load')->with('123')->willReturn($app);
         $this->applicationStorage->method('getByPassToken')->with($passToken)->willReturn($app);
 
-        $this->appleWalletService->method('createFreePass')->with($app)->willReturn('FREE_PASS_BYTES');
+        $this->appleService->method('createFreePass')->with($app)->willReturn('FREE_PASS_BYTES');
 
         $configFactory = $this->getConfigFactoryStub([
             MembershipSettings::CONFIG_NAME => [
@@ -1283,7 +1283,7 @@ class AppleWalletControllerTest extends MembershipManagerTestCase
         ]);
 
         $controller = new AppleWalletController(
-            $this->appleWalletService,
+            $this->appleService,
             $this->entityTypeManager,
             $this->database,
             $configFactory,
@@ -1323,7 +1323,7 @@ class AppleWalletControllerTest extends MembershipManagerTestCase
         ]);
 
         $controller = new AppleWalletController(
-            $this->appleWalletService,
+            $this->appleService,
             $this->entityTypeManager,
             $this->database,
             $configFactory,
@@ -1358,7 +1358,7 @@ class AppleWalletControllerTest extends MembershipManagerTestCase
         ]);
 
         $controller = new AppleWalletController(
-            $this->appleWalletService,
+            $this->appleService,
             $this->entityTypeManager,
             $this->database,
             $configFactory,

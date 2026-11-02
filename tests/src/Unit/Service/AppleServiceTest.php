@@ -15,7 +15,7 @@ use Drupal\esn_membership_manager\Entity\Application\ApplicationField;
 use Drupal\esn_membership_manager\Entity\Application\ApplicationInterface;
 use Drupal\esn_membership_manager\Entity\GuestPass\GuestPassField;
 use Drupal\esn_membership_manager\Entity\GuestPass\GuestPassInterface;
-use Drupal\esn_membership_manager\Service\AppleWalletService;
+use Drupal\esn_membership_manager\Service\AppleService;
 use Drupal\esn_membership_manager\Service\FileService;
 use Drupal\file\FileInterface;
 use Drupal\omnia\Config\OmniaSettings;
@@ -24,14 +24,14 @@ use Exception;
 use GuzzleHttp\ClientInterface;
 
 /**
- * Tests for AppleWalletService.
+ * Tests for AppleService.
  *
- * @covers       \Drupal\esn_membership_manager\Service\AppleWalletService
+ * @covers       \Drupal\esn_membership_manager\Service\AppleService
  * @uses         \Drupal\esn_membership_manager\Config\MembershipSettings
  * @group esn_membership_manager
  * @noinspection PhpUnnecessaryFullyQualifiedNameInspection
  */
-class AppleWalletServiceTest extends MembershipManagerTestCase
+class AppleServiceTest extends MembershipManagerTestCase
 {
     protected Settings $settings;
 
@@ -102,7 +102,7 @@ class AppleWalletServiceTest extends MembershipManagerTestCase
             };
         });
 
-        $service = $this->getMockBuilder(AppleWalletService::class)
+        $service = $this->getMockBuilder(AppleService::class)
             ->setConstructorArgs([$configFactory, $moduleHandler, $fileService, $httpClient, $this->settings, $loggerFactory])
             ->onlyMethods(['createPass'])
             ->getMock();
@@ -195,7 +195,7 @@ class AppleWalletServiceTest extends MembershipManagerTestCase
             };
         });
 
-        $service = $this->getMockBuilder(AppleWalletService::class)
+        $service = $this->getMockBuilder(AppleService::class)
             ->setConstructorArgs([$configFactory, $moduleHandler, $fileService, $httpClient, $this->settings, $loggerFactory])
             ->onlyMethods(['createPass'])
             ->getMock();
@@ -254,7 +254,7 @@ class AppleWalletServiceTest extends MembershipManagerTestCase
             };
         });
 
-        $service = $this->getMockBuilder(AppleWalletService::class)
+        $service = $this->getMockBuilder(AppleService::class)
             ->setConstructorArgs([$configFactory, $moduleHandler, $fileService, $httpClient, $this->settings, $loggerFactory])
             ->onlyMethods(['createPass'])
             ->getMock();
@@ -306,7 +306,7 @@ class AppleWalletServiceTest extends MembershipManagerTestCase
             };
         });
 
-        $service = $this->getMockBuilder(AppleWalletService::class)
+        $service = $this->getMockBuilder(AppleService::class)
             ->setConstructorArgs([$configFactory, $moduleHandler, $fileService, $httpClient, $this->settings, $loggerFactory])
             ->onlyMethods(['createPass'])
             ->getMock();
@@ -366,7 +366,7 @@ class AppleWalletServiceTest extends MembershipManagerTestCase
         $referer->method('getFullName')->willReturn('Student Host');
         $referer->method('getValue')->with(ApplicationField::MobilityStatus)->willReturn('Erasmus+ Studies');
 
-        $service = $this->getMockBuilder(AppleWalletService::class)
+        $service = $this->getMockBuilder(AppleService::class)
             ->setConstructorArgs([$configFactory, $moduleHandler, $fileService, $httpClient, $this->settings, $loggerFactory])
             ->onlyMethods(['createPass'])
             ->getMock();
@@ -416,7 +416,7 @@ class AppleWalletServiceTest extends MembershipManagerTestCase
         $httpClient = $this->createMock(ClientInterface::class);
         $loggerFactory = $this->getLoggerFactoryMock();
 
-        $service = $this->getMockBuilder(AppleWalletService::class)
+        $service = $this->getMockBuilder(AppleService::class)
             ->setConstructorArgs([$configFactory, $moduleHandler, $fileService, $httpClient, $this->settings, $loggerFactory])
             ->onlyMethods(['sendUpdateNotification'])
             ->getMock();
@@ -433,5 +433,62 @@ class AppleWalletServiceTest extends MembershipManagerTestCase
 
         $result = $service->sendApplicationUpdateNotification('device_push_token_abc');
         $this->assertTrue($result);
+    }
+
+    public function testGetMembershipAuthURL(): void
+    {
+        $urlGenerator = $this->createMock(UrlGeneratorInterface::class);
+        $urlGenerator->method('generateFromRoute')
+            ->with('esn_membership_manager.apple_auth', [], ['absolute' => TRUE])
+            ->willReturn('https://example.com/auth/apple');
+        $this->container->set('url_generator', $urlGenerator);
+
+        $configFactory = $this->getConfigFactoryStub([
+            MembershipSettings::CONFIG_NAME => [
+                'apple_auth_client_id' => 'my_apple_client_id_123',
+            ],
+            OmniaSettings::CONFIG_NAME => [],
+        ]);
+
+        $moduleHandler = $this->createMock(ModuleHandlerInterface::class);
+        $module = $this->createMock(Extension::class);
+        $moduleHandler->method('getModule')->with('esn_membership_manager')->willReturn($module);
+
+        $fileService = $this->createMock(FileService::class);
+        $httpClient = $this->createMock(ClientInterface::class);
+        $loggerFactory = $this->getLoggerFactoryMock();
+
+        $service = new AppleService($configFactory, $moduleHandler, $fileService, $httpClient, $this->settings, $loggerFactory);
+        $authUrl = $service->getMembershipAuthURL('sample_state_token');
+
+        $this->assertStringContainsString('https://appleid.apple.com/auth/authorize', $authUrl);
+        $this->assertStringContainsString('client_id=my_apple_client_id_123', $authUrl);
+        $this->assertStringContainsString('state=sample_state_token', $authUrl);
+        $this->assertStringContainsString('response_type=' . urlencode('code id_token'), $authUrl);
+        $this->assertStringContainsString('response_mode=form_post', $authUrl);
+    }
+
+    public function testGetMembershipAuthURLWithDefaults(): void
+    {
+        $urlGenerator = $this->createMock(UrlGeneratorInterface::class);
+        $urlGenerator->method('generateFromRoute')
+            ->with('esn_membership_manager.apple_auth', [], ['absolute' => TRUE])
+            ->willReturn('https://example.com/auth/apple');
+        $this->container->set('url_generator', $urlGenerator);
+
+        $configFactory = $this->getTestConfigFactory();
+        $moduleHandler = $this->createMock(ModuleHandlerInterface::class);
+        $module = $this->createMock(Extension::class);
+        $moduleHandler->method('getModule')->with('esn_membership_manager')->willReturn($module);
+
+        $fileService = $this->createMock(FileService::class);
+        $httpClient = $this->createMock(ClientInterface::class);
+        $loggerFactory = $this->getLoggerFactoryMock();
+
+        $service = new AppleService($configFactory, $moduleHandler, $fileService, $httpClient, $this->settings, $loggerFactory);
+        $authUrl = $service->getMembershipAuthURL();
+
+        $this->assertStringContainsString('https://appleid.apple.com/auth/authorize', $authUrl);
+        $this->assertStringNotContainsString('state=', $authUrl);
     }
 }

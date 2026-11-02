@@ -133,6 +133,12 @@ class SettingsForm extends ConfigFormBase
             '#default_value' => $membershipSettings->getGoogleAuthenticationSwitch(),
         ];
 
+        $form['switches']['authentication']['switch_apple_authentication'] = [
+            '#type' => 'checkbox',
+            '#title' => $this->t('Enable Apple Authentication'),
+            '#default_value' => $membershipSettings->getAppleAuthenticationSwitch(),
+        ];
+
         $form['switches']['verification'] = [
             '#type' => 'fieldset',
             '#title' => $this->t('Verification'),
@@ -466,6 +472,24 @@ class SettingsForm extends ConfigFormBase
             '#required' => $googleAuthEnabled
         ];
 
+        $appleAuthEnabled = $form_state->getValue('switch_apple_authentication') ?? $membershipSettings->getAppleAuthenticationSwitch();
+
+        $form['apple_authentication'] = [
+            '#type' => 'details',
+            '#title' => $this->t('Apple Authentication Settings'),
+            '#description' => $this->t('Configuration for the Sign in with Apple feature.'),
+            '#open' => $appleAuthEnabled
+        ];
+
+        $form['apple_authentication']['apple_auth_client_id'] = [
+            '#type' => 'textfield',
+            '#title' => $this->t('Services ID / Client ID'),
+            '#description' => $this->t('The Services ID from the Apple Developer Account.'),
+            '#default_value' => $membershipSettings->getAppleAuthClientID(),
+            '#disabled' => !$appleAuthEnabled,
+            '#required' => $appleAuthEnabled
+        ];
+
         $googleSheetsEnabled = $form_state->getValue('switch_google_sheets') ?? $membershipSettings->getGoogleSheetsSwitch();
 
         $form['google_sheets'] = [
@@ -615,6 +639,7 @@ class SettingsForm extends ConfigFormBase
             ->setEstiaSwitch($this->moduleHandler->moduleExists('estia_housing') && $form_state->getValue('switch_estia'))
             ->setWeeztixSwitch($form_state->getValue('switch_weeztix'))
             ->setGoogleAuthenticationSwitch($form_state->getValue('switch_google_authentication'))
+            ->setAppleAuthenticationSwitch($form_state->getValue('switch_apple_authentication'))
             ->setGoogleSheetsSwitch($form_state->getValue('switch_google_sheets'))
             ->setGoogleWalletSwitch($form_state->getValue('switch_google_wallet'))
             ->setAppleWalletSwitch($form_state->getValue('switch_apple_wallet'))
@@ -639,6 +664,7 @@ class SettingsForm extends ConfigFormBase
             ->setWeeztixCardCouponListID($form_state->getValue('weeztix_card_coupon_list_id'))
             ->setGoogleAuthClientID($form_state->getValue('google_auth_client_id'))
             ->setGoogleAuthClientSecret($form_state->getValue('google_auth_client_secret'))
+            ->setAppleAuthClientID($form_state->getValue('apple_auth_client_id'))
             ->setSpreadsheetID($form_state->getValue('google_spreadsheet_id'))
             ->setSheetName($form_state->getValue('google_sheet_name'))
             ->setAppleCertificatePassword($form_state->getValue('apple_certificate_password'))

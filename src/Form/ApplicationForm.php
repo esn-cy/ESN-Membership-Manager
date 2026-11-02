@@ -18,12 +18,14 @@ use Drupal\Core\Extension\ModuleHandlerInterface;
 use Drupal\Core\Form\FormStateInterface;
 use Drupal\Core\Logger\LoggerChannelFactoryInterface;
 use Drupal\Core\Render\Markup;
+use Drupal\Core\Site\Settings;
 use Drupal\Core\Url;
 use Drupal\esn_accounts_api\Entity\Organisation;
 use Drupal\esn_membership_manager\Entity\Application\ApplicationField;
 use Drupal\esn_membership_manager\Mail\BothConfirmationEmail;
 use Drupal\esn_membership_manager\Mail\PassConfirmationEmail;
 use Drupal\esn_membership_manager\Plugin\Action\ApproveApplication;
+use Drupal\esn_membership_manager\Service\AppleService;
 use Drupal\esn_membership_manager\Service\DiditService;
 use Drupal\esn_membership_manager\Service\FileService;
 use Drupal\esn_membership_manager\Service\GoogleService;
@@ -58,9 +60,11 @@ class ApplicationForm extends AuthenticatedFormBase
         ClientInterface               $httpClient,
         FileService                   $fileService,
         EmailService                  $emailService,
+        Settings     $settings,
         ModuleHandlerInterface        $moduleHandler,
         ActionManager                 $actionManager,
         GoogleService                 $googleService,
+        AppleService $appleService,
         DiditService                  $diditService,
         LoggerChannelFactoryInterface $loggerFactory,
     )
@@ -68,7 +72,7 @@ class ApplicationForm extends AuthenticatedFormBase
         /** @var ApproveApplication $approveApplication */
         $approveApplication = $actionManager->createInstance('esn_membership_manager_approve');
 
-        parent::__construct($database, $entityTypeManager, $httpClient, $configFactory, $moduleHandler, $googleService, $loggerFactory);
+        parent::__construct($database, $entityTypeManager, $httpClient, $configFactory, $settings, $moduleHandler, $googleService, $appleService, $loggerFactory);
         $this->omniaSettings = new OmniaSettings($configFactory);
         $this->fileService = $fileService;
         $this->emailService = $emailService;
@@ -103,6 +107,9 @@ class ApplicationForm extends AuthenticatedFormBase
         /** @var EmailService $emailService */
         $emailService = $container->get('omnia.email_service');
 
+        /** @var Settings $settings */
+        $settings = $container->get('settings');
+
         /** @var ModuleHandlerInterface $moduleHandler */
         $moduleHandler = $container->get('module_handler');
 
@@ -111,6 +118,9 @@ class ApplicationForm extends AuthenticatedFormBase
 
         /** @var GoogleService $googleService */
         $googleService = $container->get('esn_membership_manager.google_service');
+
+        /** @var AppleService $appleService */
+        $appleService = $container->get('esn_membership_manager.apple_wallet_service');
 
         /** @var DiditService $diditService */
         $diditService = $container->get('esn_membership_manager.didit_service');
@@ -125,9 +135,11 @@ class ApplicationForm extends AuthenticatedFormBase
             $httpClient,
             $fileService,
             $emailService,
+            $settings,
             $moduleHandler,
             $actionManager,
             $googleService,
+            $appleService,
             $diditService,
             $loggerFactory,
         );

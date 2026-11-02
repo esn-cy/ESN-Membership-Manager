@@ -17,7 +17,7 @@ use Drupal\esn_membership_manager\Controller\EditController;
 use Drupal\esn_membership_manager\Entity\Application\ApplicationField;
 use Drupal\esn_membership_manager\Entity\Application\ApplicationInterface;
 use Drupal\esn_membership_manager\Entity\Application\ApplicationStorage;
-use Drupal\esn_membership_manager\Service\AppleWalletService;
+use Drupal\esn_membership_manager\Service\AppleService;
 use Drupal\esn_membership_manager\Service\FileService;
 use Drupal\esn_membership_manager\Service\GoogleService;
 use Drupal\file\FileInterface;
@@ -40,7 +40,7 @@ class EditControllerTest extends MembershipManagerTestCase
     private FileService $fileService;
     private Connection $database;
     private GoogleService $googleService;
-    private AppleWalletService $appleWalletService;
+    private AppleService $appleService;
     private LoggerChannelInterface $logger;
 
     protected function setUp(): void
@@ -56,7 +56,7 @@ class EditControllerTest extends MembershipManagerTestCase
         $this->fileService = $this->createMock(FileService::class);
         $this->database = $this->createMock(Connection::class);
         $this->googleService = $this->createMock(GoogleService::class);
-        $this->appleWalletService = $this->createMock(AppleWalletService::class);
+        $this->appleService = $this->createMock(AppleService::class);
         $this->logger = $this->createMock(LoggerChannelInterface::class);
     }
 
@@ -80,7 +80,7 @@ class EditControllerTest extends MembershipManagerTestCase
                     'esn_membership_manager.file_service' => $this->fileService,
                     'database' => $this->database,
                     'esn_membership_manager.google_service' => $this->googleService,
-                    'esn_membership_manager.apple_wallet_service' => $this->appleWalletService,
+                    'esn_membership_manager.apple_wallet_service' => $this->appleService,
                     'logger.factory' => $loggerFactory,
                     default => null,
                 };
@@ -106,7 +106,7 @@ class EditControllerTest extends MembershipManagerTestCase
             $this->fileService,
             $this->database,
             $this->googleService,
-            $this->appleWalletService,
+            $this->appleService,
             $this->getLoggerFactoryMock($this->logger)
         );
 
@@ -134,7 +134,7 @@ class EditControllerTest extends MembershipManagerTestCase
             $this->fileService,
             $this->database,
             $this->googleService,
-            $this->appleWalletService,
+            $this->appleService,
             $this->getLoggerFactoryMock($this->logger)
         );
 
@@ -167,7 +167,7 @@ class EditControllerTest extends MembershipManagerTestCase
             $this->fileService,
             $this->database,
             $this->googleService,
-            $this->appleWalletService,
+            $this->appleService,
             $this->getLoggerFactoryMock($this->logger)
         );
 
@@ -213,7 +213,7 @@ class EditControllerTest extends MembershipManagerTestCase
             $this->fileService,
             $this->database,
             $this->googleService,
-            $this->appleWalletService,
+            $this->appleService,
             $this->getLoggerFactoryMock($this->logger)
         );
 
@@ -258,7 +258,7 @@ class EditControllerTest extends MembershipManagerTestCase
             $this->fileService,
             $this->database,
             $this->googleService,
-            $this->appleWalletService,
+            $this->appleService,
             $this->getLoggerFactoryMock($this->logger)
         );
 
@@ -286,7 +286,7 @@ class EditControllerTest extends MembershipManagerTestCase
             $this->fileService,
             $this->database,
             $this->googleService,
-            $this->appleWalletService,
+            $this->appleService,
             $this->getLoggerFactoryMock($this->logger)
         );
 
@@ -314,7 +314,7 @@ class EditControllerTest extends MembershipManagerTestCase
             $this->fileService,
             $this->database,
             $this->googleService,
-            $this->appleWalletService,
+            $this->appleService,
             $this->getLoggerFactoryMock($this->logger)
         );
 
@@ -342,7 +342,7 @@ class EditControllerTest extends MembershipManagerTestCase
             $this->fileService,
             $this->database,
             $this->googleService,
-            $this->appleWalletService,
+            $this->appleService,
             $this->getLoggerFactoryMock($this->logger)
         );
 
@@ -370,7 +370,7 @@ class EditControllerTest extends MembershipManagerTestCase
             $this->fileService,
             $this->database,
             $this->googleService,
-            $this->appleWalletService,
+            $this->appleService,
             $this->getLoggerFactoryMock($this->logger)
         );
 
@@ -403,7 +403,7 @@ class EditControllerTest extends MembershipManagerTestCase
             $this->fileService,
             $this->database,
             $this->googleService,
-            $this->appleWalletService,
+            $this->appleService,
             $this->getLoggerFactoryMock($this->logger)
         );
 
@@ -440,7 +440,7 @@ class EditControllerTest extends MembershipManagerTestCase
             $this->fileService,
             $this->database,
             $this->googleService,
-            $this->appleWalletService,
+            $this->appleService,
             $this->getLoggerFactoryMock($this->logger)
         );
 
@@ -485,7 +485,7 @@ class EditControllerTest extends MembershipManagerTestCase
             $this->fileService,
             $this->database,
             $this->googleService,
-            $this->appleWalletService,
+            $this->appleService,
             $this->getLoggerFactoryMock($this->logger)
         );
 
@@ -531,7 +531,7 @@ class EditControllerTest extends MembershipManagerTestCase
             $this->fileService,
             $this->database,
             $this->googleService,
-            $this->appleWalletService,
+            $this->appleService,
             $this->getLoggerFactoryMock($this->logger)
         );
 
@@ -584,7 +584,7 @@ class EditControllerTest extends MembershipManagerTestCase
             $this->fileService,
             $this->database,
             $this->googleService,
-            $this->appleWalletService,
+            $this->appleService,
             $this->getLoggerFactoryMock($this->logger)
         );
 
@@ -622,7 +622,7 @@ class EditControllerTest extends MembershipManagerTestCase
 
         $this->database->method('select')->willReturn($select);
 
-        $this->appleWalletService->expects($this->exactly(2))
+        $this->appleService->expects($this->exactly(2))
             ->method('sendApplicationUpdateNotification');
 
         $configFactory = $this->getConfigFactoryStub([
@@ -638,7 +638,7 @@ class EditControllerTest extends MembershipManagerTestCase
             $this->fileService,
             $this->database,
             $this->googleService,
-            $this->appleWalletService,
+            $this->appleService,
             $this->getLoggerFactoryMock($this->logger)
         );
 
@@ -660,7 +660,7 @@ class EditControllerTest extends MembershipManagerTestCase
             $this->fileService,
             $this->database,
             $this->googleService,
-            $this->appleWalletService,
+            $this->appleService,
             $this->getLoggerFactoryMock($this->logger)
         );
 
@@ -697,7 +697,7 @@ class EditControllerTest extends MembershipManagerTestCase
         $select->method('execute')->willReturn($stmt);
         $this->database->method('select')->willReturn($select);
 
-        $this->appleWalletService->expects($this->once())
+        $this->appleService->expects($this->once())
             ->method('sendApplicationUpdateNotification')
             ->with('token_crop_1');
 
@@ -718,7 +718,7 @@ class EditControllerTest extends MembershipManagerTestCase
             $this->fileService,
             $this->database,
             $this->googleService,
-            $this->appleWalletService,
+            $this->appleService,
             $this->getLoggerFactoryMock($this->logger)
         );
 
@@ -765,7 +765,7 @@ class EditControllerTest extends MembershipManagerTestCase
             $this->fileService,
             $this->database,
             $this->googleService,
-            $this->appleWalletService,
+            $this->appleService,
             $this->getLoggerFactoryMock($this->logger)
         );
 

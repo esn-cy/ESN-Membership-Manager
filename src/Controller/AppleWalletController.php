@@ -17,7 +17,7 @@ use Drupal\esn_membership_manager\Config\MembershipSettings;
 use Drupal\esn_membership_manager\Entity\Application\ApplicationField;
 use Drupal\esn_membership_manager\Entity\Application\ApplicationStorage;
 use Drupal\esn_membership_manager\Entity\GuestPass\GuestPassStorage;
-use Drupal\esn_membership_manager\Service\AppleWalletService;
+use Drupal\esn_membership_manager\Service\AppleService;
 use Exception;
 use Symfony\Component\DependencyInjection\ContainerInterface;
 use Symfony\Component\HttpFoundation\JsonResponse;
@@ -29,7 +29,7 @@ use Symfony\Component\HttpKernel\Exception\NotFoundHttpException;
 
 class AppleWalletController extends ControllerBase
 {
-    protected AppleWalletService $appleWalletService;
+    protected AppleService $appleService;
     protected ApplicationStorage $applicationStorage;
     protected GuestPassStorage $guestPassStorage;
     protected Connection $database;
@@ -43,7 +43,7 @@ class AppleWalletController extends ControllerBase
      * @throws PluginNotFoundException
      */
     public function __construct(
-        AppleWalletService            $appleWalletService,
+        AppleService   $appleService,
         EntityTypeManagerInterface    $entityTypeManager,
         Connection                    $database,
         ConfigFactoryInterface        $configFactory,
@@ -58,7 +58,7 @@ class AppleWalletController extends ControllerBase
         /** @var GuestPassStorage $guestPassStorage */
         $guestPassStorage = $entityTypeManager->getStorage('membership_guest');
 
-        $this->appleWalletService = $appleWalletService;
+        $this->appleService = $appleService;
         $this->applicationStorage = $applicationStorage;
         $this->guestPassStorage = $guestPassStorage;
         $this->database = $database;
@@ -74,8 +74,8 @@ class AppleWalletController extends ControllerBase
      */
     public static function create(ContainerInterface $container): self
     {
-        /** @var AppleWalletService $appleWalletService */
-        $appleWalletService = $container->get('esn_membership_manager.apple_wallet_service');
+        /** @var AppleService $appleService */
+        $appleService = $container->get('esn_membership_manager.apple_wallet_service');
 
         /** @var EntityTypeManagerInterface $entityTypeManager */
         $entityTypeManager = $container->get('entity_type.manager');
@@ -96,7 +96,7 @@ class AppleWalletController extends ControllerBase
         $loggerFactory = $container->get('logger.factory');
 
         return new static(
-            $appleWalletService,
+            $appleService,
             $entityTypeManager,
             $database,
             $configFactory,
@@ -147,9 +147,9 @@ class AppleWalletController extends ControllerBase
 
         try {
             if ($isESNcard) {
-                $passData = $this->appleWalletService->createESNcard($application);
+                $passData = $this->appleService->createESNcard($application);
             } else {
-                $passData = $this->appleWalletService->createFreePass($application);
+                $passData = $this->appleService->createFreePass($application);
             }
             if (empty($passData)) {
                 throw new Exception();
@@ -184,7 +184,7 @@ class AppleWalletController extends ControllerBase
         }
 
         try {
-            $passData = $this->appleWalletService->createGuestPass($guestPass, $referer);
+            $passData = $this->appleService->createGuestPass($guestPass, $referer);
             if (empty($passData)) {
                 throw new Exception();
             }

@@ -158,6 +158,15 @@ esn_membership_manager.google_auth:
   requirements:
     _access: 'TRUE'
 
+esn_membership_manager.apple_auth:
+  path: '/memberships/auth/apple'
+  defaults:
+    _controller: '\Drupal\esn_membership_manager\Controller\AppleAuthController::callback'
+    _title: 'Apple Authentication'
+  requirements:
+    _access: 'TRUE'
+  methods: [ GET, POST ]
+
 esn_membership_manager.apply:
   path: '/memberships/apply'
   defaults:

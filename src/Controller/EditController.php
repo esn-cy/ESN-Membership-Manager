@@ -14,7 +14,7 @@ use Drupal\Core\Logger\LoggerChannelInterface;
 use Drupal\esn_membership_manager\Config\MembershipSettings;
 use Drupal\esn_membership_manager\Entity\Application\ApplicationField;
 use Drupal\esn_membership_manager\Entity\Application\ApplicationStorage;
-use Drupal\esn_membership_manager\Service\AppleWalletService;
+use Drupal\esn_membership_manager\Service\AppleService;
 use Drupal\esn_membership_manager\Service\FileService;
 use Drupal\esn_membership_manager\Service\GoogleService;
 use Exception;
@@ -30,7 +30,7 @@ class EditController extends ControllerBase
     protected FileService $fileService;
     protected Connection $database;
     protected GoogleService $googleService;
-    protected AppleWalletService $appleWalletService;
+    protected AppleService $appleService;
     protected LoggerChannelInterface $logger;
 
     /**
@@ -43,7 +43,7 @@ class EditController extends ControllerBase
         FileService                   $fileService,
         Connection                    $database,
         GoogleService                 $googleService,
-        AppleWalletService            $appleWalletService,
+        AppleService $appleService,
         LoggerChannelFactoryInterface $loggerFactory,
     )
     {
@@ -55,7 +55,7 @@ class EditController extends ControllerBase
         $this->fileService = $fileService;
         $this->database = $database;
         $this->googleService = $googleService;
-        $this->appleWalletService = $appleWalletService;
+        $this->appleService = $appleService;
         $this->logger = $loggerFactory->get('esn_membership_manager');
     }
 
@@ -80,8 +80,8 @@ class EditController extends ControllerBase
         /** @var GoogleService $googleService */
         $googleService = $container->get('esn_membership_manager.google_service');
 
-        /** @var AppleWalletService $appleWalletService */
-        $appleWalletService = $container->get('esn_membership_manager.apple_wallet_service');
+        /** @var AppleService $appleService */
+        $appleService = $container->get('esn_membership_manager.apple_wallet_service');
 
         /** @var LoggerChannelFactoryInterface $loggerFactory */
         $loggerFactory = $container->get('logger.factory');
@@ -92,7 +92,7 @@ class EditController extends ControllerBase
             $fileService,
             $database,
             $googleService,
-            $appleWalletService,
+            $appleService,
             $loggerFactory,
         );
     }
@@ -175,7 +175,7 @@ class EditController extends ControllerBase
 
                 if (!empty($pushTokens)) {
                     foreach (array_unique($pushTokens) as $pushToken) {
-                        $this->appleWalletService->sendApplicationUpdateNotification($pushToken);
+                        $this->appleService->sendApplicationUpdateNotification($pushToken);
                     }
                 }
             } catch (Exception $e) {
@@ -249,7 +249,7 @@ class EditController extends ControllerBase
 
                 if (!empty($pushTokens)) {
                     foreach (array_unique($pushTokens) as $pushToken) {
-                        $this->appleWalletService->sendApplicationUpdateNotification($pushToken);
+                        $this->appleService->sendApplicationUpdateNotification($pushToken);
                     }
                 }
             } catch (Exception $e) {

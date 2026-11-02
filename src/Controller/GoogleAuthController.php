@@ -98,6 +98,7 @@ class GoogleAuthController extends GoogleAuthControllerBase
                     $this->messenger()->addError($this->t('No application was found for this Google account. Please apply first.'));
                     return $this->redirect('esn_membership_manager.apply');
                 }
+                $session->migrate();
                 $session->set('login_verified_email', $email);
                 $session->set('login_email_authentication_data', ['auth_success' => true, 'email' => $email]);
                 return $this->redirect('esn_membership_manager.dashboard');
@@ -112,6 +113,7 @@ class GoogleAuthController extends GoogleAuthControllerBase
                     ->fields(['date_created' => (new DrupalDateTime())->format('Y-m-d\TH:i:s')])
                     ->execute();
 
+                $session->migrate();
                 $session->set('register_verified_email', $email);
                 $session->set('register_email_authentication_data', ['auth_success' => true, 'email' => $email]);
 

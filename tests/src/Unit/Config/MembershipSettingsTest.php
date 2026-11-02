@@ -62,6 +62,7 @@ class MembershipSettingsTest extends MembershipManagerTestCase
         $this->assertFalse($settings->getAppleWalletSwitch());
         $this->assertFalse($settings->getDiditSwitch());
         $this->assertFalse($settings->getGoogleAuthenticationSwitch());
+        $this->assertFalse($settings->getAppleAuthenticationSwitch());
 
         $this->assertEquals('ESN Pass', $settings->getPassName());
         $this->assertNull($settings->getEmailAddress());
@@ -100,6 +101,8 @@ class MembershipSettingsTest extends MembershipManagerTestCase
 
         $this->assertNull($settings->getGoogleAuthClientID());
         $this->assertNull($settings->getGoogleAuthClientSecret());
+
+        $this->assertNull($settings->getAppleAuthClientID());
     }
 
     public function testGettersReturnConfiguredValues(): void
@@ -114,6 +117,7 @@ class MembershipSettingsTest extends MembershipManagerTestCase
                 'switch_apple_wallet' => true,
                 'switch_didit' => true,
                 'switch_google_authentication' => true,
+                'switch_apple_authentication' => true,
                 'pass_name' => 'Custom Pass',
                 'email_address' => 'info@esn.org',
                 'email_name' => 'ESN Info',
@@ -144,6 +148,7 @@ class MembershipSettingsTest extends MembershipManagerTestCase
                 'didit_workflow_id' => 'didit_wf_789',
                 'google_auth_client_id' => 'google_cid_123',
                 'google_auth_client_secret' => 'google_csec_456',
+                'apple_auth_client_id' => 'apple_cid_123',
             ],
         ]);
 
@@ -157,6 +162,7 @@ class MembershipSettingsTest extends MembershipManagerTestCase
         $this->assertTrue($settings->getAppleWalletSwitch());
         $this->assertTrue($settings->getDiditSwitch());
         $this->assertTrue($settings->getGoogleAuthenticationSwitch());
+        $this->assertTrue($settings->getAppleAuthenticationSwitch());
 
         $this->assertEquals('Custom Pass', $settings->getPassName());
         $this->assertEquals('info@esn.org', $settings->getEmailAddress());
@@ -195,6 +201,8 @@ class MembershipSettingsTest extends MembershipManagerTestCase
 
         $this->assertEquals('google_cid_123', $settings->getGoogleAuthClientID());
         $this->assertEquals('google_csec_456', $settings->getGoogleAuthClientSecret());
+
+        $this->assertEquals('apple_cid_123', $settings->getAppleAuthClientID());
     }
 
     public function testSettersAndSave(): void
@@ -240,6 +248,8 @@ class MembershipSettingsTest extends MembershipManagerTestCase
             ['switch_google_authentication', true],
             ['google_auth_client_id', 'google_cid_new'],
             ['google_auth_client_secret', 'google_csec_new'],
+            ['switch_apple_authentication', true],
+            ['apple_auth_client_id', 'apple_cid_new'],
         ];
 
         $mutableConfig->expects($this->exactly(count($setExpected)))
@@ -306,6 +316,8 @@ class MembershipSettingsTest extends MembershipManagerTestCase
         $this->assertSame($settings, $settings->setGoogleAuthenticationSwitch(true));
         $this->assertSame($settings, $settings->setGoogleAuthClientID('google_cid_new'));
         $this->assertSame($settings, $settings->setGoogleAuthClientSecret('google_csec_new'));
+        $this->assertSame($settings, $settings->setAppleAuthenticationSwitch(true));
+        $this->assertSame($settings, $settings->setAppleAuthClientID('apple_cid_new'));
 
         $settings->save();
     }

@@ -16,10 +16,12 @@ use Drupal\Core\Form\FormStateInterface;
 use Drupal\Core\Logger\LoggerChannelFactoryInterface;
 use Drupal\Core\Logger\LoggerChannelInterface;
 use Drupal\Core\Render\Markup;
+use Drupal\Core\Site\Settings;
 use Drupal\Core\Url;
 use Drupal\esn_membership_manager\Config\MembershipSettings;
 use Drupal\esn_membership_manager\Entity\Application\ApplicationInterface;
 use Drupal\esn_membership_manager\Entity\Application\ApplicationStorage;
+use Drupal\esn_membership_manager\Service\AppleService;
 use Drupal\esn_membership_manager\Service\GoogleService;
 use Exception;
 use GuzzleHttp\ClientInterface;
@@ -33,8 +35,10 @@ abstract class AuthenticatedFormBase extends FormBase
     protected ApplicationStorage $applicationStorage;
     protected ClientInterface $httpClient;
     protected MembershipSettings $membershipSettings;
-    protected GoogleService $googleService;
+    protected Settings $settings;
     protected Extension $module;
+    protected GoogleService $googleService;
+    protected AppleService $appleService;
     protected LoggerChannelInterface $logger;
 
     protected bool $isAuthenticated = false;
@@ -50,8 +54,10 @@ abstract class AuthenticatedFormBase extends FormBase
         EntityTypeManagerInterface    $entityTypeManager,
         ClientInterface               $httpClient,
         ConfigFactoryInterface        $configFactory,
+        Settings     $settings,
         ModuleHandlerInterface        $moduleHandler,
         GoogleService                 $googleService,
+        AppleService $appleService,
         LoggerChannelFactoryInterface $loggerFactory,
     )
     {
@@ -62,8 +68,10 @@ abstract class AuthenticatedFormBase extends FormBase
         $this->applicationStorage = $applicationStorage;
         $this->httpClient = $httpClient;
         $this->membershipSettings = new MembershipSettings($configFactory);
+        $this->settings = $settings;
         $this->module = $moduleHandler->getModule('esn_membership_manager');
         $this->googleService = $googleService;
+        $this->appleService = $appleService;
         $this->logger = $loggerFactory->get('esn_membership_manager');
     }
 
@@ -85,11 +93,17 @@ abstract class AuthenticatedFormBase extends FormBase
         /** @var ConfigFactoryInterface $configFactory */
         $configFactory = $container->get('config.factory');
 
+        /** @var Settings $settings */
+        $settings = $container->get('settings');
+
         /** @var ModuleHandlerInterface $moduleHandler */
         $moduleHandler = $container->get('module_handler');
 
         /** @var GoogleService $googleService */
         $googleService = $container->get('esn_membership_manager.google_service');
+
+        /** @var AppleService $appleService */
+        $appleService = $container->get('esn_membership_manager.apple_wallet_service');
 
         /** @var LoggerChannelFactoryInterface $loggerFactory */
         $loggerFactory = $container->get('logger.factory');
@@ -99,8 +113,10 @@ abstract class AuthenticatedFormBase extends FormBase
             $entityTypeManager,
             $httpClient,
             $configFactory,
+            $settings,
             $moduleHandler,
             $googleService,
+            $appleService,
             $loggerFactory,
         );
     }
@@ -364,7 +380,10 @@ abstract class AuthenticatedFormBase extends FormBase
             return;
         }
 
-        if (!$isCodeSent && $this->membershipSettings->getGoogleAuthenticationSwitch()) {
+        $googleAuthEnabled = $this->membershipSettings->getGoogleAuthenticationSwitch();
+        $appleAuthEnabled = $this->membershipSettings->getAppleAuthenticationSwitch();
+
+        if (!$isCodeSent && $googleAuthEnabled) {
             $stateToken = bin2hex(random_bytes(32));
             $session->set('google_oauth_state', [
                 'token' => $stateToken,
@@ -380,13 +399,41 @@ abstract class AuthenticatedFormBase extends FormBase
 
             $form['auth']['google_sign_in'] = [
                 '#type' => 'markup',
-                '#markup' => Markup::create('<div class="google-auth-wrapper"><a href="' . htmlspecialchars($authUrl) . '" class="google-auth-button" title="' . $this->t('Sign in with Google') . '">' . $buttonContent . '</a></div>'),
+                '#markup' => Markup::create('<div class="third-party-auth-wrapper"><a href="' . htmlspecialchars($authUrl) . '" class="third-party-auth-button" title="' . $this->t('Sign in with Google') . '">' . $buttonContent . '</a></div>'),
                 '#weight' => -20,
             ];
+        }
 
+        if (!$isCodeSent && $appleAuthEnabled) {
+            $statePayload = [
+                'token' => bin2hex(random_bytes(16)),
+                'type' => $this->getAuthenticationType(),
+                'ts' => time(),
+            ];
+
+            $json = json_encode($statePayload);
+            $signature = hash_hmac('sha256', $json, $this->settings::getHashSalt());
+
+            $state = rtrim(strtr(base64_encode($json . '.' . $signature), '+/', '-_'), '=');
+
+            $authUrl = $this->appleService->getMembershipAuthURL($state);
+
+            $svgPath = $this->module->getPath() . '/assets/images/auth/apple-sign-in.svg';
+            $buttonContent = file_exists($svgPath)
+                ? file_get_contents($svgPath)
+                : $this->t('Sign in with Apple');
+
+            $form['auth']['apple_sign_in'] = [
+                '#type' => 'markup',
+                '#markup' => Markup::create('<div class="third-party-auth-wrapper"><a href="' . htmlspecialchars($authUrl) . '" class="third-party-auth-button" title="' . $this->t('Sign in with Apple') . '">' . $buttonContent . '</a></div>'),
+                '#weight' => -15,
+            ];
+        }
+
+        if (!$isCodeSent && ($googleAuthEnabled || $appleAuthEnabled)) {
             $form['auth']['google_divider'] = [
                 '#type' => 'markup',
-                '#markup' => Markup::create('<div class="google-auth-divider"><span>' . $this->t('or') . '</span></div>'),
+                '#markup' => Markup::create('<div class="third-party-auth-divider"><span>' . $this->t('or') . '</span></div>'),
                 '#weight' => -10,
             ];
         }

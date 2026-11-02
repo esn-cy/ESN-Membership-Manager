@@ -62,7 +62,7 @@ services:
       - '@logger.factory'
 
   esn_membership_manager.apple_wallet_service:
-    class: Drupal\esn_membership_manager\Service\AppleWalletService
+    class: Drupal\esn_membership_manager\Service\AppleService
     arguments:
       - '@config.factory'
       - '@module_handler'

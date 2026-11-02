@@ -15,11 +15,13 @@ use Drupal\Core\Extension\ModuleHandlerInterface;
 use Drupal\Core\Form\FormStateInterface;
 use Drupal\Core\Logger\LoggerChannelFactoryInterface;
 use Drupal\Core\Render\Markup;
+use Drupal\Core\Site\Settings;
 use Drupal\Core\Url;
 use Drupal\esn_membership_manager\Entity\Application\ApplicationField;
 use Drupal\esn_membership_manager\Entity\GuestPass\GuestPassField;
 use Drupal\esn_membership_manager\Entity\GuestPass\GuestPassStorage;
 use Drupal\esn_membership_manager\Object\Status;
+use Drupal\esn_membership_manager\Service\AppleService;
 use Drupal\esn_membership_manager\Service\FileService;
 use Drupal\esn_membership_manager\Service\GoogleService;
 use Drupal\esn_membership_manager\Service\GuestPassService;
@@ -46,16 +48,18 @@ class MembershipDashboard extends AuthenticatedFormBase
         ClientInterface               $httpClient,
         LoggerChannelFactoryInterface $loggerFactory,
         ConfigFactoryInterface        $configFactory,
+        Settings               $settings,
+        ModuleHandlerInterface $moduleHandler,
         FileService                   $fileService,
         GoogleService                 $googleService,
-        ModuleHandlerInterface        $moduleHandler,
+        AppleService           $appleService,
         GuestPassService              $guestPassService,
     )
     {
         /** @var GuestPassStorage $guestPassStorage */
         $guestPassStorage = $entityTypeManager->getStorage('membership_guest');
 
-        parent::__construct($database, $entityTypeManager, $httpClient, $configFactory, $moduleHandler, $googleService, $loggerFactory);
+        parent::__construct($database, $entityTypeManager, $httpClient, $configFactory, $settings, $moduleHandler, $googleService, $appleService, $loggerFactory);
         $this->guestPassStorage = $guestPassStorage;
         $this->fileService = $fileService;
         $this->guestPassService = $guestPassService;
@@ -83,14 +87,20 @@ class MembershipDashboard extends AuthenticatedFormBase
         /** @var ConfigFactoryInterface $configFactory */
         $configFactory = $container->get('config.factory');
 
+        /** @var Settings $settings */
+        $settings = $container->get('settings');
+
+        /** @var ModuleHandlerInterface $moduleHandler */
+        $moduleHandler = $container->get('module_handler');
+
         /** @var FileService $fileService */
         $fileService = $container->get('esn_membership_manager.file_service');
 
         /** @var GoogleService $googleService */
         $googleService = $container->get('esn_membership_manager.google_service');
 
-        /** @var ModuleHandlerInterface $moduleHandler */
-        $moduleHandler = $container->get('module_handler');
+        /** @var AppleService $appleService */
+        $appleService = $container->get('esn_membership_manager.apple_wallet_service');
 
         /** @var GuestPassService $guestPassService */
         $guestPassService = $container->get('esn_membership_manager.guest_pass_service');
@@ -101,9 +111,11 @@ class MembershipDashboard extends AuthenticatedFormBase
             $httpClient,
             $loggerFactory,
             $configFactory,
+            $settings,
+            $moduleHandler,
             $fileService,
             $googleService,
-            $moduleHandler,
+            $appleService,
             $guestPassService,
         );
     }

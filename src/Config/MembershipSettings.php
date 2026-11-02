@@ -57,6 +57,17 @@ class MembershipSettings
         return $this;
     }
 
+    public function getAppleAuthenticationSwitch(): bool
+    {
+        return $this->config->get('switch_apple_authentication') ?? false;
+    }
+
+    public function setAppleAuthenticationSwitch(bool $value): self
+    {
+        $this->config->set('switch_apple_authentication', $value);
+        return $this;
+    }
+
     public function getWeeztixSwitch(): bool
     {
         return $this->config->get('switch_weeztix') ?? false;
@@ -356,6 +367,17 @@ class MembershipSettings
     public function setGoogleAuthClientSecret(string $value): self
     {
         $this->config->set('google_auth_client_secret', $value);
+        return $this;
+    }
+
+    public function getAppleAuthClientID(): ?string
+    {
+        return $this->config->get('apple_auth_client_id');
+    }
+
+    public function setAppleAuthClientID(string $value): self
+    {
+        $this->config->set('apple_auth_client_id', $value);
         return $this;
     }
 

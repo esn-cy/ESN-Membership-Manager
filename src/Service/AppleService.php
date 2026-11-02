@@ -21,7 +21,7 @@ use Drupal\omnia\Service\FileServiceBase;
 use Exception;
 use GuzzleHttp\ClientInterface;
 
-class AppleWalletService extends AppleServiceBase
+class AppleService extends AppleServiceBase
 {
     protected MembershipSettings $membershipSettings;
     protected OmniaSettings $omniaSettings;
@@ -44,6 +44,15 @@ class AppleWalletService extends AppleServiceBase
         $this->module = $moduleHandler->getModule('esn_membership_manager');
         $this->settings = $settings;
         $this->logger = $loggerFactory->get('esn_membership_manager');
+    }
+
+    public function getMembershipAuthURL(?string $state = null): string
+    {
+        return parent::getAuthURL(
+            $this->membershipSettings->getAppleAuthClientID() ?? '',
+            Url::fromRoute('esn_membership_manager.apple_auth', [], ['absolute' => TRUE])->toString(),
+            $state
+        );
     }
 
     /**

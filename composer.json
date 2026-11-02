@@ -34,7 +34,7 @@
     }
   },
   "require": {
-    "esn-cy/omnia": "^1.6",
+    "esn-cy/omnia": "^1.7",
     "esn/esn_accounts_api": "^1.1",
     "tecnickcom/tcpdf": "^6.11",
     "thenetworg/oauth2-azure": "^2.2",

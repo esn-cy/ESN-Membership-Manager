@@ -25,6 +25,7 @@ use Drupal\Core\Language\LanguageManagerInterface;
 use Drupal\Core\Logger\LoggerChannelInterface;
 use Drupal\Core\Messenger\MessengerInterface;
 use Drupal\Core\Routing\UrlGeneratorInterface;
+use Drupal\Core\Site\Settings;
 use Drupal\esn_membership_manager\Config\MembershipSettings;
 use Drupal\esn_membership_manager\Entity\Application\Application;
 use Drupal\esn_membership_manager\Entity\Application\ApplicationField;
@@ -34,6 +35,7 @@ use Drupal\esn_membership_manager\Form\AuthenticatedFormBase;
 use Drupal\esn_membership_manager\Mail\BothConfirmationEmail;
 use Drupal\esn_membership_manager\Mail\PassConfirmationEmail;
 use Drupal\esn_membership_manager\Plugin\Action\ApproveApplication;
+use Drupal\esn_membership_manager\Service\AppleService;
 use Drupal\esn_membership_manager\Service\DiditService;
 use Drupal\esn_membership_manager\Service\FileService;
 use Drupal\esn_membership_manager\Service\GoogleService;
@@ -73,11 +75,11 @@ class ApplicationFormTest extends MembershipManagerTestCase
     private Connection $database;
     private ApplicationStorage $applicationStorage;
     private EntityStorageInterface $organisationStorage;
-    private LoggerChannelInterface $logger;
     private FileService $fileService;
     private EmailService $emailService;
     private ApproveApplication $approveApplication;
     private DiditService $diditService;
+    private LoggerChannelInterface $logger;
     private MessengerInterface $messenger;
     private Session $session;
     private ApplicationForm $form;
@@ -92,15 +94,30 @@ class ApplicationFormTest extends MembershipManagerTestCase
     {
         parent::setUp();
 
+        $configFactory = $this->getConfigFactoryStub([
+            MembershipSettings::CONFIG_NAME => [
+                'pass_name' => 'Erasmus Pass',
+            ],
+            OmniaSettings::CONFIG_NAME => [],
+        ]);
+
         $this->database = $this->createMock(Connection::class);
+
         $this->applicationStorage = $this->createMock(ApplicationStorage::class);
         $this->organisationStorage = $this->createMock(EntityStorageInterface::class);
+        $entityTypeManager = $this->createMock(EntityTypeManagerInterface::class);
+        $entityTypeManager->method('getStorage')->willReturnCallback(function ($type) {
+            return match ($type) {
+                'membership_application' => $this->applicationStorage,
+                'esn_organisation' => $this->organisationStorage,
+                default => null,
+            };
+        });
+
         $httpClient = $this->createMock(Client::class);
-        $this->logger = $this->createMock(LoggerChannelInterface::class);
         $this->fileService = $this->createMock(FileService::class);
         $this->emailService = $this->createMock(EmailService::class);
-        $this->diditService = $this->createMock(DiditService::class);
-        $this->messenger = $this->createMock(MessengerInterface::class);
+        $settings = new Settings(['hash_salt' => 'test_salt']);
 
         $moduleExtension = $this->createMock(Extension::class);
         $moduleHandler = $this->createMock(ModuleHandlerInterface::class);
@@ -110,21 +127,12 @@ class ApplicationFormTest extends MembershipManagerTestCase
         $actionManager = $this->createMock(ActionManager::class);
         $actionManager->method('createInstance')->with('esn_membership_manager_approve')->willReturn($this->approveApplication);
 
-        $configFactory = $this->getConfigFactoryStub([
-            MembershipSettings::CONFIG_NAME => [
-                'pass_name' => 'Erasmus Pass',
-            ],
-            OmniaSettings::CONFIG_NAME => [],
-        ]);
+        $googleService = $this->createMock(GoogleService::class);
+        $appleService = $this->createMock(AppleService::class);
+        $this->diditService = $this->createMock(DiditService::class);
+        $this->logger = $this->createMock(LoggerChannelInterface::class);
 
-        $entityTypeManager = $this->createMock(EntityTypeManagerInterface::class);
-        $entityTypeManager->method('getStorage')->willReturnCallback(function ($type) {
-            return match ($type) {
-                'membership_application' => $this->applicationStorage,
-                'esn_organisation' => $this->organisationStorage,
-                default => null,
-            };
-        });
+        $this->messenger = $this->createMock(MessengerInterface::class);
 
         $this->session = new Session(new MockArraySessionStorage());
         $request = new Request();
@@ -138,22 +146,22 @@ class ApplicationFormTest extends MembershipManagerTestCase
             return 'https://example.com/' . $route;
         });
 
+        $this->container->set('config.factory', $configFactory);
         $this->container->set('database', $this->database);
         $this->container->set('entity_type.manager', $entityTypeManager);
         $this->container->set('http_client', $httpClient);
-        $this->container->set('logger.factory', $this->getLoggerFactoryMock($this->logger));
-        $this->container->set('config.factory', $configFactory);
         $this->container->set('esn_membership_manager.file_service', $this->fileService);
         $this->container->set('omnia.email_service', $this->emailService);
+        $this->container->set('settings', $settings);
         $this->container->set('module_handler', $moduleHandler);
         $this->container->set('plugin.manager.action', $actionManager);
+        $this->container->set('esn_membership_manager.google_service', $googleService);
+        $this->container->set('esn_membership_manager.apple_wallet_service', $appleService);
         $this->container->set('esn_membership_manager.didit_service', $this->diditService);
+        $this->container->set('logger.factory', $this->getLoggerFactoryMock($this->logger));
         $this->container->set('messenger', $this->messenger);
         $this->container->set('request_stack', $requestStack);
         $this->container->set('url_generator', $urlGenerator);
-
-        $googleService = $this->createMock(GoogleService::class);
-        $this->container->set('esn_membership_manager.google_service', $googleService);
 
         $this->form = new ApplicationForm(
             $configFactory,
@@ -162,9 +170,11 @@ class ApplicationFormTest extends MembershipManagerTestCase
             $httpClient,
             $this->fileService,
             $this->emailService,
+            $settings,
             $moduleHandler,
             $actionManager,
             $googleService,
+            $appleService,
             $this->diditService,
             $this->getLoggerFactoryMock($this->logger),
         );
