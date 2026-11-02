@@ -7,6 +7,7 @@ use Drupal\Core\Datetime\DrupalDateTime;
 use Drupal\Core\Entity\EntityStorageInterface;
 use Drupal\Core\Logger\LoggerChannelInterface;
 use Drupal\esn_membership_manager\Config\MembershipSettings;
+use Drupal\esn_membership_manager\Entity\GuestPass\GuestPassStorage;
 use Drupal\esn_membership_manager\Service\FileService;
 use Drupal\esn_membership_manager\Service\GoogleService;
 use Drupal\esn_membership_manager\Service\StripeService;
@@ -42,6 +43,8 @@ class Application extends EnumBackedEntityBase implements ApplicationInterface
 
         $membershipSettings = new MembershipSettings(Drupal::configFactory());
         $database = Drupal::database();
+        /** @var GuestPassStorage $guestPassStorage */
+        $guestPassStorage = Drupal::entityTypeManager()->getStorage('membership_guest');
         /** @var LoggerChannelInterface $logger */
         $logger = Drupal::service('logger.factory')->get('esn_membership_manager');
         /** @var FileService $fileService */
@@ -64,6 +67,14 @@ class Application extends EnumBackedEntityBase implements ApplicationInterface
             }
             if ($fileService->isDirectoryEmpty('membership://' . $application->id())) {
                 $fileService->deleteDirectory('membership://' . $application->id());
+            }
+
+            $guestPasses = $guestPassStorage->getByReferrerID($application->id());
+            foreach ($guestPasses as $guestPass) {
+                try {
+                    $guestPass->delete();
+                } catch (Exception) {
+                }
             }
 
             if ($paymentLinkID = $application->getValue(ApplicationField::PaymentLinkID)) {

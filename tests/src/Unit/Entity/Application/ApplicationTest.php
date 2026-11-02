@@ -16,6 +16,8 @@ use Drupal\Core\Field\FieldItemListInterface;
 use Drupal\Core\Logger\LoggerChannelInterface;
 use Drupal\esn_membership_manager\Entity\Application\Application;
 use Drupal\esn_membership_manager\Entity\Application\ApplicationField;
+use Drupal\esn_membership_manager\Entity\GuestPass\GuestPass;
+use Drupal\esn_membership_manager\Entity\GuestPass\GuestPassStorage;
 use Drupal\esn_membership_manager\Object\Status;
 use Drupal\esn_membership_manager\Service\FileService;
 use Drupal\esn_membership_manager\Service\GoogleService;
@@ -33,6 +35,8 @@ use ReflectionProperty;
  * @covers       \Drupal\esn_membership_manager\Entity\Application\Application
  * @uses         \Drupal\esn_membership_manager\Config\MembershipSettings
  * @uses         \Drupal\esn_membership_manager\Entity\Application\ApplicationField
+ * @uses         \Drupal\esn_membership_manager\Entity\GuestPass\GuestPass
+ * @uses         \Drupal\esn_membership_manager\Entity\GuestPass\GuestPassStorage
  * @uses         \Drupal\esn_membership_manager\Object\Status
  * @uses         \Drupal\esn_membership_manager\Utility\ApprovalStatuses
  * @group esn_membership_manager
@@ -116,8 +120,12 @@ class ApplicationTest extends MembershipManagerTestCase
         $entityType->method('getListCacheTags')->willReturn([]);
         $storage->method('getEntityType')->willReturn($entityType);
 
+        $guestPassStorage = $this->createMock(GuestPassStorage::class);
+        $guestPassStorage->method('getByReferrerID')->with('42')->willReturn([]);
+
         $entityTypeManager = $this->createMock(EntityTypeManagerInterface::class);
         $entityTypeManager->method('getDefinition')->with('membership_application')->willReturn($entityType);
+        $entityTypeManager->method('getStorage')->with('membership_guest')->willReturn($guestPassStorage);
         $this->container->set('entity_type.manager', $entityTypeManager);
 
         $statusDoc = $this->createMock(FileInterface::class);
@@ -201,8 +209,12 @@ class ApplicationTest extends MembershipManagerTestCase
         $entityType->method('getListCacheTags')->willReturn([]);
         $storage->method('getEntityType')->willReturn($entityType);
 
+        $guestPassStorage = $this->createMock(GuestPassStorage::class);
+        $guestPassStorage->method('getByReferrerID')->with('84')->willReturn([]);
+
         $entityTypeManager = $this->createMock(EntityTypeManagerInterface::class);
         $entityTypeManager->method('getDefinition')->with('membership_application')->willReturn($entityType);
+        $entityTypeManager->method('getStorage')->with('membership_guest')->willReturn($guestPassStorage);
         $this->container->set('entity_type.manager', $entityTypeManager);
 
         $application = $this->getMockBuilder(Application::class)
@@ -269,8 +281,12 @@ class ApplicationTest extends MembershipManagerTestCase
         $entityType->method('getListCacheTags')->willReturn([]);
         $storage->method('getEntityType')->willReturn($entityType);
 
+        $guestPassStorage = $this->createMock(GuestPassStorage::class);
+        $guestPassStorage->method('getByReferrerID')->with('99')->willReturn([]);
+
         $entityTypeManager = $this->createMock(EntityTypeManagerInterface::class);
         $entityTypeManager->method('getDefinition')->with('membership_application')->willReturn($entityType);
+        $entityTypeManager->method('getStorage')->with('membership_guest')->willReturn($guestPassStorage);
         $this->container->set('entity_type.manager', $entityTypeManager);
 
         $application = $this->getMockBuilder(Application::class)
@@ -286,6 +302,162 @@ class ApplicationTest extends MembershipManagerTestCase
                 ApplicationField::PaymentLinkID => null,
                 ApplicationField::HasESNcard => false,
                 ApplicationField::Email => 'test@example.com',
+                default => null,
+            };
+        });
+
+        $entityTypeProp = new ReflectionProperty(EntityBase::class, 'entityTypeId');
+        $entityTypeProp->setValue($application, 'membership_application');
+
+        Application::postDelete($storage, [$application]);
+    }
+
+    /**
+     * @throws Exception
+     */
+    public function testPostDeleteDeletesAssociatedGuestPasses(): void
+    {
+        $configFactory = $this->getConfigFactoryStub([
+            'esn_membership_manager.settings' => [
+                'switch_google_wallet' => false,
+                'switch_apple_wallet' => false,
+            ],
+        ]);
+        $this->container->set('config.factory', $configFactory);
+
+        $database = $this->createMock(Connection::class);
+        $deleteQuery = $this->createMock(Delete::class);
+        $deleteQuery->method('condition')->willReturnSelf();
+        $deleteQuery->method('execute')->willReturn(1);
+        $database->method('delete')->willReturn($deleteQuery);
+        $this->container->set('database', $database);
+
+        $logger = $this->createMock(LoggerChannelInterface::class);
+        $this->container->set('logger.factory', $this->getLoggerFactoryMock($logger));
+
+        $fileService = $this->createMock(FileService::class);
+        $this->container->set('esn_membership_manager.file_service', $fileService);
+
+        $stripeService = $this->createMock(StripeService::class);
+        $this->container->set('esn_membership_manager.stripe_service', $stripeService);
+
+        $googleService = $this->createMock(GoogleService::class);
+        $this->container->set('esn_membership_manager.google_service', $googleService);
+
+        $guestPass1 = $this->createMock(GuestPass::class);
+        $guestPass1->expects($this->once())->method('delete');
+        $guestPass2 = $this->createMock(GuestPass::class);
+        $guestPass2->expects($this->once())->method('delete');
+
+        $guestPassStorage = $this->createMock(GuestPassStorage::class);
+        $guestPassStorage->expects($this->once())
+            ->method('getByReferrerID')
+            ->with('123')
+            ->willReturn([$guestPass1, $guestPass2]);
+
+        $storage = $this->createMock(EntityStorageInterface::class);
+        $entityType = $this->createMock(EntityTypeInterface::class);
+        $entityType->method('getListCacheTags')->willReturn([]);
+        $storage->method('getEntityType')->willReturn($entityType);
+
+        $entityTypeManager = $this->createMock(EntityTypeManagerInterface::class);
+        $entityTypeManager->method('getDefinition')->with('membership_application')->willReturn($entityType);
+        $entityTypeManager->method('getStorage')->with('membership_guest')->willReturn($guestPassStorage);
+        $this->container->set('entity_type.manager', $entityTypeManager);
+
+        $application = $this->getMockBuilder(Application::class)
+            ->disableOriginalConstructor()
+            ->onlyMethods(['id', 'getStatusDocument', 'getIDDocument', 'getFacePhoto', 'getValue'])
+            ->getMock();
+        $application->method('id')->willReturn('123');
+        $application->method('getStatusDocument')->willReturn(null);
+        $application->method('getIDDocument')->willReturn(null);
+        $application->method('getFacePhoto')->willReturn(null);
+        $application->method('getValue')->willReturnCallback(function ($field) {
+            return match ($field) {
+                ApplicationField::PaymentLinkID => null,
+                ApplicationField::HasESNcard => false,
+                default => null,
+            };
+        });
+
+        $entityTypeProp = new ReflectionProperty(EntityBase::class, 'entityTypeId');
+        $entityTypeProp->setValue($application, 'membership_application');
+
+        Application::postDelete($storage, [$application]);
+    }
+
+    /**
+     * @throws Exception
+     */
+    public function testPostDeleteContinuesWhenGuestPassDeleteThrowsException(): void
+    {
+        $configFactory = $this->getConfigFactoryStub([
+            'esn_membership_manager.settings' => [
+                'switch_google_wallet' => false,
+                'switch_apple_wallet' => false,
+            ],
+        ]);
+        $this->container->set('config.factory', $configFactory);
+
+        $database = $this->createMock(Connection::class);
+        $deleteQuery = $this->createMock(Delete::class);
+        $deleteQuery->method('condition')->willReturnSelf();
+        $deleteQuery->method('execute')->willReturn(1);
+        $database->method('delete')->willReturn($deleteQuery);
+        $this->container->set('database', $database);
+
+        $logger = $this->createMock(LoggerChannelInterface::class);
+        $this->container->set('logger.factory', $this->getLoggerFactoryMock($logger));
+
+        $fileService = $this->createMock(FileService::class);
+        $this->container->set('esn_membership_manager.file_service', $fileService);
+
+        $stripeService = $this->createMock(StripeService::class);
+        $stripeService->expects($this->once())
+            ->method('disablePaymentLink')
+            ->with('plink_failed_guest');
+        $this->container->set('esn_membership_manager.stripe_service', $stripeService);
+
+        $googleService = $this->createMock(GoogleService::class);
+        $this->container->set('esn_membership_manager.google_service', $googleService);
+
+        $failingGuestPass = $this->createMock(GuestPass::class);
+        $failingGuestPass->expects($this->once())
+            ->method('delete')
+            ->willThrowException(new Exception('Failed to delete guest pass'));
+
+        $succeedingGuestPass = $this->createMock(GuestPass::class);
+        $succeedingGuestPass->expects($this->once())->method('delete');
+
+        $guestPassStorage = $this->createMock(GuestPassStorage::class);
+        $guestPassStorage->expects($this->once())
+            ->method('getByReferrerID')
+            ->with('123')
+            ->willReturn([$failingGuestPass, $succeedingGuestPass]);
+
+        $storage = $this->createMock(EntityStorageInterface::class);
+        $entityType = $this->createMock(EntityTypeInterface::class);
+        $entityType->method('getListCacheTags')->willReturn([]);
+        $storage->method('getEntityType')->willReturn($entityType);
+
+        $entityTypeManager = $this->createMock(EntityTypeManagerInterface::class);
+        $entityTypeManager->method('getDefinition')->with('membership_application')->willReturn($entityType);
+        $entityTypeManager->method('getStorage')->with('membership_guest')->willReturn($guestPassStorage);
+        $this->container->set('entity_type.manager', $entityTypeManager);
+
+        $application = $this->getMockBuilder(Application::class)
+            ->disableOriginalConstructor()
+            ->onlyMethods(['id', 'getStatusDocument', 'getIDDocument', 'getFacePhoto', 'getValue'])
+            ->getMock();
+        $application->method('id')->willReturn('123');
+        $application->method('getStatusDocument')->willReturn(null);
+        $application->method('getIDDocument')->willReturn(null);
+        $application->method('getFacePhoto')->willReturn(null);
+        $application->method('getValue')->willReturnCallback(function ($field) {
+            return match ($field) {
+                ApplicationField::PaymentLinkID => 'plink_failed_guest',
+                ApplicationField::HasESNcard => false,
                 default => null,
             };
         });

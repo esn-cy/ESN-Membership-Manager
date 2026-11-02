@@ -227,7 +227,7 @@ class MembershipDashboard extends AuthenticatedFormBase
 
             if (!empty($eligibilityIssues)) {
                 if (!empty(array_filter($eligibilityIssues, function ($reason) {
-                    return $reason['issue'] == 'Local';
+                    return $reason->issue == 'Local';
                 }))) {
                     $alertText = 'Your application has been rejected as you are a local student.';
                     $isRejectionFixable = false;

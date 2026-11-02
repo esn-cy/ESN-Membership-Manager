@@ -176,6 +176,10 @@ class ViewGuestPassesForm extends FormBase
 
         foreach ($guestPasses as $guestPass) {
             $referrer = $guestPass->getReferer();
+            if (empty($referrer)) {
+                continue;
+            }
+
             /** @noinspection PhpUnhandledExceptionInspection */
             $status = $guestPass->getApprovalStatus();
 

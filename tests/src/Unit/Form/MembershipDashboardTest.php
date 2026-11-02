@@ -15,6 +15,7 @@ use Drupal\Core\Extension\ModuleHandlerInterface;
 use Drupal\Core\Form\FormState;
 use Drupal\Core\Logger\LoggerChannelInterface;
 use Drupal\Core\Messenger\MessengerInterface;
+use Drupal\Core\Site\Settings;
 use Drupal\esn_membership_manager\Config\MembershipSettings;
 use Drupal\esn_membership_manager\Entity\Application\Application;
 use Drupal\esn_membership_manager\Entity\Application\ApplicationField;
@@ -23,6 +24,7 @@ use Drupal\esn_membership_manager\Entity\GuestPass\GuestPassStorage;
 use Drupal\esn_membership_manager\Form\AuthenticatedFormBase;
 use Drupal\esn_membership_manager\Form\MembershipDashboard;
 use Drupal\esn_membership_manager\Object\Status;
+use Drupal\esn_membership_manager\Service\AppleService;
 use Drupal\esn_membership_manager\Service\FileService;
 use Drupal\esn_membership_manager\Service\GoogleService;
 use Drupal\esn_membership_manager\Service\GuestPassService;
@@ -36,6 +38,8 @@ use ReflectionMethod;
 use ReflectionProperty;
 use Symfony\Component\HttpFoundation\Request;
 use Symfony\Component\HttpFoundation\RequestStack;
+use Symfony\Component\HttpFoundation\Session\Session;
+use Symfony\Component\HttpFoundation\Session\Storage\MockArraySessionStorage;
 
 /**
  * Unit tests for MembershipDashboard.
@@ -56,6 +60,7 @@ class MembershipDashboardTest extends MembershipManagerTestCase
     private FileService $fileService;
     private GuestPassService $guestPassService;
     private MessengerInterface $messenger;
+    private Session $session;
     private MembershipDashboard $form;
 
     /**
@@ -92,8 +97,11 @@ class MembershipDashboardTest extends MembershipManagerTestCase
             };
         });
 
+        $this->session = new Session(new MockArraySessionStorage());
+        $request = new Request();
+        $request->setSession($this->session);
         $requestStack = new RequestStack();
-        $requestStack->push(new Request());
+        $requestStack->push($request);
 
         $this->container->set('database', $database);
         $this->container->set('entity_type.manager', $entityTypeManager);
@@ -101,22 +109,28 @@ class MembershipDashboardTest extends MembershipManagerTestCase
         $this->container->set('logger.factory', $this->getLoggerFactoryMock($this->logger));
         $this->container->set('config.factory', $configFactory);
         $this->container->set('esn_membership_manager.file_service', $this->fileService);
+        $settings = new Settings([]);
+        $this->container->set('settings', $settings);
         $this->container->set('module_handler', $moduleHandler);
         $this->container->set('esn_membership_manager.guest_pass_service', $this->guestPassService);
         $this->container->set('messenger', $this->messenger);
         $this->container->set('request_stack', $requestStack);
 
         $googleService = $this->createMock(GoogleService::class);
+        $appleService = $this->createMock(AppleService::class);
         $this->container->set('esn_membership_manager.google_service', $googleService);
+        $this->container->set('esn_membership_manager.apple_wallet_service', $appleService);
         $this->form = new MembershipDashboard(
             $database,
             $entityTypeManager,
             $httpClient,
             $this->getLoggerFactoryMock($this->logger),
             $configFactory,
+            $settings,
+            $moduleHandler,
             $this->fileService,
             $googleService,
-            $moduleHandler,
+            $appleService,
             $this->guestPassService
         );
         $this->form->setMessenger($this->messenger);
@@ -878,5 +892,102 @@ class MembershipDashboardTest extends MembershipManagerTestCase
         $formState = new FormState();
         $this->form->submitForm($form, $formState);
         $this->assertEmpty($formState->getErrors());
+    }
+
+    public function testBuildFormWithRejectedApplicationEligibilityLocal(): void
+    {
+        $this->session->set('login_email_authentication_data', [
+            'auth_success' => true,
+            'email' => 'john@example.com',
+        ]);
+
+        $reason = new Status(ApprovalStatuses::Rejected, 'Eligibility', 'Local');
+
+        $application = $this->createMock(Application::class);
+        $application->method('id')->willReturn('42');
+        $application->method('isRejected')->willReturn(true);
+        $application->method('isApproved')->willReturn(false);
+        $application->method('isPending')->willReturn(false);
+        $application->method('isPaid')->willReturn(false);
+        $application->method('getApprovalStatus')->willReturn('Rejected');
+        $application->method('getDateApproved')->willReturn(null);
+        $application->method('getDatePaid')->willReturn(null);
+        $application->method('getDateOfBirth')->willReturn(new DrupalDateTime('2000-01-01'));
+        $application->method('getStatusDocument')->willReturn(null);
+        $application->method('getIDDocument')->willReturn(null);
+        $application->method('getFacePhoto')->willReturn(null);
+        $application->method('getValue')->willReturnCallback(function ($field) {
+            return match ($field) {
+                ApplicationField::Name => 'John',
+                ApplicationField::Surname => 'Doe',
+                ApplicationField::Nationality => 'CY',
+                ApplicationField::MobilityStatus => 'Erasmus',
+                ApplicationField::HostInstitution => 'UCY',
+                ApplicationField::HasVerifiedID => false,
+                ApplicationField::HasVerifiedStatus => false,
+                ApplicationField::HasESNcard => false,
+                default => null,
+            };
+        });
+        $application->method('getRejectionReasons')->willReturn([$reason]);
+
+        $this->applicationStorage->method('getByEmailAddress')->with('john@example.com')->willReturn($application);
+
+        $form = $this->form->buildForm([], new FormState());
+
+        $this->assertArrayHasKey('overview', $form);
+        $this->assertArrayHasKey('alert', $form['overview']);
+        $alertMarkup = (string)$form['overview']['alert']['content']['#markup'];
+        $this->assertStringContainsString('Your application has been rejected as you are a local student.', $alertMarkup);
+        $this->assertArrayNotHasKey('action', $form['overview']['alert']);
+    }
+
+    public function testBuildFormWithRejectedApplicationEligibilityNonLocal(): void
+    {
+        $this->session->set('login_email_authentication_data', [
+            'auth_success' => true,
+            'email' => 'john@example.com',
+        ]);
+
+        $reason = new Status(ApprovalStatuses::Rejected, 'Eligibility', 'NotEnrolled');
+
+        $application = $this->createMock(Application::class);
+        $application->method('id')->willReturn('42');
+        $application->method('isRejected')->willReturn(true);
+        $application->method('isApproved')->willReturn(false);
+        $application->method('isPending')->willReturn(false);
+        $application->method('isPaid')->willReturn(false);
+        $application->method('getApprovalStatus')->willReturn('Rejected');
+        $application->method('getDateApproved')->willReturn(null);
+        $application->method('getDatePaid')->willReturn(null);
+        $application->method('getDateOfBirth')->willReturn(new DrupalDateTime('2000-01-01'));
+        $application->method('getStatusDocument')->willReturn(null);
+        $application->method('getIDDocument')->willReturn(null);
+        $application->method('getFacePhoto')->willReturn(null);
+        $application->method('getValue')->willReturnCallback(function ($field) {
+            return match ($field) {
+                ApplicationField::Name => 'John',
+                ApplicationField::Surname => 'Doe',
+                ApplicationField::Nationality => 'CY',
+                ApplicationField::MobilityStatus => 'Erasmus',
+                ApplicationField::HostInstitution => 'UCY',
+                ApplicationField::HasVerifiedID => false,
+                ApplicationField::HasVerifiedStatus => false,
+                ApplicationField::HasESNcard => false,
+                default => null,
+            };
+        });
+        $application->method('getRejectionReasons')->willReturn([$reason]);
+
+        $this->applicationStorage->method('getByEmailAddress')->with('john@example.com')->willReturn($application);
+
+        $form = $this->form->buildForm([], new FormState());
+
+        $this->assertArrayHasKey('overview', $form);
+        $this->assertArrayHasKey('alert', $form['overview']);
+        $alertMarkup = (string)$form['overview']['alert']['content']['#markup'];
+        $this->assertStringContainsString('Your application has been rejected as you do not match any eligible categories. Please update your Proof of Status if you think that this has been an error.', $alertMarkup);
+        $this->assertArrayHasKey('action', $form['overview']['alert']);
+        $this->assertEquals('Review Details', (string)$form['overview']['alert']['action']['#title']);
     }
 }

@@ -12,12 +12,16 @@ use Drupal\Core\Entity\EntityTypeManagerInterface;
 use Drupal\Core\Form\FormState;
 use Drupal\Core\Logger\LoggerChannelInterface;
 use Drupal\Core\Messenger\MessengerInterface;
+use Drupal\esn_membership_manager\Entity\Application\Application;
 use Drupal\esn_membership_manager\Entity\GuestPass\GuestPass;
+use Drupal\esn_membership_manager\Entity\GuestPass\GuestPassField;
 use Drupal\esn_membership_manager\Entity\GuestPass\GuestPassStorage;
 use Drupal\esn_membership_manager\Form\ViewGuestPassesForm;
 use Drupal\esn_membership_manager\Plugin\Action\ApproveGuestPass;
 use Drupal\Tests\esn_membership_manager\Unit\MembershipManagerTestCase;
 use Exception;
+use Symfony\Component\HttpFoundation\Request;
+use Symfony\Component\HttpFoundation\RequestStack;
 
 /**
  * Unit tests for ViewGuestPassesForm.
@@ -28,6 +32,7 @@ use Exception;
 class ViewGuestPassesFormTest extends MembershipManagerTestCase
 {
     private GuestPassStorage $guestPassStorage;
+    private ApproveGuestPass $approveGuestPass;
     private MessengerInterface $messenger;
     private ViewGuestPassesForm $form;
 
@@ -42,7 +47,7 @@ class ViewGuestPassesFormTest extends MembershipManagerTestCase
         parent::setUp();
 
         $this->guestPassStorage = $this->createMock(GuestPassStorage::class);
-        $approveGuestPass = $this->createMock(ApproveGuestPass::class);
+        $this->approveGuestPass = $this->createMock(ApproveGuestPass::class);
         $logger = $this->createMock(LoggerChannelInterface::class);
         $this->messenger = $this->createMock(MessengerInterface::class);
 
@@ -50,12 +55,16 @@ class ViewGuestPassesFormTest extends MembershipManagerTestCase
         $entityTypeManager->method('getStorage')->with('membership_guest')->willReturn($this->guestPassStorage);
 
         $actionManager = $this->createMock(ActionManager::class);
-        $actionManager->method('createInstance')->with('esn_membership_manager_approve_guest')->willReturn($approveGuestPass);
+        $actionManager->method('createInstance')->with('esn_membership_manager_approve_guest')->willReturn($this->approveGuestPass);
+
+        $requestStack = new RequestStack();
+        $requestStack->push(new Request());
 
         $this->container->set('entity_type.manager', $entityTypeManager);
         $this->container->set('plugin.manager.action', $actionManager);
         $this->container->set('logger.factory', $this->getLoggerFactoryMock($logger));
         $this->container->set('messenger', $this->messenger);
+        $this->container->set('request_stack', $requestStack);
 
         $this->form = new ViewGuestPassesForm(
             $entityTypeManager,
@@ -64,6 +73,7 @@ class ViewGuestPassesFormTest extends MembershipManagerTestCase
         );
         $this->form->setMessenger($this->messenger);
         $this->form->setStringTranslation($this->container->get('string_translation'));
+        $this->form->setRequestStack($requestStack);
     }
 
     public function testGetFormId(): void
@@ -284,5 +294,76 @@ class ViewGuestPassesFormTest extends MembershipManagerTestCase
         $formState = new FormState();
         $this->form->submitForm($form, $formState);
         $this->assertFalse($formState->hasAnyErrors());
+    }
+
+    public function testBuildFormWithGuestPassesIncludesPassWithReferrerAndSkipsPassWithEmptyReferrer(): void
+    {
+        $referrer = $this->createMock(Application::class);
+        $referrer->method('id')->willReturn('42');
+        $referrer->method('getFullName')->willReturn('John Doe');
+
+        $passWithReferrer = $this->createMock(GuestPass::class);
+        $passWithReferrer->method('id')->willReturn('101');
+        $passWithReferrer->method('getReferer')->willReturn($referrer);
+        $passWithReferrer->method('getApprovalStatus')->willReturn('Pending');
+        $passWithReferrer->method('getValue')->willReturnCallback(function ($field) {
+            return match ($field) {
+                GuestPassField::Name => 'Alice',
+                GuestPassField::Surname => 'Smith',
+                GuestPassField::Email => 'alice@example.com',
+                GuestPassField::Reason => 'Visiting',
+                default => null,
+            };
+        });
+
+        $passWithEmptyReferrer = $this->createMock(GuestPass::class);
+        $passWithEmptyReferrer->method('id')->willReturn('102');
+        $passWithEmptyReferrer->method('getReferer')->willReturn(null);
+
+        $this->guestPassStorage->expects($this->once())
+            ->method('search')
+            ->with('', '', 'DESC', 'created')
+            ->willReturn([$passWithReferrer, $passWithEmptyReferrer]);
+
+        $this->approveGuestPass->method('access')->willReturn(true);
+
+        $form = $this->form->buildForm([], new FormState());
+
+        $this->assertArrayHasKey('table', $form);
+        $this->assertArrayHasKey('101', $form['table']);
+        $this->assertArrayNotHasKey('102', $form['table']);
+
+        $row = $form['table']['101'];
+        $this->assertEquals('Pending', $row['approval_status']['#plain_text']);
+        $this->assertEquals('John Doe', $row['referrer']['#title']);
+        $this->assertEquals('Alice', $row['name']['#plain_text']);
+        $this->assertEquals('Smith', $row['surname']['#plain_text']);
+        $this->assertEquals('alice@example.com', $row['email']['#plain_text']);
+        $this->assertEquals('Visiting', $row['reason']['#plain_text']);
+        $this->assertArrayHasKey('operations', $row);
+        $this->assertArrayHasKey('edit', $row['operations']);
+        $this->assertArrayHasKey('delete', $row['operations']);
+    }
+
+    public function testBuildFormCannotManageOperationsUnset(): void
+    {
+        $referrer = $this->createMock(Application::class);
+        $referrer->method('id')->willReturn('42');
+        $referrer->method('getFullName')->willReturn('John Doe');
+
+        $pass = $this->createMock(GuestPass::class);
+        $pass->method('id')->willReturn('101');
+        $pass->method('getReferer')->willReturn($referrer);
+        $pass->method('getApprovalStatus')->willReturn('Approved');
+        $pass->method('getValue')->willReturn(null);
+
+        $this->guestPassStorage->method('search')->willReturn([$pass]);
+        $this->approveGuestPass->method('access')->willReturn(false);
+
+        $form = $this->form->buildForm([], new FormState());
+
+        $this->assertArrayHasKey('table', $form);
+        $this->assertArrayHasKey('101', $form['table']);
+        $this->assertArrayNotHasKey('operations', $form['table']['101']);
     }
 }
